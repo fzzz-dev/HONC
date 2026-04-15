@@ -1,0 +1,564 @@
+import { useState } from "react";
+
+let _id = 700;
+const nextId = () => ++_id;
+
+const emptyDetail = () => ({
+  id: nextId(),
+  inventoryHeadId: "",
+  inventoryHeadName: "",
+  subCategory: "",
+  itemId: "",
+  itemName: "",
+  price: 0,
+  discPct: 0,
+  gstPct: 18,
+  fromDate: "",
+  toDate: "",
+  freight: 0,
+  others: 0,
+  notes: "",
+});
+
+const fmt = (n) =>
+  Number(n || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+function generatePriceListNo(existing) {
+  const year = new Date().getFullYear();
+  const prefix = `IPL-${year}-`;
+  const nums = existing
+    .map((r) => {
+      const m = r.listNo?.match(/^IPL-\d{4}-(\d+)$/);
+      return m ? parseInt(m[1], 10) : 0;
+    })
+    .filter(Boolean);
+  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+  return `${prefix}${String(next).padStart(3, "0")}`;
+}
+
+export default function ItemPriceListPage({
+  priceLists = [],
+  setPriceLists,
+  suppliers = [],
+  heads = [],
+  items = [],
+}) {
+  const today = new Date().toISOString().split("T")[0];
+  const [view, setView] = useState("list");
+  const [editId, setEditId] = useState(null);
+
+  const [header, setHeader] = useState({
+    listNo: "",
+    supplierId: "",
+    supplierName: "",
+    date: today,
+  });
+  const [details, setDetails] = useState([emptyDetail()]);
+
+  function openNew() {
+    const autoNo = generatePriceListNo(priceLists);
+    setHeader({
+      listNo: autoNo,
+      supplierId: "",
+      supplierName: "",
+      date: today,
+    });
+    setDetails([emptyDetail()]);
+    setEditId(null);
+    setView("form");
+  }
+
+  function openEdit(rec) {
+    setHeader({
+      listNo: rec.listNo,
+      supplierId: rec.supplierId,
+      supplierName: rec.supplierName,
+      date: rec.date,
+    });
+    setDetails(rec.details.map((d) => ({ ...d })));
+    setEditId(rec.id);
+    setView("form");
+  }
+
+  function updateDetail(idx, field, val) {
+    setDetails((prev) => {
+      const rows = [...prev];
+      const row = { ...rows[idx], [field]: val };
+      if (field === "inventoryHeadId") {
+        const found = heads.find((h) => String(h.id) === String(val));
+        row.inventoryHeadName = found?.headName || "";
+        row.itemId = "";
+        row.itemName = "";
+        row.subCategory = "";
+      }
+      if (field === "itemId") {
+        const found = items.find((it) => String(it.id) === String(val));
+        row.itemName = found?.itemName || "";
+        row.subCategory = found?.subCategory || "";
+        row.price = found?.rate || 0;
+      }
+      rows[idx] = row;
+      return rows;
+    });
+  }
+
+  function handleSave() {
+    if (!header.supplierId) return alert("Supplier is required");
+    const record = { ...header, details };
+    if (editId) {
+      setPriceLists((p) =>
+        p.map((x) => (x.id === editId ? { id: editId, ...record } : x)),
+      );
+    } else {
+      setPriceLists((p) => [...p, { id: nextId(), ...record }]);
+    }
+    setView("list");
+  }
+
+  const selectStyle = {
+    width: "100%",
+    border: "none",
+    outline: "none",
+    fontSize: 11.5,
+    background: "transparent",
+    padding: "2px 4px",
+    cursor: "pointer",
+  };
+
+  /* ── LIST ── */
+  if (view === "list") {
+    return (
+      <div className="inv-page">
+        <div className="inv-page-header">
+          <div>
+            <h1 className="inv-page-title">Item Price List</h1>
+            <p className="inv-page-sub">Manage supplier item price lists</p>
+          </div>
+          <button className="inv-btn-primary" onClick={openNew}>
+            + New Price List
+          </button>
+        </div>
+        <div className="inv-card">
+          <div className="inv-card-body">
+            <div className="inv-table-wrap">
+              <table className="inv-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>List No</th>
+                    <th>Supplier</th>
+                    <th>Date</th>
+                    <th>Items</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {priceLists.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="inv-empty">
+                        No price lists found
+                      </td>
+                    </tr>
+                  )}
+                  {priceLists.map((rec, i) => (
+                    <tr key={rec.id}>
+                      <td className="inv-idx">
+                        {String(i + 1).padStart(2, "0")}
+                      </td>
+                      <td style={{ fontWeight: 600, color: "var(--accent)" }}>
+                        {rec.listNo}
+                      </td>
+                      <td>{rec.supplierName}</td>
+                      <td>{rec.date}</td>
+                      <td className="inv-muted-sm">
+                        {rec.details.length} item
+                        {rec.details.length !== 1 ? "s" : ""}
+                      </td>
+                      <td>
+                        <div className="inv-actions">
+                          <button
+                            className="inv-btn-icon"
+                            onClick={() => openEdit(rec)}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="15"
+                              height="15"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                          <button
+                            className="inv-btn-icon inv-btn-danger"
+                            onClick={() =>
+                              setPriceLists((p) =>
+                                p.filter((x) => x.id !== rec.id),
+                              )
+                            }
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="15"
+                              height="15"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              <path d="M10 11v6" />
+                              <path d="M14 11v6" />
+                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── FORM ── */
+  return (
+    <div className="inv-page">
+      <div className="inv-page-header">
+        <div>
+          <h1 className="inv-page-title">
+            {editId ? "Edit Price List" : "New Price List"}
+          </h1>
+          <p className="inv-page-sub">Set item prices per supplier</p>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="inv-btn-secondary" onClick={() => setView("list")}>
+            ← Back
+          </button>
+          <button className="inv-btn-primary" onClick={handleSave}>
+            Save
+          </button>
+        </div>
+      </div>
+
+      {/* Header */}
+      <div className="inv-card">
+        <div className="inv-card-body">
+          <div className="inv-section-label">Header</div>
+          <div className="inv-form-row cols-4">
+            <div className="inv-field">
+              <label className="inv-label">
+                List No
+                <span
+                  style={{
+                    marginLeft: 6,
+                    fontSize: 10,
+                    fontWeight: 500,
+                    color: "#6366f1",
+                    background: "#eef2ff",
+                    border: "1px solid #c7d2fe",
+                    borderRadius: 4,
+                    padding: "1px 6px",
+                  }}
+                >
+                  Auto
+                </span>
+              </label>
+              <input
+                className="inv-input"
+                value={header.listNo}
+                readOnly={!editId}
+                style={{
+                  background: editId ? undefined : "#f8f7ff",
+                  color: "#4f46e5",
+                  fontWeight: 600,
+                  cursor: editId ? "text" : "default",
+                  border: "1px solid #c7d2fe",
+                }}
+              />
+            </div>
+            <div className="inv-field">
+              <label className="inv-label">Supplier *</label>
+              <select
+                className="inv-input"
+                value={header.supplierId}
+                onChange={(e) => {
+                  const s = suppliers.find(
+                    (x) => String(x.id) === e.target.value,
+                  );
+                  setHeader((h) => ({
+                    ...h,
+                    supplierId: e.target.value,
+                    supplierName: s?.supplierName || "",
+                  }));
+                }}
+              >
+                <option value="">Select supplier</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.supplierName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="inv-field">
+              <label className="inv-label">Date</label>
+              <input
+                className="inv-input"
+                type="date"
+                value={header.date}
+                onChange={(e) =>
+                  setHeader((h) => ({ ...h, date: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Detail */}
+      <div className="inv-card">
+        <div className="inv-card-body">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 10,
+            }}
+          >
+            <div className="inv-section-label" style={{ marginBottom: 0 }}>
+              Detail
+            </div>
+            <button
+              className="inv-btn-secondary inv-btn-sm"
+              onClick={() => setDetails((p) => [...p, emptyDetail()])}
+            >
+              + Add Row
+            </button>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table className="po-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th style={{ minWidth: 140 }}>Item Category</th>
+                  <th style={{ minWidth: 120 }}>Sub Category</th>
+                  <th style={{ minWidth: 160 }}>Item Name</th>
+                  <th style={{ minWidth: 90 }}>Price</th>
+                  <th style={{ minWidth: 70 }}>Disc %</th>
+                  <th style={{ minWidth: 70 }}>GST %</th>
+                  <th style={{ minWidth: 120 }}>From Date</th>
+                  <th style={{ minWidth: 120 }}>To Date</th>
+                  <th style={{ minWidth: 80 }}>Freight</th>
+                  <th style={{ minWidth: 80 }}>Others</th>
+                  <th style={{ minWidth: 150 }}>Notes</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {details.map((row, idx) => {
+                  const filteredItems = row.inventoryHeadId
+                    ? items.filter(
+                        (it) =>
+                          String(it.headId) === String(row.inventoryHeadId),
+                      )
+                    : items;
+                  return (
+                    <tr key={row.id}>
+                      <td
+                        style={{
+                          textAlign: "center",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        {idx + 1}
+                      </td>
+                      <td>
+                        <select
+                          value={row.inventoryHeadId}
+                          onChange={(e) =>
+                            updateDetail(idx, "inventoryHeadId", e.target.value)
+                          }
+                          style={selectStyle}
+                        >
+                          <option value="">Select category</option>
+                          {heads.map((h) => (
+                            <option key={h.id} value={String(h.id)}>
+                              {h.headName}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          value={row.subCategory}
+                          readOnly
+                          style={{
+                            width: 110,
+                            border: "none",
+                            outline: "none",
+                            fontSize: 11.5,
+                            background: "transparent",
+                            color: "var(--text-secondary)",
+                            padding: "2px 4px",
+                          }}
+                          placeholder="—"
+                        />
+                      </td>
+                      <td>
+                        <select
+                          value={row.itemId}
+                          onChange={(e) =>
+                            updateDetail(idx, "itemId", e.target.value)
+                          }
+                          style={selectStyle}
+                          disabled={!row.inventoryHeadId}
+                        >
+                          <option value="">
+                            {row.inventoryHeadId
+                              ? "Select item"
+                              : "Select category first"}
+                          </option>
+                          {filteredItems.map((it) => (
+                            <option key={it.id} value={String(it.id)}>
+                              {it.itemName}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      {["price", "discPct", "gstPct"].map((f) => (
+                        <td key={f}>
+                          <input
+                            type="number"
+                            value={row[f]}
+                            onChange={(e) =>
+                              updateDetail(idx, f, +e.target.value)
+                            }
+                            style={{ width: 70, textAlign: "right" }}
+                          />
+                        </td>
+                      ))}
+                      <td>
+                        <input
+                          type="date"
+                          value={row.fromDate}
+                          onChange={(e) =>
+                            updateDetail(idx, "fromDate", e.target.value)
+                          }
+                          style={{
+                            border: "none",
+                            outline: "none",
+                            fontSize: 11.5,
+                            background: "transparent",
+                            padding: "2px 4px",
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="date"
+                          value={row.toDate}
+                          onChange={(e) =>
+                            updateDetail(idx, "toDate", e.target.value)
+                          }
+                          style={{
+                            border: "none",
+                            outline: "none",
+                            fontSize: 11.5,
+                            background: "transparent",
+                            padding: "2px 4px",
+                          }}
+                        />
+                      </td>
+                      {["freight", "others"].map((f) => (
+                        <td key={f}>
+                          <input
+                            type="number"
+                            value={row[f]}
+                            onChange={(e) =>
+                              updateDetail(idx, f, +e.target.value)
+                            }
+                            style={{ width: 70, textAlign: "right" }}
+                          />
+                        </td>
+                      ))}
+                      <td>
+                        <input
+                          value={row.notes}
+                          onChange={(e) =>
+                            updateDetail(idx, "notes", e.target.value)
+                          }
+                          placeholder="Notes"
+                          style={{ width: 130 }}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          className="inv-btn-icon inv-btn-danger"
+                          onClick={() =>
+                            setDetails((p) => p.filter((_, i) => i !== idx))
+                          }
+                          style={{ padding: "2px 6px", fontSize: 13 }}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="inv-card">
+        <div className="inv-card-body">
+          <div className="inv-section-label">Summary</div>
+          <div className="inv-summary-grid">
+            <div className="inv-summary-box">
+              <div className="inv-summary-box-label">Supplier</div>
+              <div className="inv-summary-box-value" style={{ fontSize: 15 }}>
+                {header.supplierName || "—"}
+              </div>
+            </div>
+            <div className="inv-summary-box">
+              <div className="inv-summary-box-label">Total Line Items</div>
+              <div className="inv-summary-box-value">{details.length}</div>
+            </div>
+            <div
+              className="inv-summary-box"
+              style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}
+            >
+              <div className="inv-summary-box-label">Date</div>
+              <div
+                className="inv-summary-box-value"
+                style={{ color: "var(--accent)", fontSize: 15 }}
+              >
+                {header.date}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
