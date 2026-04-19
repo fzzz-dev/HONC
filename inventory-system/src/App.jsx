@@ -186,25 +186,8 @@ export default function App() {
                 <StoreMasterPage stores={stores} setStores={setStores} />
               }
             />
-            <Route
-              path="/department"
-              element={
-                <DepartmentMasterPage
-                  departments={departments}
-                  setDepartments={setDepartments}
-                />
-              }
-            />
-            <Route
-              path="/process"
-              element={
-                <ProcessMasterPage
-                  processes={processes}
-                  setProcesses={setProcesses}
-                  departments={departments}
-                />
-              }
-            />
+            <Route path="/department" element={<DepartmentMasterPage />} />
+            <Route path="/process" element={<ProcessMasterPage />} />
 
             {/* ── Transactions ── */}
             <Route
