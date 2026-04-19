@@ -28,5 +28,7 @@ const mainCategorySchema = new mongoose.Schema(
 
 mainCategorySchema.index({ headId: 1, groupName: 1 });
 mainCategorySchema.index({ active: 1 });
-
-module.exports = mongoose.model("MainCategory", mainCategorySchema);
+const MainCategory =
+  mongoose.models.MainCategory ||
+  mongoose.model("MainCategory", mainCategorySchema);
+module.exports = MainCategory;

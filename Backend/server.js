@@ -21,7 +21,7 @@ mongoose
 app.use("/api/countries", require("./routes/countryRoutes"));
 app.use("/api/states", require("./routes/stateRoutes"));
 app.use("/api/cities", require("./routes/cityRoutes"));
-// app.use('/api/inventory-heads', require('./routes/inventoryHead.routes'));
+app.use('/api/inventory-heads', require('./routes/InventoryRoutes'));
 // app.use('/api/main-categories', require('./routes/mainCategory.routes'));
 // app.use('/api/items', require('./routes/item.routes'));
 // app.use('/api/suppliers', require('./routes/supplier.routes'));

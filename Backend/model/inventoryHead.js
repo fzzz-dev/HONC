@@ -20,4 +20,8 @@ const inventoryHeadSchema = new mongoose.Schema(
 inventoryHeadSchema.index({ headName: 1 });
 inventoryHeadSchema.index({ active: 1 });
 
-module.exports = mongoose.model("InventoryHead", inventoryHeadSchema);
+const InventoryHead =
+  mongoose.models.InventoryHead ||
+  mongoose.model("InventoryHead", inventoryHeadSchema);
+
+module.exports = InventoryHead;
