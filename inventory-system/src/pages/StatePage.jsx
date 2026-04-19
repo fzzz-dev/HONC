@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+
 import Modal from "../components/Modal";
 import {
   Field,
@@ -8,64 +10,81 @@ import {
   FormGrid,
 } from "../components/FormFields";
 
-const EMPTY = {
-  countryId: "",
-  countryName: "",
-  name: "",
-  code: "",
-  active: true,
-};
+import {
+  fetchStates,
+  addState,
+  updateState,
+  deleteState,
+} from "../slices/stateSlice";
 
-export default function StatePage({ states, setStates, countries }) {
+export default function StatePage() {
+  const dispatch = useDispatch();
+
+  const states = useSelector((state) => state.states.data);
+  const countries = useSelector((state) => state.countries.data);
+
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState(EMPTY);
+  const [form, setForm] = useState({
+    name: "",
+    code: "",
+    active: true,
+    country: "",
+  });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
+  // 🔥 fetch states
+  useEffect(() => {
+    dispatch(fetchStates());
+  }, [dispatch]);
+
+  // 🔍 filter
   const filtered = states.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase()),
   );
+
+  // 🌍 country dropdown
   const countryOptions = countries.map((c) => ({
-    value: String(c.id),
+    value: c._id,
     label: c.name,
   }));
 
   function openAdd() {
-    setForm({ ...EMPTY });
+    setForm({
+      name: "",
+      code: "",
+      active: true,
+      country: "",
+    });
     setModal({ mode: "add" });
   }
+
   function openEdit(row) {
     setForm({
-      countryId: String(row.countryId),
-      countryName: row.countryName,
       name: row.name,
       code: row.code,
       active: row.active,
+      country: row.country?._id, // 🔥 important
     });
-    setModal({ mode: "edit", id: row.id });
-  }
 
-  function handleCountryChange(val) {
-    const c = countries.find((x) => String(x.id) === val);
-    setForm((f) => ({ ...f, countryId: val, countryName: c ? c.name : "" }));
+    setModal({ mode: "edit", id: row._id });
   }
 
   function handleSave() {
-    if (!form.name.trim()) return alert("State Name is required");
-    if (!form.countryId) return alert("Country is required");
-    const payload = { ...form, countryId: Number(form.countryId) };
+    if (!form.name.trim()) return alert("State Name required");
+    if (!form.country) return alert("Country required");
+
     if (modal.mode === "add") {
-      setStates((prev) => [...prev, { ...payload, id: Date.now() }]);
+      dispatch(addState(form));
     } else {
-      setStates((prev) =>
-        prev.map((s) => (s.id === modal.id ? { ...payload, id: modal.id } : s)),
-      );
+      dispatch(updateState({ id: modal.id, data: form }));
     }
+
     setModal(null);
   }
 
   function handleDelete(id) {
-    setStates((prev) => prev.filter((s) => s.id !== id));
+    dispatch(deleteState(id));
     setDeleteConfirm(null);
   }
 
@@ -80,6 +99,7 @@ export default function StatePage({ states, setStates, countries }) {
           + Add State
         </button>
       </div>
+
       <div className="inv-card">
         <div className="inv-card-body">
           <div className="inv-toolbar">
@@ -91,6 +111,7 @@ export default function StatePage({ states, setStates, countries }) {
             />
             <span className="inv-count">{filtered.length} records</span>
           </div>
+
           <div className="inv-table-wrap">
             <table className="inv-table">
               <thead>
@@ -103,6 +124,7 @@ export default function StatePage({ states, setStates, countries }) {
                   <th>Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {filtered.length === 0 && (
                   <tr>
@@ -111,63 +133,43 @@ export default function StatePage({ states, setStates, countries }) {
                     </td>
                   </tr>
                 )}
+
                 {filtered.map((row, i) => (
-                  <tr key={row.id}>
+                  <tr key={row._id}>
                     <td className="inv-idx">
                       {String(i + 1).padStart(2, "0")}
                     </td>
-                    <td className="inv-muted-sm">{row.countryName}</td>
+
+                    {/* 🔥 populated country */}
+                    <td className="inv-muted-sm">{row.country?.name || "-"}</td>
+
                     <td className="inv-bold">{row.name}</td>
                     <td>{row.code}</td>
+
                     <td>
                       <span
-                        className={`inv-badge ${row.active ? "inv-badge-yes" : "inv-badge-no"}`}
+                        className={`inv-badge ${
+                          row.active ? "inv-badge-yes" : "inv-badge-no"
+                        }`}
                       >
                         {row.active ? "Active" : "Inactive"}
                       </span>
                     </td>
+
                     <td>
                       <div className="inv-actions">
                         <button
                           className="inv-btn-icon"
                           onClick={() => openEdit(row)}
                         >
-                          <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
+                          ✏️
                         </button>
+
                         <button
                           className="inv-btn-icon inv-btn-danger"
-                          onClick={() => setDeleteConfirm(row.id)}
+                          onClick={() => setDeleteConfirm(row._id)}
                         >
-                          <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                          <path d="M10 11v6" />
-                          <path d="M14 11v6" />
-                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                        </svg>
+                          🗑
                         </button>
                       </div>
                     </td>
@@ -179,6 +181,7 @@ export default function StatePage({ states, setStates, countries }) {
         </div>
       </div>
 
+      {/* MODAL */}
       {modal && (
         <Modal
           title={modal.mode === "add" ? "Add State" : "Edit State"}
@@ -187,12 +190,13 @@ export default function StatePage({ states, setStates, countries }) {
         >
           <Field label="Country" required>
             <Select
-              value={form.countryId}
-              onChange={handleCountryChange}
+              value={form.country}
+              onChange={(val) => setForm((f) => ({ ...f, country: val }))}
               options={countryOptions}
               placeholder="Select country..."
             />
           </Field>
+
           <FormGrid>
             <Field label="State Name" required>
               <Input
@@ -201,6 +205,7 @@ export default function StatePage({ states, setStates, countries }) {
                 placeholder="e.g. Tamil Nadu"
               />
             </Field>
+
             <Field label="State Code">
               <Input
                 value={form.code}
@@ -209,6 +214,7 @@ export default function StatePage({ states, setStates, countries }) {
               />
             </Field>
           </FormGrid>
+
           <Field label="Status">
             <Toggle
               value={form.active}
@@ -218,6 +224,8 @@ export default function StatePage({ states, setStates, countries }) {
           </Field>
         </Modal>
       )}
+
+      {/* DELETE */}
       {deleteConfirm && (
         <Modal
           title="Confirm Delete"
@@ -225,7 +233,7 @@ export default function StatePage({ states, setStates, countries }) {
           onSave={() => handleDelete(deleteConfirm)}
           saveLabel="Delete"
         >
-          <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+          <p style={{ fontSize: 14 }}>
             Are you sure you want to delete this state?
           </p>
         </Modal>

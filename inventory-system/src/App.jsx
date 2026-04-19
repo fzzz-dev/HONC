@@ -16,6 +16,7 @@ import {
   DepartmentMasterPage,
   ProcessMasterPage,
 } from "./pages/OrgMasterPages";
+import Uompage from "./pages/UomPage";
 
 // Transactions
 import PurchaseIndentPage from "./pages/ProcessMasterPage/Purchaseindentpage";
@@ -119,7 +120,7 @@ export default function App() {
             <Route
               path="/uom"
               element={
-                <SimpleMasterPage
+                <Uompage
                   title="UOM"
                   subtitle="Unit of measure"
                   items={uoms}

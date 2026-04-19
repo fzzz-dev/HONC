@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Modal from "../components/Modal";
 import {
   Field,
@@ -7,41 +7,82 @@ import {
   Toggle,
   FormGrid,
 } from "../components/FormFields";
+import { mainCategoryApi, inventoryHeadApi } from "../services/inventoryApi";
 
 const EMPTY = { headId: "", headName: "", groupName: "", active: true };
 
-export default function MainCategoryPage({ categories, setCategories, heads }) {
+export default function MainCategoryPage() {
+  const [categories, setCategories] = useState([]);
+  const [heads, setHeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [search, setSearch] = useState("");
   const [filterHead, setFilterHead] = useState("");
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
+  const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
+  // ── Fetch heads (for dropdown) ─────────────────────────────────
+  const fetchHeads = useCallback(async () => {
+    try {
+      const data = await inventoryHeadApi.getAll({ active: true });
+      setHeads(data.map((h) => ({ ...h, id: h._id })));
+    } catch (err) {
+      console.error("Failed to load heads:", err.message);
+    }
+  }, []);
+
+  // ── Fetch categories ───────────────────────────────────────────
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = {};
+      if (search) params.search = search;
+      if (filterHead) params.headId = filterHead;
+      const data = await mainCategoryApi.getAll(params);
+      setCategories(data.map((c) => ({ ...c, id: c._id })));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [search, filterHead]);
+
+  useEffect(() => {
+    fetchHeads();
+  }, [fetchHeads]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  // ── Dropdown options ───────────────────────────────────────────
   const headOptions = heads.map((h) => ({
-    value: String(h.id),
+    value: String(h._id || h.id),
     label: h.headName,
   }));
 
-  const filtered = categories.filter((c) => {
-    const matchSearch =
-      c.groupName.toLowerCase().includes(search.toLowerCase()) ||
-      c.headName.toLowerCase().includes(search.toLowerCase());
-    const matchHead = !filterHead || String(c.headId) === filterHead;
-    return matchSearch && matchHead;
-  });
-
+  // ── Handlers ──────────────────────────────────────────────────
   function openAdd() {
     setForm({ ...EMPTY });
     setModal({ mode: "add" });
   }
 
   function openEdit(row) {
-    setForm({ ...row, headId: String(row.headId) });
-    setModal({ mode: "edit", id: row.id });
+    setForm({
+      headId: String(row.headId?._id || row.headId),
+      headName: row.headName,
+      groupName: row.groupName,
+      active: row.active,
+    });
+    setModal({ mode: "edit", id: row._id || row.id });
   }
 
   function handleHeadChange(val) {
-    const head = heads.find((h) => String(h.id) === val);
+    const head = heads.find((h) => String(h._id || h.id) === val);
     setForm((f) => ({
       ...f,
       headId: val,
@@ -49,31 +90,45 @@ export default function MainCategoryPage({ categories, setCategories, heads }) {
     }));
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.headId) return alert("Head is required");
     if (!form.groupName.trim()) return alert("Group Name is required");
-    if (modal.mode === "add") {
-      setCategories((prev) => [
-        ...prev,
-        { ...form, headId: Number(form.headId), id: Date.now() },
-      ]);
-    } else {
-      setCategories((prev) =>
-        prev.map((c) =>
-          c.id === modal.id
-            ? { ...form, headId: Number(form.headId), id: modal.id }
-            : c,
-        ),
-      );
+    try {
+      setSaving(true);
+      const payload = {
+        headId: form.headId,
+        groupName: form.groupName.trim(),
+        active: form.active,
+        // headName is set server-side from the InventoryHead document
+      };
+      if (modal.mode === "add") {
+        await mainCategoryApi.create(payload);
+      } else {
+        await mainCategoryApi.update(modal.id, payload);
+      }
+      await fetchCategories();
+      setModal(null);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
     }
-    setModal(null);
   }
 
-  function handleDelete(id) {
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-    setDeleteConfirm(null);
+  async function handleDelete(id) {
+    try {
+      setSaving(true);
+      await mainCategoryApi.remove(id);
+      await fetchCategories();
+      setDeleteConfirm(null);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
+  // ── Render ────────────────────────────────────────────────────
   return (
     <div className="inv-page">
       <div className="inv-page-header">
@@ -103,15 +158,18 @@ export default function MainCategoryPage({ categories, setCategories, heads }) {
           >
             <option value="">All Heads</option>
             {heads.map((h) => (
-              <option key={h.id} value={String(h.id)}>
+              <option key={h._id || h.id} value={String(h._id || h.id)}>
                 {h.headName}
               </option>
             ))}
           </select>
           <span className="inv-count">
-            {filtered.length} record{filtered.length !== 1 ? "s" : ""}
+            {categories.length} record{categories.length !== 1 ? "s" : ""}
           </span>
         </div>
+
+        {error && <p className="inv-error">{error}</p>}
+
         <div className="inv-table-wrap">
           <table className="inv-table">
             <thead>
@@ -124,14 +182,21 @@ export default function MainCategoryPage({ categories, setCategories, heads }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 && (
+              {loading && (
+                <tr>
+                  <td colSpan={5} className="inv-empty">
+                    Loading…
+                  </td>
+                </tr>
+              )}
+              {!loading && categories.length === 0 && (
                 <tr>
                   <td colSpan={5} className="inv-empty">
                     No records found
                   </td>
                 </tr>
               )}
-              {filtered.map((row, i) => (
+              {categories.map((row, i) => (
                 <tr key={row.id}>
                   <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
                   <td className="inv-muted-sm">{row.headName}</td>
@@ -149,7 +214,6 @@ export default function MainCategoryPage({ categories, setCategories, heads }) {
                         className="inv-btn-icon"
                         onClick={() => openEdit(row)}
                       >
-                        {" "}
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           width="15"
@@ -203,6 +267,7 @@ export default function MainCategoryPage({ categories, setCategories, heads }) {
           }
           onClose={() => setModal(null)}
           onSave={handleSave}
+          saving={saving}
         >
           <FormGrid>
             <Field label="Head Name" required>
@@ -236,6 +301,7 @@ export default function MainCategoryPage({ categories, setCategories, heads }) {
           onClose={() => setDeleteConfirm(null)}
           onSave={() => handleDelete(deleteConfirm)}
           saveLabel="Delete"
+          saving={saving}
         >
           <p style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
             Are you sure you want to delete this category? This action cannot be
