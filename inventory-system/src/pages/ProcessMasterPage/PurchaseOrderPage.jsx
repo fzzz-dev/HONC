@@ -1,22 +1,52 @@
-import { useState } from "react";
+// pages/PurchaseOrderPage.jsx
+import { useState, useEffect, useCallback } from "react";
+import { purchaseOrderApi } from "../../services/inventoryApi"; // adjust path as needed
 
-let _id = 200;
-const nextId = () => ++_id;
+// ─── helpers ──────────────────────────────────────────────────────────────────
+const fmt = (n) =>
+  Number(n || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
+const today = () => new Date().toISOString().split("T")[0];
+
+const sid = (v) => {
+  if (!v) return "";
+  if (typeof v === "object" && v._id) return String(v._id);
+  return String(v);
+};
+
+// ─── empty row factory ────────────────────────────────────────────────────────
 const emptyDetail = () => ({
-  id: nextId(),
+  _rowId: Date.now() + Math.random(), // local key only
+
+  // Indent linkage
+  indentId: "",
   indentNo: "",
+  indentDetailId: "", // _id of the selected indent detail row
+
+  // Item
+  itemId: "",
   itemName: "",
   uom: "",
+
+  // Qty
   indentQty: 0,
   alPoQty: 0,
   balQty: 0,
   poQty: 0,
+
+  // Pricing
   priceListRate: 0,
   poRate: 0,
-  discMode: "pct", // "pct" | "price"
+
+  // Discount
+  discMode: "pct",
   discPct: 0,
   discPrice: 0,
+
+  // Computed
   poAmount: 0,
   gstPct: 18,
   sgst: 0,
@@ -24,30 +54,52 @@ const emptyDetail = () => ({
   igst: 0,
   totGst: 0,
   totalAmount: 0,
+
+  // Remarks
   indentRemarks: "",
   poRemarks: "",
 });
 
-function calcRow(row, gstEnabled) {
-  const baseAmt = row.poQty * row.poRate;
+const emptyHeader = () => ({
+  poNo: "",
+  date: today(),
+  supplierId: "",
+  supplierName: "",
+  createdBy: "Admin",
+  createdOn: today(),
+  status: "Open",
+  remarks: "",
+});
 
-  let discPct = row.discPct;
-  let discPrice = row.discPrice;
+// ─── GST calculation (server mirrors this logic) ──────────────────────────────
+function calcRow(row, gstEnabled, gstType) {
+  const baseAmt = (row.poQty || 0) * (row.poRate || 0);
+
+  let discPct = row.discPct || 0;
+  let discPrice = row.discPrice || 0;
 
   if (row.discMode === "price") {
-    // flat price discount → derive pct from it
-    discPrice = row.discPrice;
+    discPrice = row.discPrice || 0;
     discPct = baseAmt > 0 ? (discPrice / baseAmt) * 100 : 0;
   } else {
-    // pct mode → derive flat price from it
-    discPct = row.discPct;
+    discPct = row.discPct || 0;
     discPrice = baseAmt * (discPct / 100);
   }
 
   const netAmt = baseAmt - discPrice;
-  const gst = gstEnabled ? netAmt * (row.gstPct / 100) : 0;
-  const sgst = gstEnabled ? gst / 2 : 0;
-  const cgst = gstEnabled ? gst / 2 : 0;
+  const gst = gstEnabled ? netAmt * ((row.gstPct || 0) / 100) : 0;
+
+  let sgst = 0,
+    cgst = 0,
+    igst = 0;
+  if (gstEnabled) {
+    if (gstType === "other") {
+      igst = gst;
+    } else {
+      sgst = gst / 2;
+      cgst = gst / 2;
+    }
+  }
 
   return {
     ...row,
@@ -56,94 +108,107 @@ function calcRow(row, gstEnabled) {
     poAmount: +netAmt.toFixed(2),
     sgst: +sgst.toFixed(2),
     cgst: +cgst.toFixed(2),
-    igst: 0,
+    igst: +igst.toFixed(2),
     totGst: +gst.toFixed(2),
     totalAmount: +(netAmt + gst).toFixed(2),
   };
 }
 
-const fmt = (n) =>
-  n.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+// ─── component ────────────────────────────────────────────────────────────────
+export default function PurchaseOrderPage() {
+  // ── list state ──────────────────────────────────────────────────────────────
+  const [pos, setPos] = useState([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [listError, setListError] = useState(null);
 
-function generatePoNo(existingPos) {
-  const year = new Date().getFullYear();
-  const prefix = `PO-${year}-`;
-  const nums = existingPos
-    .map((p) => {
-      const match = p.poNo?.match(/^PO-\d{4}-(\d+)$/);
-      return match ? parseInt(match[1], 10) : 0;
-    })
-    .filter(Boolean);
-  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
-  return `${prefix}${String(next).padStart(3, "0")}`;
-}
+  // ── indent lookup (for PO form) ─────────────────────────────────────────────
+  const [indents, setIndents] = useState([]); // Open purchase indents
 
-export default function PurchaseOrderPage({
-  pos,
-  setPos,
-  suppliers,
-  items,
-  uoms,
-}) {
-  const today = new Date().toISOString().split("T")[0];
+  // ── supplier lookup (fetched from backend) ──────────────────────────────────
+  const [suppliers, setSuppliers] = useState([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+
+  // ── form state ──────────────────────────────────────────────────────────────
   const [view, setView] = useState("list");
   const [editId, setEditId] = useState(null);
-  const [gstEnabled, setGstEnabled] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState(null);
 
-  const [header, setHeader] = useState({
-    poNo: "",
-    date: today,
-    supplierId: "",
-    supplierName: "",
-    createdBy: "Admin",
-    createdOn: today,
-    status: "Open",
-    remarks: "",
-  });
+  const [header, setHeader] = useState(emptyHeader());
   const [details, setDetails] = useState([emptyDetail()]);
 
-  function resetForm() {
-    setHeader({
-      poNo: "",
-      date: today,
-      supplierId: "",
-      supplierName: "",
-      createdBy: "Admin",
-      createdOn: today,
-      status: "Open",
-      remarks: "",
-    });
-    setDetails([emptyDetail()]);
-    setEditId(null);
-    setGstEnabled(true);
+  // ── GST config ──────────────────────────────────────────────────────────────
+  const [gstEnabled, setGstEnabled] = useState(true);
+  // "local" → SGST + CGST split; "other" → IGST only
+  const [gstType, setGstType] = useState("local");
+
+  // ── boot ────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    loadPos();
+    loadIndents();
+    loadSuppliers();
+  }, []);
+
+  async function loadPos() {
+    setLoadingList(true);
+    setListError(null);
+    try {
+      const data = await purchaseOrderApi.getAll();
+      setPos(data);
+    } catch (err) {
+      setListError(err.message || "Failed to load purchase orders");
+    } finally {
+      setLoadingList(false);
+    }
   }
 
-  function openNew() {
-    const autoPoNo = generatePoNo(pos);
-    setHeader({
-      poNo: autoPoNo,
-      date: today,
-      supplierId: "",
-      supplierName: "",
-      createdBy: "Admin",
-      createdOn: today,
-      status: "Open",
-      remarks: "",
-    });
+  async function loadIndents() {
+    try {
+      // Returns all Open indents regardless of balQty
+      const data = await purchaseOrderApi.getIndents();
+      setIndents(data);
+    } catch (err) {
+      console.error("Failed to load indents for PO:", err);
+    }
+  }
+
+  async function loadSuppliers() {
+    setLoadingSuppliers(true);
+    try {
+      const data = await purchaseOrderApi.getSuppliers();
+      setSuppliers(data);
+    } catch (err) {
+      console.error("Failed to load suppliers:", err);
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  }
+
+  // ── open new form ────────────────────────────────────────────────────────────
+  async function openNew() {
+    setFormError(null);
+    let poNo = "";
+    try {
+      const res = await purchaseOrderApi.getNextNumber();
+      poNo = res.poNo;
+    } catch {
+      poNo = "";
+    }
+    setHeader({ ...emptyHeader(), poNo });
     setDetails([emptyDetail()]);
     setEditId(null);
     setGstEnabled(true);
+    setGstType("local");
     setView("form");
   }
 
+  // ── open edit form ───────────────────────────────────────────────────────────
   function openEdit(po) {
+    setFormError(null);
     setHeader({
       poNo: po.poNo,
       date: po.date,
-      supplierId: po.supplierId,
+      supplierId: sid(po.supplierId),
       supplierName: po.supplierName,
       createdBy: po.createdBy,
       createdOn: po.createdOn,
@@ -151,37 +216,92 @@ export default function PurchaseOrderPage({
       remarks: po.remarks,
     });
     setDetails(
-      po.details.map((d) => ({ discMode: "pct", discPrice: 0, ...d })),
+      (po.details || []).map((d) => ({
+        ...d,
+        _rowId: Date.now() + Math.random(),
+        indentId: sid(d.indentId),
+        indentDetailId: sid(d.indentDetailId),
+        itemId: sid(d.itemId),
+      })),
     );
     setGstEnabled(po.gstEnabled !== false);
-    setEditId(po.id);
+    setGstType(po.gstType || "local");
+    setEditId(sid(po._id));
     setView("form");
   }
 
+  // ── GST enable toggle ────────────────────────────────────────────────────────
   function toggleGst() {
     const next = !gstEnabled;
     setGstEnabled(next);
-    setDetails((prev) => prev.map((row) => calcRow(row, next)));
+    setDetails((prev) => prev.map((r) => calcRow(r, next, gstType)));
   }
 
+  // ── GST type toggle (local ↔ other state) ────────────────────────────────────
+  function toggleGstType() {
+    const next = gstType === "local" ? "other" : "local";
+    setGstType(next);
+    setDetails((prev) => prev.map((r) => calcRow(r, gstEnabled, next)));
+  }
+
+  // ── update a detail field ────────────────────────────────────────────────────
   function updateDetail(idx, field, val) {
     setDetails((prev) => {
       const rows = [...prev];
-      rows[idx] = calcRow(
-        { ...rows[idx], [field]: isNaN(val) || val === "" ? val : +val },
-        gstEnabled,
-      );
+      const row = {
+        ...rows[idx],
+        [field]: isNaN(val) || val === "" ? val : +val,
+      };
+
+      // If user picked an indent row, auto-fill item / qty fields
+      if (field === "indentDetailId") {
+        // val here is the _id of the indent detail row (string)
+        // Find which indent + detail it belongs to
+        let found = null;
+        let foundIndent = null;
+        for (const indent of indents) {
+          const detail = (indent.details || []).find((d) => sid(d._id) === val);
+          if (detail) {
+            found = detail;
+            foundIndent = indent;
+            break;
+          }
+        }
+        if (found && foundIndent) {
+          row.indentDetailId = val;
+          row.indentId = sid(foundIndent._id);
+          row.indentNo = foundIndent.indentNo;
+          row.itemId = sid(found.itemId);
+          row.itemName = found.itemName;
+          row.uom = found.uom;
+          row.indentQty = found.indentQty || 0;
+          row.alPoQty = found.alPoQty || 0;
+          row.balQty = found.balQty || 0;
+          // Pre-fill poQty with balQty (but don't exceed)
+          row.poQty = found.balQty || 0;
+        } else {
+          // Cleared
+          row.indentDetailId = "";
+          row.indentId = "";
+          row.indentNo = "";
+        }
+      }
+
+      rows[idx] = calcRow(row, gstEnabled, gstType);
       return rows;
     });
   }
 
-  // Toggle discount mode for a single row
+  // ── toggle per-row discount mode ─────────────────────────────────────────────
   function toggleDiscMode(idx) {
     setDetails((prev) => {
       const rows = [...prev];
-      const current = rows[idx];
-      const nextMode = current.discMode === "pct" ? "price" : "pct";
-      rows[idx] = calcRow({ ...current, discMode: nextMode }, gstEnabled);
+      const next = rows[idx].discMode === "pct" ? "price" : "pct";
+      rows[idx] = calcRow(
+        { ...rows[idx], discMode: next },
+        gstEnabled,
+        gstType,
+      );
       return rows;
     });
   }
@@ -193,28 +313,57 @@ export default function PurchaseOrderPage({
     setDetails((p) => p.filter((_, i) => i !== idx));
   }
 
-  function handleSave() {
-    if (!header.poNo.trim()) return alert("PO No is required");
-    const poData = { ...header, gstEnabled, details };
-    if (editId)
-      setPos((p) =>
-        p.map((x) => (x.id === editId ? { id: editId, ...poData } : x)),
-      );
-    else setPos((p) => [...p, { id: nextId(), ...poData }]);
-    setView("list");
-    resetForm();
+  // ── save ─────────────────────────────────────────────────────────────────────
+  async function handleSave() {
+    if (!header.poNo.trim()) return setFormError("PO No is required");
+    setFormError(null);
+    setSaving(true);
+
+    // Strip local-only _rowId
+    const cleanDetails = details.map(({ _rowId, ...rest }) => rest);
+    const payload = { ...header, gstEnabled, gstType, details: cleanDetails };
+
+    try {
+      if (editId) {
+        const updated = await purchaseOrderApi.update(editId, payload);
+        setPos((p) => p.map((x) => (sid(x._id) === editId ? updated : x)));
+      } else {
+        const created = await purchaseOrderApi.create(payload);
+        setPos((p) => [created, ...p]);
+      }
+      // Refresh indents so balQty is up-to-date for next PO
+      await loadIndents();
+      setView("list");
+    } catch (err) {
+      setFormError(err.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
   }
 
+  // ── delete ───────────────────────────────────────────────────────────────────
+  async function handleDelete(id) {
+    if (!window.confirm("Delete this purchase order?")) return;
+    try {
+      await purchaseOrderApi.remove(id);
+      setPos((p) => p.filter((x) => sid(x._id) !== id));
+      await loadIndents();
+    } catch (err) {
+      alert(err.message || "Delete failed");
+    }
+  }
+
+  // ── totals ───────────────────────────────────────────────────────────────────
   const totals = details.reduce(
     (acc, r) => ({
-      grossAmount: acc.grossAmount + r.poQty * r.poRate, // before discount
-      discPrice: acc.discPrice + r.discPrice, // total discount amount
-      poAmount: acc.poAmount + r.poAmount,
-      sgst: acc.sgst + r.sgst,
-      cgst: acc.cgst + r.cgst,
-      igst: acc.igst + r.igst,
-      totGst: acc.totGst + r.totGst,
-      totalAmount: acc.totalAmount + r.totalAmount,
+      grossAmount: acc.grossAmount + (r.poQty || 0) * (r.poRate || 0),
+      discPrice: acc.discPrice + (r.discPrice || 0),
+      poAmount: acc.poAmount + (r.poAmount || 0),
+      sgst: acc.sgst + (r.sgst || 0),
+      cgst: acc.cgst + (r.cgst || 0),
+      igst: acc.igst + (r.igst || 0),
+      totGst: acc.totGst + (r.totGst || 0),
+      totalAmount: acc.totalAmount + (r.totalAmount || 0),
     }),
     {
       grossAmount: 0,
@@ -228,23 +377,71 @@ export default function PurchaseOrderPage({
     },
   );
 
-  // Overall effective discount %
   const effectiveDiscPct =
     totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
-  /* ── LIST VIEW ── */
+  // ── Build a flat list of all indent detail rows for the dropdown ──────────────
+  // Each entry carries enough info to show "IndentNo – ItemName (bal: X)"
+  // FIX: Filter out invalid detailIds to prevent duplicate empty keys
+  const indentDetailOptions = [];
+  for (const indent of indents) {
+    for (const d of indent.details || []) {
+      const detailId = sid(d._id);
+      // Only include if detailId is valid (not empty string)
+      if (detailId) {
+        indentDetailOptions.push({
+          detailId,
+          indentId: sid(indent._id),
+          indentNo: indent.indentNo,
+          itemName: d.itemName || "—",
+          uom: d.uom || "",
+          indentQty: d.indentQty || 0,
+          alPoQty: d.alPoQty || 0,
+          balQty: d.balQty ?? d.indentQty ?? 0,
+        });
+      }
+    }
+  }
+
+  // ── inline select style ──────────────────────────────────────────────────────
+  const selectStyle = {
+    width: "100%",
+    border: "none",
+    outline: "none",
+    fontSize: 11.5,
+    background: "transparent",
+    padding: "2px 4px",
+    cursor: "pointer",
+  };
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // LIST VIEW
+  // ════════════════════════════════════════════════════════════════════════════
   if (view === "list") {
     return (
       <div className="inv-page">
         <div className="inv-page-header">
           <div>
-            <h1 className="inv-page-title">Purchase order</h1>
+            <h1 className="inv-page-title">Purchase Order</h1>
             <p className="inv-page-sub">Manage purchase orders</p>
           </div>
           <button className="inv-btn-primary" onClick={openNew}>
             + New PO
           </button>
         </div>
+
+        {listError && (
+          <div className="inv-error-banner">
+            {listError}{" "}
+            <button
+              onClick={loadPos}
+              style={{ marginLeft: 8, textDecoration: "underline" }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         <div className="inv-card">
           <div className="inv-card-body">
             <div className="inv-table-wrap">
@@ -252,112 +449,133 @@ export default function PurchaseOrderPage({
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>PO no</th>
+                    <th>PO No</th>
                     <th>Date</th>
                     <th>Supplier</th>
-                    <th>Created by</th>
+                    <th>Created By</th>
                     <th>GST</th>
+                    <th>GST Type</th>
                     <th>Status</th>
                     <th>Total</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pos.length === 0 && (
+                  {loadingList ? (
                     <tr>
-                      <td colSpan={9} className="inv-empty">
+                      <td colSpan={10} className="inv-empty">
+                        Loading…
+                      </td>
+                    </tr>
+                  ) : pos.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="inv-empty">
                         No purchase orders
                       </td>
                     </tr>
+                  ) : (
+                    pos.map((po, i) => {
+                      const total = (po.details || []).reduce(
+                        (s, d) => s + (d.totalAmount || 0),
+                        0,
+                      );
+                      return (
+                        <tr key={sid(po._id)}>
+                          <td className="inv-idx">
+                            {String(i + 1).padStart(2, "0")}
+                          </td>
+                          <td
+                            style={{ fontWeight: 600, color: "var(--accent)" }}
+                          >
+                            {po.poNo}
+                          </td>
+                          <td>{po.date}</td>
+                          <td>{po.supplierName}</td>
+                          <td>{po.createdBy}</td>
+                          <td>
+                            <span
+                              className={`inv-badge ${po.gstEnabled !== false ? "inv-badge-yes" : "inv-badge-no"}`}
+                            >
+                              {po.gstEnabled !== false ? "Yes" : "No"}
+                            </span>
+                          </td>
+                          <td>
+                            {po.gstEnabled !== false ? (
+                              <span
+                                className={`inv-badge ${po.gstType === "other" ? "inv-badge-no" : "inv-badge-yes"}`}
+                              >
+                                {po.gstType === "other"
+                                  ? "Other State"
+                                  : "Local"}
+                              </span>
+                            ) : (
+                              <span className="inv-badge inv-badge-no">—</span>
+                            )}
+                          </td>
+                          <td>
+                            <span
+                              className={`inv-badge ${po.status === "Open" ? "inv-badge-yes" : "inv-badge-no"}`}
+                            >
+                              {po.status}
+                            </span>
+                          </td>
+                          <td
+                            style={{
+                              fontFamily: "DM Mono, monospace",
+                              fontWeight: 500,
+                            }}
+                          >
+                            ₹{fmt(total)}
+                          </td>
+                          <td>
+                            <div className="inv-actions">
+                              <button
+                                className="inv-btn-icon"
+                                onClick={() => openEdit(po)}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="15"
+                                  height="15"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                              </button>
+                              <button
+                                className="inv-btn-icon inv-btn-danger"
+                                onClick={() => handleDelete(sid(po._id))}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="15"
+                                  height="15"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                  <path d="M10 11v6" />
+                                  <path d="M14 11v6" />
+                                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
-                  {pos.map((po, i) => {
-                    const total = po.details.reduce(
-                      (s, d) => s + d.totalAmount,
-                      0,
-                    );
-                    return (
-                      <tr key={po.id}>
-                        <td className="inv-idx">
-                          {String(i + 1).padStart(2, "0")}
-                        </td>
-                        <td style={{ fontWeight: 600, color: "var(--accent)" }}>
-                          {po.poNo}
-                        </td>
-                        <td>{po.date}</td>
-                        <td>{po.supplierName}</td>
-                        <td>{po.createdBy}</td>
-                        <td>
-                          <span
-                            className={`inv-badge ${po.gstEnabled !== false ? "inv-badge-yes" : "inv-badge-no"}`}
-                          >
-                            {po.gstEnabled !== false ? "Yes" : "No"}
-                          </span>
-                        </td>
-                        <td>
-                          <span
-                            className={`inv-badge ${po.status === "Open" ? "inv-badge-yes" : "inv-badge-no"}`}
-                          >
-                            {po.status}
-                          </span>
-                        </td>
-                        <td
-                          style={{
-                            fontFamily: "DM Mono, monospace",
-                            fontWeight: 500,
-                          }}
-                        >
-                          ₹{fmt(total)}
-                        </td>
-                        <td>
-                          <div className="inv-actions">
-                            <button
-                              className="inv-btn-icon"
-                              onClick={() => openEdit(po)}
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="15"
-                                height="15"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                            </button>
-                            <button
-                              className="inv-btn-icon inv-btn-danger"
-                              onClick={() =>
-                                setPos((p) => p.filter((x) => x.id !== po.id))
-                              }
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="15"
-                                height="15"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                <path d="M10 11v6" />
-                                <path d="M14 11v6" />
-                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                              </svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
                 </tbody>
               </table>
             </div>
@@ -367,18 +585,22 @@ export default function PurchaseOrderPage({
     );
   }
 
-  /* ── FORM VIEW ── */
+  // ════════════════════════════════════════════════════════════════════════════
+  // FORM VIEW
+  // ════════════════════════════════════════════════════════════════════════════
   return (
     <div className="inv-page">
+      {/* ── Page header ── */}
       <div className="inv-page-header">
         <div>
           <h1 className="inv-page-title">
-            {editId ? "Edit purchase order" : "New purchase order"}
+            {editId ? "Edit Purchase Order" : "New Purchase Order"}
           </h1>
-          <p className="inv-page-sub">Fill header, detail and save</p>
+          <p className="inv-page-sub">Fill header, select indents and save</p>
         </div>
+
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {/* GST toggle */}
+          {/* ── GST Enabled toggle ── */}
           <button
             type="button"
             onClick={toggleGst}
@@ -388,12 +610,12 @@ export default function PurchaseOrderPage({
               gap: 8,
               padding: "7px 14px",
               borderRadius: 8,
+              cursor: "pointer",
               border: gstEnabled ? "1px solid #86efac" : "1px solid #fca5a5",
               background: gstEnabled ? "#f0fdf4" : "#fff1f2",
               color: gstEnabled ? "#16a34a" : "#dc2626",
               fontWeight: 600,
               fontSize: 13,
-              cursor: "pointer",
               transition: "all 0.2s",
             }}
           >
@@ -423,26 +645,77 @@ export default function PurchaseOrderPage({
                 }}
               />
             </span>
-            GST {gstEnabled ? "Enabled" : "Disabled"}
+            GST {gstEnabled ? "On" : "Off"}
           </button>
+
+          {/* ── GST Type toggle (only when GST is enabled) ── */}
+          {gstEnabled && (
+            <button
+              type="button"
+              onClick={toggleGstType}
+              title="Toggle between Local (SGST+CGST) and Other State (IGST)"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "7px 14px",
+                borderRadius: 8,
+                cursor: "pointer",
+                border:
+                  gstType === "local"
+                    ? "1px solid #93c5fd"
+                    : "1px solid #c4b5fd",
+                background: gstType === "local" ? "#eff6ff" : "#f5f3ff",
+                color: gstType === "local" ? "#1d4ed8" : "#7c3aed",
+                fontWeight: 600,
+                fontSize: 13,
+                transition: "all 0.2s",
+              }}
+            >
+              {/* small icon */}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              </svg>
+              {gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)"}
+            </button>
+          )}
 
           <button className="inv-btn-secondary" onClick={() => setView("list")}>
             ← Back
           </button>
-          <button className="inv-btn-primary" onClick={handleSave}>
-            Save PO
+          <button
+            className="inv-btn-primary"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? "Saving…" : "Save PO"}
           </button>
         </div>
       </div>
 
-      {/* Header card */}
+      {formError && (
+        <div className="inv-error-banner" style={{ marginBottom: 12 }}>
+          {formError}
+        </div>
+      )}
+
+      {/* ── Header card ── */}
       <div className="inv-card">
         <div className="inv-card-body">
           <div className="inv-section-label">Header</div>
           <div className="inv-form-row cols-4">
             <div className="inv-field">
               <label className="inv-label">
-                PO no
+                PO No
                 <span
                   style={{
                     marginLeft: 6,
@@ -487,22 +760,38 @@ export default function PurchaseOrderPage({
               />
             </div>
             <div className="inv-field">
-              <label className="inv-label">Supplier</label>
+              <label className="inv-label">
+                Supplier
+                {loadingSuppliers && (
+                  <span
+                    style={{ marginLeft: 6, fontSize: 10, color: "#6b7280" }}
+                  >
+                    Loading...
+                  </span>
+                )}
+              </label>
               <select
                 className="inv-input"
                 value={header.supplierId}
                 onChange={(e) => {
-                  const s = suppliers.find((x) => x.id === +e.target.value);
+                  const s = suppliers.find(
+                    (x) => sid(x._id) === e.target.value,
+                  );
                   setHeader((h) => ({
                     ...h,
-                    supplierId: +e.target.value,
+                    supplierId: e.target.value,
                     supplierName: s?.supplierName || "",
                   }));
                 }}
+                disabled={loadingSuppliers}
               >
-                <option value="">Select supplier</option>
+                <option value="">
+                  {loadingSuppliers
+                    ? "Loading suppliers..."
+                    : "Select supplier"}
+                </option>
                 {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
+                  <option key={sid(s._id)} value={sid(s._id)}>
                     {s.supplierName}
                   </option>
                 ))}
@@ -525,9 +814,10 @@ export default function PurchaseOrderPage({
               </select>
             </div>
           </div>
+
           <div className="inv-form-row cols-3">
             <div className="inv-field">
-              <label className="inv-label">Created by</label>
+              <label className="inv-label">Created By</label>
               <input
                 className="inv-input"
                 value={header.createdBy}
@@ -537,7 +827,7 @@ export default function PurchaseOrderPage({
               />
             </div>
             <div className="inv-field">
-              <label className="inv-label">Created on</label>
+              <label className="inv-label">Created On</label>
               <input
                 className="inv-input"
                 type="date"
@@ -561,7 +851,7 @@ export default function PurchaseOrderPage({
         </div>
       </div>
 
-      {/* Detail card */}
+      {/* ── Detail card ── */}
       <div className="inv-card">
         <div className="inv-card-body">
           <div
@@ -576,64 +866,73 @@ export default function PurchaseOrderPage({
               Detail
             </div>
             <button className="inv-btn-secondary inv-btn-sm" onClick={addRow}>
-              + Add row
+              + Add Row
             </button>
           </div>
+
           <div style={{ overflowX: "auto" }}>
             <table className="po-table">
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Indent no</th>
-                  <th>Item name</th>
-                  <th>UOM</th>
-                  <th>Indent qty</th>
-                  <th>Al PO qty</th>
-                  <th>Bal qty</th>
-                  <th>PO qty</th>
-                  <th>PL rate</th>
-                  <th>PO rate</th>
-                  {/* NEW: combined disc column with mode toggle */}
-                  <th style={{ minWidth: 130 }}>
+                  {/* Indent picker column */}
+                  <th style={{ minWidth: 220 }}>
+                    Indent Item
                     <span
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                        whiteSpace: "nowrap",
+                        fontSize: 10,
+                        fontWeight: 400,
+                        color: "var(--text-secondary)",
+                        marginLeft: 4,
                       }}
                     >
-                      Disc
-                      <span
-                        style={{
-                          fontSize: 10,
-                          color: "var(--text-secondary)",
-                          fontWeight: 400,
-                        }}
-                      >
-                        (per row ▾)
-                      </span>
+                      (from Purchase Indent)
                     </span>
                   </th>
-                  <th>PO amt</th>
+                  <th style={{ minWidth: 80 }}>UOM</th>
+                  <th style={{ minWidth: 80 }}>Indent Qty</th>
+                  <th style={{ minWidth: 80 }}>Al PO Qty</th>
+                  <th style={{ minWidth: 80 }}>Bal Qty</th>
+                  <th style={{ minWidth: 80 }}>PO Qty</th>
+                  <th style={{ minWidth: 90 }}>PL Rate</th>
+                  <th style={{ minWidth: 90 }}>PO Rate</th>
+                  <th style={{ minWidth: 140 }}>
+                    Disc
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: "var(--text-secondary)",
+                        fontWeight: 400,
+                        marginLeft: 4,
+                      }}
+                    >
+                      (per row ▾)
+                    </span>
+                  </th>
+                  <th>PO Amt</th>
                   {gstEnabled && (
                     <>
                       <th>GST %</th>
-                      <th>SGST</th>
-                      <th>CGST</th>
-                      <th>IGST</th>
+                      {gstType === "local" ? (
+                        <>
+                          <th>SGST</th>
+                          <th>CGST</th>
+                        </>
+                      ) : (
+                        <th>IGST</th>
+                      )}
                       <th>Tot GST</th>
                     </>
                   )}
-                  <th>Total amt</th>
-                  <th>Indent rem</th>
-                  <th>PO rem</th>
+                  <th>Total Amt</th>
+                  <th style={{ minWidth: 130 }}>Indent Rem</th>
+                  <th style={{ minWidth: 130 }}>PO Rem</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {details.map((row, idx) => (
-                  <tr key={row.id}>
+                  <tr key={row._rowId}>
                     <td
                       style={{
                         textAlign: "center",
@@ -642,80 +941,161 @@ export default function PurchaseOrderPage({
                     >
                       {idx + 1}
                     </td>
+
+                    {/* ── Indent item picker ── */}
+                    <td style={{ minWidth: 220 }}>
+                      <select
+                        value={row.indentDetailId}
+                        onChange={(e) =>
+                          updateDetail(idx, "indentDetailId", e.target.value)
+                        }
+                        style={selectStyle}
+                      >
+                        <option value="">— select indent item —</option>
+                        {indentDetailOptions.map((opt, optIdx) => (
+                          <option
+                            key={`${opt.detailId}-${optIdx}`}
+                            value={opt.detailId}
+                          >
+                            {opt.indentNo} › {opt.itemName} (bal: {opt.balQty} /{" "}
+                            {opt.indentQty} {opt.uom})
+                          </option>
+                        ))}
+                      </select>
+                      {/* Show indent no as small hint */}
+                      {row.indentNo && (
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: "#6366f1",
+                            paddingLeft: 4,
+                            marginTop: 2,
+                          }}
+                        >
+                          📋 {row.indentNo}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* UOM — read-only, auto-filled from indent */}
                     <td>
                       <input
-                        value={row.indentNo}
-                        onChange={(e) =>
-                          updateDetail(idx, "indentNo", e.target.value)
-                        }
+                        value={row.uom}
+                        readOnly
+                        style={{
+                          width: 60,
+                          border: "none",
+                          outline: "none",
+                          fontSize: 11.5,
+                          background: "transparent",
+                          color: "var(--text-secondary)",
+                          padding: "2px 4px",
+                        }}
+                        placeholder="—"
                       />
                     </td>
-                    <td style={{ minWidth: 140 }}>
-                      <select
-                        value={row.itemName}
-                        onChange={(e) =>
-                          updateDetail(idx, "itemName", e.target.value)
-                        }
-                        style={{
-                          width: "100%",
-                          border: "none",
-                          outline: "none",
-                          fontSize: 11.5,
-                          background: "transparent",
-                          padding: "2px 4px",
-                        }}
-                      >
-                        <option value="">Select item</option>
-                        {items.map((it) => (
-                          <option key={it.id} value={it.itemName}>
-                            {it.itemName}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <select
-                        value={row.uom}
-                        onChange={(e) =>
-                          updateDetail(idx, "uom", e.target.value)
-                        }
-                        style={{
-                          width: "100%",
-                          border: "none",
-                          outline: "none",
-                          fontSize: 11.5,
-                          background: "transparent",
-                          padding: "2px 4px",
-                        }}
-                      >
-                        <option value="">-</option>
-                        {uoms.map((u) => (
-                          <option key={u.id} value={u.name}>
-                            {u.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    {[
-                      "indentQty",
-                      "alPoQty",
-                      "balQty",
-                      "poQty",
-                      "priceListRate",
-                      "poRate",
-                    ].map((f) => (
-                      <td key={f}>
-                        <input
-                          type="number"
-                          value={row[f]}
-                          onChange={(e) => updateDetail(idx, f, e.target.value)}
-                          style={{ width: 70, textAlign: "right" }}
-                        />
-                      </td>
-                    ))}
 
-                    {/* ── NEW: Disc column with mode toggle ── */}
-                    <td style={{ minWidth: 130 }}>
+                    {/* Indent Qty — read-only (from indent) */}
+                    <td>
+                      <input
+                        type="number"
+                        value={row.indentQty}
+                        readOnly
+                        style={{
+                          width: 70,
+                          textAlign: "right",
+                          background: "#f9fafb",
+                          color: "var(--text-secondary)",
+                          border: "none",
+                          outline: "none",
+                          fontSize: 11.5,
+                          padding: "2px 4px",
+                        }}
+                      />
+                    </td>
+
+                    {/* Al PO Qty — read-only */}
+                    <td>
+                      <input
+                        type="number"
+                        value={row.alPoQty}
+                        style={{
+                          width: 70,
+                          textAlign: "right",
+                          background: "#f9fafb",
+                          color: "var(--text-secondary)",
+                          border: "none",
+                          outline: "none",
+                          fontSize: 11.5,
+                          padding: "2px 4px",
+                        }}
+                      />
+                    </td>
+
+                    {/* Bal Qty — read-only, highlight if zero */}
+                    <td>
+                      <input
+                        type="number"
+                        value={row.balQty}
+                        readOnly
+                        style={{
+                          width: 70,
+                          textAlign: "right",
+                          background:
+                            row.balQty === 0 && row.indentQty > 0
+                              ? "#fff7ed"
+                              : "#f9fafb",
+                          color:
+                            row.balQty === 0 && row.indentQty > 0
+                              ? "#c2410c"
+                              : "var(--text-secondary)",
+                          border: "none",
+                          outline: "none",
+                          fontSize: 11.5,
+                          padding: "2px 4px",
+                        }}
+                      />
+                    </td>
+
+                    {/* PO Qty — editable */}
+                    <td>
+                      <input
+                        type="number"
+                        value={row.poQty}
+                        min={0}
+                        onChange={(e) =>
+                          updateDetail(idx, "poQty", e.target.value)
+                        }
+                        style={{ width: 70, textAlign: "right" }}
+                      />
+                    </td>
+
+                    {/* PL Rate */}
+                    <td>
+                      <input
+                        type="number"
+                        value={row.priceListRate}
+                        onChange={(e) =>
+                          updateDetail(idx, "priceListRate", e.target.value)
+                        }
+                        style={{ width: 80, textAlign: "right" }}
+                      />
+                    </td>
+
+                    {/* PO Rate */}
+                    <td>
+                      <input
+                        type="number"
+                        value={row.poRate}
+                        onChange={(e) =>
+                          updateDetail(idx, "poRate", e.target.value)
+                        }
+                        style={{ width: 80, textAlign: "right" }}
+                      />
+                    </td>
+
+                    {/* ── Discount column ── */}
+                    <td style={{ minWidth: 140 }}>
                       <div
                         style={{
                           display: "flex",
@@ -723,7 +1103,6 @@ export default function PurchaseOrderPage({
                           gap: 3,
                         }}
                       >
-                        {/* Mode toggle button */}
                         <button
                           type="button"
                           onClick={() => toggleDiscMode(idx)}
@@ -737,21 +1116,20 @@ export default function PurchaseOrderPage({
                             border: "1px solid",
                             cursor: "pointer",
                             lineHeight: 1.4,
+                            minWidth: 32,
+                            textAlign: "center",
+                            transition: "all 0.15s",
                             background:
                               row.discMode === "pct" ? "#eff6ff" : "#fefce8",
                             borderColor:
                               row.discMode === "pct" ? "#93c5fd" : "#fde047",
                             color:
                               row.discMode === "pct" ? "#1d4ed8" : "#854d0e",
-                            minWidth: 32,
-                            textAlign: "center",
-                            transition: "all 0.15s",
                           }}
                         >
                           {row.discMode === "pct" ? "%" : "₹"}
                         </button>
 
-                        {/* Input: either disc% or flat disc price */}
                         {row.discMode === "pct" ? (
                           <input
                             type="number"
@@ -774,7 +1152,6 @@ export default function PurchaseOrderPage({
                           />
                         )}
 
-                        {/* Show derived counterpart as a hint */}
                         <span
                           style={{
                             fontSize: 10,
@@ -784,12 +1161,12 @@ export default function PurchaseOrderPage({
                         >
                           {row.discMode === "pct"
                             ? `₹${fmt(row.discPrice)}`
-                            : `${row.discPct.toFixed(2)}%`}
+                            : `${(row.discPct || 0).toFixed(2)}%`}
                         </span>
                       </div>
                     </td>
-                    {/* ── end disc column ── */}
 
+                    {/* PO Amount */}
                     <td
                       style={{
                         textAlign: "right",
@@ -799,6 +1176,8 @@ export default function PurchaseOrderPage({
                     >
                       {fmt(row.poAmount)}
                     </td>
+
+                    {/* GST columns */}
                     {gstEnabled && (
                       <>
                         <td>
@@ -811,20 +1190,51 @@ export default function PurchaseOrderPage({
                             style={{ width: 50, textAlign: "right" }}
                           />
                         </td>
-                        {["sgst", "cgst", "igst", "totGst"].map((f) => (
+                        {gstType === "local" ? (
+                          <>
+                            <td
+                              style={{
+                                textAlign: "right",
+                                fontFamily: "DM Mono",
+                                fontSize: 11,
+                              }}
+                            >
+                              {fmt(row.sgst)}
+                            </td>
+                            <td
+                              style={{
+                                textAlign: "right",
+                                fontFamily: "DM Mono",
+                                fontSize: 11,
+                              }}
+                            >
+                              {fmt(row.cgst)}
+                            </td>
+                          </>
+                        ) : (
                           <td
-                            key={f}
                             style={{
                               textAlign: "right",
                               fontFamily: "DM Mono",
                               fontSize: 11,
                             }}
                           >
-                            {fmt(row[f])}
+                            {fmt(row.igst)}
                           </td>
-                        ))}
+                        )}
+                        <td
+                          style={{
+                            textAlign: "right",
+                            fontFamily: "DM Mono",
+                            fontSize: 11,
+                          }}
+                        >
+                          {fmt(row.totGst)}
+                        </td>
                       </>
                     )}
+
+                    {/* Total Amount */}
                     <td
                       style={{
                         textAlign: "right",
@@ -834,22 +1244,32 @@ export default function PurchaseOrderPage({
                     >
                       {fmt(row.totalAmount)}
                     </td>
+
+                    {/* Indent Remarks */}
                     <td>
                       <input
                         value={row.indentRemarks}
                         onChange={(e) =>
                           updateDetail(idx, "indentRemarks", e.target.value)
                         }
+                        style={{ width: 120 }}
+                        placeholder="Indent rem…"
                       />
                     </td>
+
+                    {/* PO Remarks */}
                     <td>
                       <input
                         value={row.poRemarks}
                         onChange={(e) =>
                           updateDetail(idx, "poRemarks", e.target.value)
                         }
+                        style={{ width: 120 }}
+                        placeholder="PO rem…"
                       />
                     </td>
+
+                    {/* Remove row */}
                     <td>
                       <button
                         className="inv-btn-icon inv-btn-danger"
@@ -862,15 +1282,17 @@ export default function PurchaseOrderPage({
                   </tr>
                 ))}
               </tbody>
+
+              {/* ── Footer totals ── */}
               <tfoot>
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={9}
                     style={{ textAlign: "right", fontWeight: 600 }}
                   >
                     Total
                   </td>
-                  {/* disc total column */}
+                  {/* disc total */}
                   <td
                     style={{
                       textAlign: "right",
@@ -887,15 +1309,32 @@ export default function PurchaseOrderPage({
                   {gstEnabled && (
                     <>
                       <td></td>
-                      <td style={{ textAlign: "right", fontFamily: "DM Mono" }}>
-                        {fmt(totals.sgst)}
-                      </td>
-                      <td style={{ textAlign: "right", fontFamily: "DM Mono" }}>
-                        {fmt(totals.cgst)}
-                      </td>
-                      <td style={{ textAlign: "right", fontFamily: "DM Mono" }}>
-                        {fmt(totals.igst)}
-                      </td>
+                      {gstType === "local" ? (
+                        <>
+                          <td
+                            style={{
+                              textAlign: "right",
+                              fontFamily: "DM Mono",
+                            }}
+                          >
+                            {fmt(totals.sgst)}
+                          </td>
+                          <td
+                            style={{
+                              textAlign: "right",
+                              fontFamily: "DM Mono",
+                            }}
+                          >
+                            {fmt(totals.cgst)}
+                          </td>
+                        </>
+                      ) : (
+                        <td
+                          style={{ textAlign: "right", fontFamily: "DM Mono" }}
+                        >
+                          {fmt(totals.igst)}
+                        </td>
+                      )}
                       <td style={{ textAlign: "right", fontFamily: "DM Mono" }}>
                         {fmt(totals.totGst)}
                       </td>
@@ -912,17 +1351,17 @@ export default function PurchaseOrderPage({
         </div>
       </div>
 
-      {/* Summary card */}
+      {/* ── Summary card ── */}
       <div className="inv-card">
         <div className="inv-card-body">
           <div className="inv-section-label">Summary</div>
           <div className="inv-summary-grid">
-            {/* Gross amount (before discount) */}
+            {/* Gross */}
             <div
               className="inv-summary-box"
               style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}
             >
-              <div className="inv-summary-box-label">Gross amount</div>
+              <div className="inv-summary-box-label">Gross Amount</div>
               <div
                 className="inv-summary-box-value"
                 style={{ color: "#64748b" }}
@@ -931,7 +1370,7 @@ export default function PurchaseOrderPage({
               </div>
             </div>
 
-            {/* Discount box — highlighted in amber/warning */}
+            {/* Discount */}
             <div
               className="inv-summary-box"
               style={{
@@ -941,7 +1380,6 @@ export default function PurchaseOrderPage({
                 overflow: "hidden",
               }}
             >
-              {/* savings ribbon */}
               {totals.discPrice > 0 && (
                 <div
                   style={{
@@ -960,7 +1398,7 @@ export default function PurchaseOrderPage({
                   SAVINGS
                 </div>
               )}
-              <div className="inv-summary-box-label">Total discount</div>
+              <div className="inv-summary-box-label">Total Discount</div>
               <div
                 className="inv-summary-box-value"
                 style={{ color: "#b45309" }}
@@ -979,10 +1417,10 @@ export default function PurchaseOrderPage({
               </div>
             </div>
 
-            {/* After-discount (PO amount before GST) */}
+            {/* PO Amount */}
             <div className="inv-summary-box">
               <div className="inv-summary-box-label">
-                PO amount (after disc, before GST)
+                PO Amount (after disc, before GST)
               </div>
               <div className="inv-summary-box-value">
                 ₹{fmt(totals.poAmount)}
@@ -1001,6 +1439,7 @@ export default function PurchaseOrderPage({
               )}
             </div>
 
+            {/* GST breakdown */}
             {gstEnabled && (
               <>
                 <div className="inv-summary-box">
@@ -1009,12 +1448,27 @@ export default function PurchaseOrderPage({
                     ₹{fmt(totals.totGst)}
                   </div>
                 </div>
-                <div className="inv-summary-box">
-                  <div className="inv-summary-box-label">SGST + CGST</div>
-                  <div className="inv-summary-box-value">
-                    ₹{fmt(totals.sgst + totals.cgst)}
+
+                {gstType === "local" ? (
+                  <div className="inv-summary-box">
+                    <div className="inv-summary-box-label">SGST + CGST</div>
+                    <div className="inv-summary-box-value">
+                      ₹{fmt(totals.sgst + totals.cgst)}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="inv-summary-box">
+                    <div className="inv-summary-box-label">
+                      IGST (Other State)
+                    </div>
+                    <div
+                      className="inv-summary-box-value"
+                      style={{ color: "#7c3aed" }}
+                    >
+                      ₹{fmt(totals.igst)}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -1023,7 +1477,7 @@ export default function PurchaseOrderPage({
               className="inv-summary-box"
               style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}
             >
-              <div className="inv-summary-box-label">Grand total</div>
+              <div className="inv-summary-box-label">Grand Total</div>
               <div
                 className="inv-summary-box-value"
                 style={{ color: "var(--accent)" }}

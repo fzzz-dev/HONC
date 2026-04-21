@@ -1,36 +1,56 @@
+// slices/stateSlice.js
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
-const API = "http://localhost:5000/api/states";
+// ✅ FIX: relative path — same fix as countrySlice
+const BASE_URL = "/api/states";
 
-// GET
-export const fetchStates = createAsyncThunk("states/fetch", async () => {
-  const res = await axios.get(API);
-  return res.data.data;
-});
-
-// CREATE
-export const addState = createAsyncThunk("states/add", async (data) => {
-  const res = await axios.post(API, data);
-  return res.data.data;
-});
-
-// UPDATE
-export const updateState = createAsyncThunk(
-  "states/update",
-  async ({ id, data }) => {
-    const res = await axios.put(`${API}/${id}`, data);
-    return res.data.data;
-  }
+export const fetchStates = createAsyncThunk(
+  "states/fetch",
+  async (_, { rejectWithValue }) => {
+    try {
+      const res = await axios.get(BASE_URL);
+      return res.data.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
+  },
 );
 
-// DELETE
+export const addState = createAsyncThunk(
+  "states/add",
+  async (data, { rejectWithValue }) => {
+    try {
+      const res = await axios.post(BASE_URL, data);
+      return res.data.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
+  },
+);
+
+export const updateState = createAsyncThunk(
+  "states/update",
+  async ({ id, data }, { rejectWithValue }) => {
+    try {
+      const res = await axios.put(`${BASE_URL}/${id}`, data);
+      return res.data.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
+  },
+);
+
 export const deleteState = createAsyncThunk(
   "states/delete",
-  async (id) => {
-    await axios.delete(`${API}/${id}`);
-    return id;
-  }
+  async (id, { rejectWithValue }) => {
+    try {
+      await axios.delete(`${BASE_URL}/${id}`);
+      return id;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
+  },
 );
 
 const stateSlice = createSlice({
@@ -38,24 +58,41 @@ const stateSlice = createSlice({
   initialState: {
     data: [],
     loading: false,
+    error: null,
   },
   reducers: {},
   extraReducers: (builder) => {
+    // fetch
     builder
+      .addCase(fetchStates.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
       .addCase(fetchStates.fulfilled, (state, action) => {
+        state.loading = false;
         state.data = action.payload;
       })
-      .addCase(addState.fulfilled, (state, action) => {
-        state.data.unshift(action.payload);
-      })
-      .addCase(updateState.fulfilled, (state, action) => {
-        state.data = state.data.map((s) =>
-          s._id === action.payload._id ? action.payload : s
-        );
-      })
-      .addCase(deleteState.fulfilled, (state, action) => {
-        state.data = state.data.filter((s) => s._id !== action.payload);
+      .addCase(fetchStates.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
       });
+
+    // add
+    builder.addCase(addState.fulfilled, (state, action) => {
+      state.data.unshift(action.payload);
+    });
+
+    // update
+    builder.addCase(updateState.fulfilled, (state, action) => {
+      state.data = state.data.map((s) =>
+        s._id === action.payload._id ? action.payload : s,
+      );
+    });
+
+    // delete
+    builder.addCase(deleteState.fulfilled, (state, action) => {
+      state.data = state.data.filter((s) => s._id !== action.payload);
+    });
   },
 });
 

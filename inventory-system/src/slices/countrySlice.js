@@ -1,35 +1,57 @@
+// slices/countrySlice.js
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
-const API = "http://localhost:5000/api/countries";
+// ✅ FIX: Use relative path so Vite proxy handles it in dev
+//         and the deployed origin handles it in prod.
+//         NEVER hardcode http://localhost:5000 — breaks in any other environment.
+const BASE_URL = "/api/countries";
 
-// GET
-export const fetchCountries = createAsyncThunk("countries/fetch", async () => {
-  const res = await axios.get(API);
-  return res.data.data;
-});
-
-// CREATE
-export const addCountry = createAsyncThunk("countries/add", async (data) => {
-  const res = await axios.post(API, data);
-  return res.data.data;
-});
-
-// UPDATE
-export const updateCountry = createAsyncThunk(
-  "countries/update",
-  async ({ id, data }) => {
-    const res = await axios.put(`${API}/${id}`, data);
-    return res.data.data;
+export const fetchCountries = createAsyncThunk(
+  "countries/fetch",
+  async (_, { rejectWithValue }) => {
+    try {
+      const res = await axios.get(BASE_URL);
+      return res.data.data; // unwrap { success, data }
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
   },
 );
 
-// DELETE
+export const addCountry = createAsyncThunk(
+  "countries/add",
+  async (data, { rejectWithValue }) => {
+    try {
+      const res = await axios.post(BASE_URL, data);
+      return res.data.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
+  },
+);
+
+export const updateCountry = createAsyncThunk(
+  "countries/update",
+  async ({ id, data }, { rejectWithValue }) => {
+    try {
+      const res = await axios.put(`${BASE_URL}/${id}`, data);
+      return res.data.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
+  },
+);
+
 export const deleteCountry = createAsyncThunk(
   "countries/delete",
-  async (id) => {
-    await axios.delete(`${API}/${id}`);
-    return id;
+  async (id, { rejectWithValue }) => {
+    try {
+      await axios.delete(`${BASE_URL}/${id}`);
+      return id;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
   },
 );
 
@@ -38,24 +60,41 @@ const slice = createSlice({
   initialState: {
     data: [],
     loading: false,
+    error: null,
   },
   reducers: {},
   extraReducers: (builder) => {
+    // fetch
     builder
+      .addCase(fetchCountries.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
       .addCase(fetchCountries.fulfilled, (state, action) => {
+        state.loading = false;
         state.data = action.payload;
       })
-      .addCase(addCountry.fulfilled, (state, action) => {
-        state.data.unshift(action.payload);
-      })
-      .addCase(updateCountry.fulfilled, (state, action) => {
-        state.data = state.data.map((c) =>
-          c._id === action.payload._id ? action.payload : c,
-        );
-      })
-      .addCase(deleteCountry.fulfilled, (state, action) => {
-        state.data = state.data.filter((c) => c._id !== action.payload);
+      .addCase(fetchCountries.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
       });
+
+    // add
+    builder.addCase(addCountry.fulfilled, (state, action) => {
+      state.data.unshift(action.payload);
+    });
+
+    // update
+    builder.addCase(updateCountry.fulfilled, (state, action) => {
+      state.data = state.data.map((c) =>
+        c._id === action.payload._id ? action.payload : c,
+      );
+    });
+
+    // delete
+    builder.addCase(deleteCountry.fulfilled, (state, action) => {
+      state.data = state.data.filter((c) => c._id !== action.payload);
+    });
   },
 });
 

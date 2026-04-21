@@ -1,119 +1,93 @@
-const MainCategory = require("../model/MainCategory");
-const InventoryHead = require("../model/InventoryHead");
+const MainCategory = require("../model/mainCategory"); // adjust path if needed
+const InventoryHead = require("../model/inventoryHead"); // adjust path if needed
 
-// GET /api/main-categories
+// ── GET all ───────────────────────────────────────────────────────────────────
 exports.getAll = async (req, res) => {
   try {
-    const { search = "", headId, active } = req.query;
+    const { headId, active } = req.query;
     const filter = {};
-
-    if (search) {
-      filter.$or = [
-        { groupName: { $regex: search, $options: "i" } },
-        { headName: { $regex: search, $options: "i" } },
-      ];
-    }
     if (headId) filter.headId = headId;
     if (active !== undefined) filter.active = active === "true";
 
-    const categories = await MainCategory.find(filter)
-      .populate("headId", "headName active")
-      .sort({ createdAt: -1 });
-
+    // ⚠️  Do NOT use .populate("headId") — keep headId as a plain ObjectId string
+    //     so the frontend string comparison always works.
+    const categories = await MainCategory.find(filter).sort({ groupName: 1 });
     res.json({ success: true, data: categories });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// GET /api/main-categories/:id
+// ── GET one ───────────────────────────────────────────────────────────────────
 exports.getOne = async (req, res) => {
   try {
-    const category = await MainCategory.findById(req.params.id).populate(
-      "headId",
-      "headName active",
-    );
+    const category = await MainCategory.findById(req.params.id);
     if (!category)
-      return res.status(404).json({ success: false, message: "Not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Category not found" });
     res.json({ success: true, data: category });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// POST /api/main-categories
+// ── CREATE ────────────────────────────────────────────────────────────────────
 exports.create = async (req, res) => {
   try {
     const { headId, groupName, active } = req.body;
 
-    // Fetch and sync headName from InventoryHead
+    // Auto-fill headName from the referenced InventoryHead
     const head = await InventoryHead.findById(headId);
-    if (!head) {
+    if (!head)
       return res
         .status(400)
-        .json({ success: false, message: "Inventory head not found" });
-    }
-
-    const duplicate = await MainCategory.findOne({
-      headId,
-      groupName: { $regex: `^${groupName.trim()}$`, $options: "i" },
-    });
-    if (duplicate) {
-      return res.status(400).json({
-        success: false,
-        message: "Group name already exists under this head",
-      });
-    }
+        .json({
+          success: false,
+          message: "Invalid headId — InventoryHead not found",
+        });
 
     const category = await MainCategory.create({
       headId,
-      headName: head.headName, // always sourced from the head document
-      groupName: groupName.trim(),
-      active,
+      headName: head.headName,
+      groupName,
+      active: active ?? true,
     });
-
     res.status(201).json({ success: true, data: category });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
 };
 
-// PUT /api/main-categories/:id
+// ── UPDATE ────────────────────────────────────────────────────────────────────
 exports.update = async (req, res) => {
   try {
     const { headId, groupName, active } = req.body;
+    const patch = { groupName, active };
 
-    const head = await InventoryHead.findById(headId);
-    if (!head) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Inventory head not found" });
-    }
-
-    const duplicate = await MainCategory.findOne({
-      headId,
-      groupName: { $regex: `^${groupName.trim()}$`, $options: "i" },
-      _id: { $ne: req.params.id },
-    });
-    if (duplicate) {
-      return res.status(400).json({
-        success: false,
-        message: "Group name already exists under this head",
-      });
+    // If headId changed, refresh headName too
+    if (headId) {
+      const head = await InventoryHead.findById(headId);
+      if (!head)
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Invalid headId — InventoryHead not found",
+          });
+      patch.headId = headId;
+      patch.headName = head.headName;
     }
 
     const category = await MainCategory.findByIdAndUpdate(
       req.params.id,
-      {
-        headId,
-        headName: head.headName, // keep in sync
-        groupName: groupName.trim(),
-        active,
-      },
+      patch,
       { new: true, runValidators: true },
     );
     if (!category)
-      return res.status(404).json({ success: false, message: "Not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Category not found" });
 
     res.json({ success: true, data: category });
   } catch (err) {
@@ -121,15 +95,15 @@ exports.update = async (req, res) => {
   }
 };
 
-// DELETE /api/main-categories/:id
+// ── DELETE ────────────────────────────────────────────────────────────────────
 exports.remove = async (req, res) => {
   try {
-    const category = await MainCategory.findById(req.params.id);
+    const category = await MainCategory.findByIdAndDelete(req.params.id);
     if (!category)
-      return res.status(404).json({ success: false, message: "Not found" });
-
-    await category.deleteOne();
-    res.json({ success: true, message: "Deleted successfully" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Category not found" });
+    res.json({ success: true, message: "Category deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
