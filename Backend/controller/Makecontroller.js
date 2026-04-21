@@ -1,4 +1,4 @@
-const Make = require("../models/Make");
+const Make = require("../model/Make");
 
 // ── GET all makes ──────────────────────────────────────────────────────────
 // GET /api/makes

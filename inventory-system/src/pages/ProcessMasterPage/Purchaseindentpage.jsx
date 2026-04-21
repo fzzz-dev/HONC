@@ -1,10 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  purchaseIndentApi,
+  inventoryHeadApi,
+  mainCategoryApi,
+  itemApi,
+  departmentApi,
+} from "../../services/inventoryApi";
 
-let _id = 500;
-const nextId = () => ++_id;
+// ── helpers ───────────────────────────────────────────────────────────────────
+const fmt = (n) =>
+  Number(n).toLocaleString("en-IN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+
+const today = () => new Date().toISOString().split("T")[0];
+
+// Normalize any _id / headId to a plain string safely
+const sid = (v) => {
+  if (!v) return "";
+  if (typeof v === "object" && v._id) return String(v._id);
+  return String(v);
+};
 
 const emptyDetail = () => ({
-  id: nextId(),
+  _rowId: Date.now() + Math.random(), // local key only, not sent to API
   inventoryHeadId: "",
   inventoryHeadName: "",
   mainCategoryId: "",
@@ -17,107 +37,137 @@ const emptyDetail = () => ({
   remarks: "",
 });
 
-const fmt = (n) =>
-  Number(n).toLocaleString("en-IN", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
+const emptyHeader = () => ({
+  indentNo: "",
+  date: today(),
+  departmentId: "",
+  departmentName: "",
+  createdBy: "Admin",
+  createdOn: today(),
+  status: "Open",
+  remarks: "",
+});
 
-function generateIndentNo(existingIndents) {
-  const year = new Date().getFullYear();
-  const prefix = `IND-${year}-`;
-  const nums = existingIndents
-    .map((ind) => {
-      const match = ind.indentNo?.match(/^IND-\d{4}-(\d+)$/);
-      return match ? parseInt(match[1], 10) : 0;
-    })
-    .filter(Boolean);
-  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
-  return `${prefix}${String(next).padStart(3, "0")}`;
-}
+export default function PurchaseIndentPage() {
+  // ── lookup data ───────────────────────────────────────────────────────────
+  const [departments, setDepartments] = useState([]);
+  const [heads, setHeads] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [items, setItems] = useState([]);
 
-export default function PurchaseIndentPage({
-  indents,
-  setIndents,
-  departments = [],
-  heads = [],
-  categories = [],
-  items = [],
-  uoms = [],
-}) {
-  const today = new Date().toISOString().split("T")[0];
-  const [view, setView] = useState("list"); // list | form
+  // ── indent list + UI state ────────────────────────────────────────────────
+  const [indents, setIndents] = useState([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [listError, setListError] = useState(null);
+
+  // ── form state ────────────────────────────────────────────────────────────
+  const [view, setView] = useState("list"); // "list" | "form"
   const [editId, setEditId] = useState(null);
-
-  const [header, setHeader] = useState({
-    indentNo: "",
-    date: today,
-    departmentId: "",
-    departmentName: "",
-    createdBy: "Admin",
-    createdOn: today,
-    status: "Open",
-    remarks: "",
-  });
+  const [header, setHeader] = useState(emptyHeader());
   const [details, setDetails] = useState([emptyDetail()]);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState(null);
 
-  function resetForm() {
-    setHeader({
-      indentNo: "",
-      date: today,
-      departmentId: "",
-      departmentName: "",
-      createdBy: "Admin",
-      createdOn: today,
-      status: "Open",
-      remarks: "",
-    });
-    setDetails([emptyDetail()]);
-    setEditId(null);
+  // ── Bootstrap — load all lookup data once ─────────────────────────────────
+  useEffect(() => {
+    loadLookups();
+    loadIndents();
+  }, []);
+
+  async function loadLookups() {
+    try {
+      const [depts, headsData, catsData, itemsData] = await Promise.all([
+        departmentApi.getAll(),
+        inventoryHeadApi.getAll(),
+        mainCategoryApi.getAll(),
+        itemApi.getAll(),
+      ]);
+      setDepartments(depts);
+      setHeads(headsData);
+      // Normalize category headId to plain string
+      setCategories(
+        catsData.map((c) => ({
+          ...c,
+          _id: sid(c._id),
+          headId: sid(c.headId),
+        })),
+      );
+      // Normalize item headId to plain string
+      setItems(
+        itemsData.map((it) => ({
+          ...it,
+          _id: sid(it._id),
+          headId: sid(it.headId),
+        })),
+      );
+    } catch (err) {
+      console.error("Lookup load error:", err);
+    }
   }
 
-  function openNew() {
-    const autoNo = generateIndentNo(indents);
-    setHeader({
-      indentNo: autoNo,
-      date: today,
-      departmentId: "",
-      departmentName: "",
-      createdBy: "Admin",
-      createdOn: today,
-      status: "Open",
-      remarks: "",
-    });
+  async function loadIndents() {
+    setLoadingList(true);
+    setListError(null);
+    try {
+      const data = await purchaseIndentApi.getAll();
+      setIndents(data);
+    } catch (err) {
+      setListError(err.message || "Failed to load indents");
+    } finally {
+      setLoadingList(false);
+    }
+  }
+
+  // ── Open new form — fetch next indent number from backend ─────────────────
+  async function openNew() {
+    setFormError(null);
+    try {
+      const { indentNo } = await purchaseIndentApi.getNextNumber();
+      setHeader({ ...emptyHeader(), indentNo });
+    } catch {
+      setHeader({ ...emptyHeader(), indentNo: "" });
+    }
     setDetails([emptyDetail()]);
     setEditId(null);
     setView("form");
   }
 
+  // ── Open edit form ────────────────────────────────────────────────────────
   function openEdit(indent) {
+    setFormError(null);
     setHeader({
       indentNo: indent.indentNo,
       date: indent.date,
-      departmentId: indent.departmentId,
+      departmentId: sid(indent.departmentId),
       departmentName: indent.departmentName,
       createdBy: indent.createdBy,
       createdOn: indent.createdOn,
       status: indent.status,
       remarks: indent.remarks,
     });
-    setDetails(indent.details.map((d) => ({ ...d })));
-    setEditId(indent.id);
+    setDetails(
+      (indent.details || []).map((d) => ({
+        ...d,
+        _rowId: Date.now() + Math.random(),
+        inventoryHeadId: sid(d.inventoryHeadId),
+        mainCategoryId: sid(d.mainCategoryId),
+        itemId: sid(d.itemId),
+      })),
+    );
+    setEditId(sid(indent._id));
     setView("form");
   }
 
+  // ── Detail row update with cascading auto-fill ────────────────────────────
   function updateDetail(idx, field, val) {
     setDetails((prev) => {
       const rows = [...prev];
       const row = { ...rows[idx], [field]: val };
 
-      // Cascade: when inventory head changes, reset category & item
       if (field === "inventoryHeadId") {
-        const found = heads.find((h) => String(h.id) === String(val));
+        const found = heads.find((h) => sid(h._id) === val);
         row.inventoryHeadName = found?.headName || "";
+        // Reset downstream
         row.mainCategoryId = "";
         row.mainCategoryName = "";
         row.itemId = "";
@@ -125,18 +175,17 @@ export default function PurchaseIndentPage({
         row.uom = "";
       }
 
-      // Cascade: when category changes, reset item
       if (field === "mainCategoryId") {
-        const found = categories.find((c) => String(c.id) === String(val));
+        const found = categories.find((c) => c._id === val);
         row.mainCategoryName = found?.groupName || "";
+        // Reset downstream
         row.itemId = "";
         row.itemName = "";
         row.uom = "";
       }
 
-      // Auto-fill UOM when item is selected
       if (field === "itemId") {
-        const found = items.find((it) => String(it.id) === String(val));
+        const found = items.find((it) => it._id === val);
         row.itemName = found?.itemName || "";
         row.uom = found?.uom || "";
       }
@@ -149,29 +198,67 @@ export default function PurchaseIndentPage({
   function addRow() {
     setDetails((p) => [...p, emptyDetail()]);
   }
-
   function removeRow(idx) {
     setDetails((p) => p.filter((_, i) => i !== idx));
   }
 
-  function handleSave() {
-    if (!header.indentNo.trim()) return alert("Indent No is required");
-    if (!header.departmentId) return alert("Department is required");
-    const record = { ...header, details };
-    if (editId) {
-      setIndents((p) =>
-        p.map((x) => (x.id === editId ? { id: editId, ...record } : x)),
-      );
-    } else {
-      setIndents((p) => [...p, { id: nextId(), ...record }]);
+  // ── Save ──────────────────────────────────────────────────────────────────
+  async function handleSave() {
+    if (!header.indentNo.trim()) return setFormError("Indent No is required");
+    if (!header.departmentId) return setFormError("Department is required");
+    if (details.length === 0)
+      return setFormError("Add at least one detail row");
+
+    setFormError(null);
+    setSaving(true);
+
+    // Strip local-only _rowId before sending to API
+    const cleanDetails = details.map(({ _rowId, ...rest }) => rest);
+    const payload = { ...header, details: cleanDetails };
+
+    try {
+      if (editId) {
+        const updated = await purchaseIndentApi.update(editId, payload);
+        setIndents((p) => p.map((x) => (sid(x._id) === editId ? updated : x)));
+      } else {
+        const created = await purchaseIndentApi.create(payload);
+        setIndents((p) => [created, ...p]);
+      }
+      setView("list");
+    } catch (err) {
+      setFormError(err.message || "Save failed");
+    } finally {
+      setSaving(false);
     }
-    setView("list");
-    resetForm();
+  }
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+  async function handleDelete(id) {
+    if (!window.confirm("Delete this indent?")) return;
+    try {
+      await purchaseIndentApi.remove(id);
+      setIndents((p) => p.filter((x) => sid(x._id) !== id));
+    } catch (err) {
+      alert(err.message || "Delete failed");
+    }
   }
 
   const totalQty = details.reduce((s, r) => s + Number(r.indentQty || 0), 0);
 
-  /* ── LIST VIEW ── */
+  // ── Inline select style ───────────────────────────────────────────────────
+  const selectStyle = {
+    width: "100%",
+    border: "none",
+    outline: "none",
+    fontSize: 11.5,
+    background: "transparent",
+    padding: "2px 4px",
+    cursor: "pointer",
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LIST VIEW
+  // ═══════════════════════════════════════════════════════════════════════════
   if (view === "list") {
     return (
       <div className="inv-page">
@@ -184,6 +271,18 @@ export default function PurchaseIndentPage({
             + New Indent
           </button>
         </div>
+
+        {listError && (
+          <div className="inv-error-banner">
+            {listError}{" "}
+            <button
+              onClick={loadIndents}
+              style={{ marginLeft: 8, textDecoration: "underline" }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         <div className="inv-card">
           <div className="inv-card-body">
@@ -203,104 +302,105 @@ export default function PurchaseIndentPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {indents.length === 0 && (
+                  {loadingList ? (
+                    <tr>
+                      <td colSpan={9} className="inv-empty">
+                        Loading…
+                      </td>
+                    </tr>
+                  ) : indents.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="inv-empty">
                         No indent records found
                       </td>
                     </tr>
-                  )}
-                  {indents.map((indent, i) => {
-                    const qty = indent.details.reduce(
-                      (s, d) => s + Number(d.indentQty || 0),
-                      0,
-                    );
-                    return (
-                      <tr key={indent.id}>
-                        <td className="inv-idx">
-                          {String(i + 1).padStart(2, "0")}
-                        </td>
-                        <td style={{ fontWeight: 600, color: "var(--accent)" }}>
-                          {indent.indentNo}
-                        </td>
-                        <td>{indent.date}</td>
-                        <td>{indent.departmentName}</td>
-                        <td>{indent.createdBy}</td>
-                        <td className="inv-muted-sm">
-                          {indent.details.length} item
-                          {indent.details.length !== 1 ? "s" : ""}
-                        </td>
-                        <td
-                          style={{
-                            fontFamily: "DM Mono, monospace",
-                            fontWeight: 500,
-                          }}
-                        >
-                          {fmt(qty)}
-                        </td>
-                        <td>
-                          <span
-                            className={`inv-badge ${
-                              indent.status === "Open"
-                                ? "inv-badge-yes"
-                                : "inv-badge-no"
-                            }`}
+                  ) : (
+                    indents.map((indent, i) => {
+                      const qty = (indent.details || []).reduce(
+                        (s, d) => s + Number(d.indentQty || 0),
+                        0,
+                      );
+                      return (
+                        <tr key={sid(indent._id)}>
+                          <td className="inv-idx">
+                            {String(i + 1).padStart(2, "0")}
+                          </td>
+                          <td
+                            style={{ fontWeight: 600, color: "var(--accent)" }}
                           >
-                            {indent.status}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="inv-actions">
-                            <button
-                              className="inv-btn-icon"
-                              onClick={() => openEdit(indent)}
+                            {indent.indentNo}
+                          </td>
+                          <td>{indent.date}</td>
+                          <td>{indent.departmentName}</td>
+                          <td>{indent.createdBy}</td>
+                          <td className="inv-muted-sm">
+                            {(indent.details || []).length} item
+                            {(indent.details || []).length !== 1 ? "s" : ""}
+                          </td>
+                          <td
+                            style={{
+                              fontFamily: "DM Mono, monospace",
+                              fontWeight: 500,
+                            }}
+                          >
+                            {fmt(qty)}
+                          </td>
+                          <td>
+                            <span
+                              className={`inv-badge ${indent.status === "Open" ? "inv-badge-yes" : "inv-badge-no"}`}
                             >
-                             <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                            </button>
-                            <button
-                              className="inv-btn-icon inv-btn-danger"
-                              onClick={() =>
-                                setIndents((p) =>
-                                  p.filter((x) => x.id !== indent.id),
-                                )
-                              }
-                            >
-                              <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                          <path d="M10 11v6" />
-                          <path d="M14 11v6" />
-                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                        </svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                              {indent.status}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="inv-actions">
+                              <button
+                                className="inv-btn-icon"
+                                onClick={() => openEdit(indent)}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="15"
+                                  height="15"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                              </button>
+                              <button
+                                className="inv-btn-icon inv-btn-danger"
+                                onClick={() => handleDelete(sid(indent._id))}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="15"
+                                  height="15"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                  <path d="M10 11v6" />
+                                  <path d="M14 11v6" />
+                                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -310,7 +410,9 @@ export default function PurchaseIndentPage({
     );
   }
 
-  /* ── FORM VIEW ── */
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FORM VIEW
+  // ═══════════════════════════════════════════════════════════════════════════
   return (
     <div className="inv-page">
       <div className="inv-page-header">
@@ -324,16 +426,27 @@ export default function PurchaseIndentPage({
           <button className="inv-btn-secondary" onClick={() => setView("list")}>
             ← Back
           </button>
-          <button className="inv-btn-primary" onClick={handleSave}>
-            Save Indent
+          <button
+            className="inv-btn-primary"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? "Saving…" : "Save Indent"}
           </button>
         </div>
       </div>
 
-      {/* ── Header card ── */}
+      {formError && (
+        <div className="inv-error-banner" style={{ marginBottom: 12 }}>
+          {formError}
+        </div>
+      )}
+
+      {/* ── Header card ─────────────────────────────────────────────────────── */}
       <div className="inv-card">
         <div className="inv-card-body">
           <div className="inv-section-label">Header</div>
+
           <div className="inv-form-row cols-4">
             {/* Indent No — auto generated */}
             <div className="inv-field">
@@ -385,7 +498,7 @@ export default function PurchaseIndentPage({
               />
             </div>
 
-            {/* Department */}
+            {/* Department — from API */}
             <div className="inv-field">
               <label className="inv-label">Department *</label>
               <select
@@ -393,19 +506,19 @@ export default function PurchaseIndentPage({
                 value={header.departmentId}
                 onChange={(e) => {
                   const d = departments.find(
-                    (x) => String(x.id) === e.target.value,
+                    (x) => sid(x._id) === e.target.value,
                   );
                   setHeader((h) => ({
                     ...h,
                     departmentId: e.target.value,
-                    departmentName: d?.name || "",
+                    departmentName: d?.name || d?.departmentName || "",
                   }));
                 }}
               >
                 <option value="">Select department</option>
                 {departments.map((d) => (
-                  <option key={d.id} value={String(d.id)}>
-                    {d.name}
+                  <option key={sid(d._id)} value={sid(d._id)}>
+                    {d.name || d.departmentName}
                   </option>
                 ))}
               </select>
@@ -467,7 +580,7 @@ export default function PurchaseIndentPage({
         </div>
       </div>
 
-      {/* ── Detail card ── */}
+      {/* ── Detail card ─────────────────────────────────────────────────────── */}
       <div className="inv-card">
         <div className="inv-card-body">
           <div
@@ -494,7 +607,7 @@ export default function PurchaseIndentPage({
                   <th style={{ minWidth: 150 }}>Item Category</th>
                   <th style={{ minWidth: 150 }}>Main Category</th>
                   <th style={{ minWidth: 170 }}>Item Name</th>
-                  <th style={{ minWidth: 80 }}>UOM</th>
+                  <th style={{ minWidth: 70 }}>UOM</th>
                   <th style={{ minWidth: 90 }}>Indent Qty</th>
                   <th style={{ minWidth: 120 }}>Due Date</th>
                   <th style={{ minWidth: 160 }}>Remarks</th>
@@ -503,41 +616,25 @@ export default function PurchaseIndentPage({
               </thead>
               <tbody>
                 {details.map((row, idx) => {
-                  // Filter categories by selected head
+                  // Categories filtered by selected inventory head
                   const filteredCategories = row.inventoryHeadId
-                    ? categories.filter(
-                        (c) => String(c.headId) === String(row.inventoryHeadId),
-                      )
-                    : categories;
+                    ? categories.filter((c) => c.headId === row.inventoryHeadId)
+                    : [];
 
-                  // Filter items by selected category
+                  // Items filtered by selected category (by groupName match), or by head
                   const filteredItems = row.mainCategoryId
-                    ? items.filter(
-                        (it) =>
-                          it.group ===
-                          categories.find(
-                            (c) => String(c.id) === String(row.mainCategoryId),
-                          )?.groupName,
-                      )
+                    ? items.filter((it) => {
+                        const cat = categories.find(
+                          (c) => c._id === row.mainCategoryId,
+                        );
+                        return cat ? it.group === cat.groupName : false;
+                      })
                     : row.inventoryHeadId
-                      ? items.filter(
-                          (it) =>
-                            String(it.headId) === String(row.inventoryHeadId),
-                        )
-                      : items;
-
-                  const selectStyle = {
-                    width: "100%",
-                    border: "none",
-                    outline: "none",
-                    fontSize: 11.5,
-                    background: "transparent",
-                    padding: "2px 4px",
-                    cursor: "pointer",
-                  };
+                      ? items.filter((it) => it.headId === row.inventoryHeadId)
+                      : [];
 
                   return (
-                    <tr key={row.id}>
+                    <tr key={row._rowId}>
                       <td
                         style={{
                           textAlign: "center",
@@ -558,14 +655,14 @@ export default function PurchaseIndentPage({
                         >
                           <option value="">Select category</option>
                           {heads.map((h) => (
-                            <option key={h.id} value={String(h.id)}>
+                            <option key={sid(h._id)} value={sid(h._id)}>
                               {h.headName}
                             </option>
                           ))}
                         </select>
                       </td>
 
-                      {/* Main Category */}
+                      {/* Main Category — filtered by head */}
                       <td>
                         <select
                           value={row.mainCategoryId}
@@ -581,14 +678,14 @@ export default function PurchaseIndentPage({
                               : "Select category first"}
                           </option>
                           {filteredCategories.map((c) => (
-                            <option key={c.id} value={String(c.id)}>
+                            <option key={c._id} value={c._id}>
                               {c.groupName}
                             </option>
                           ))}
                         </select>
                       </td>
 
-                      {/* Item Name */}
+                      {/* Item — filtered by category (or head) */}
                       <td style={{ minWidth: 170 }}>
                         <select
                           value={row.itemId}
@@ -604,14 +701,14 @@ export default function PurchaseIndentPage({
                               : "Select category first"}
                           </option>
                           {filteredItems.map((it) => (
-                            <option key={it.id} value={String(it.id)}>
+                            <option key={it._id} value={it._id}>
                               {it.itemName}
                             </option>
                           ))}
                         </select>
                       </td>
 
-                      {/* UOM — auto filled, read-only */}
+                      {/* UOM — auto-filled, read-only */}
                       <td>
                         <input
                           value={row.uom}
@@ -672,7 +769,7 @@ export default function PurchaseIndentPage({
                         />
                       </td>
 
-                      {/* Remove */}
+                      {/* Remove row */}
                       <td>
                         <button
                           className="inv-btn-icon inv-btn-danger"
@@ -711,7 +808,7 @@ export default function PurchaseIndentPage({
         </div>
       </div>
 
-      {/* ── Summary card ── */}
+      {/* ── Summary card ────────────────────────────────────────────────────── */}
       <div className="inv-card">
         <div className="inv-card-body">
           <div className="inv-section-label">Summary</div>

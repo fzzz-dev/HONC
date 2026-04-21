@@ -7,6 +7,8 @@ import SimpleMasterPage from "./components/SimpleMasterPage";
 import InventoryHeadPage from "./pages/InventoryHeadPage";
 import MainCategoryPage from "./pages/MainCategoryPage";
 import ItemPage from "./pages/ItemPage";
+import MakePage from "./pages/Makepage";
+import SpecPage from "./pages/SpecPage";
 import SupplierPage from "./pages/SupplierPage";
 import CountryPage from "./pages/CountryPage";
 import StatePage from "./pages/StatePage";
@@ -132,7 +134,7 @@ export default function App() {
             <Route
               path="/make"
               element={
-                <SimpleMasterPage
+                <MakePage
                   title="Make"
                   subtitle="Manage makes / brands"
                   items={makes}
@@ -143,7 +145,7 @@ export default function App() {
             <Route
               path="/spec"
               element={
-                <SimpleMasterPage
+                <SpecPage
                   title="Spec Name"
                   subtitle="Manage specifications"
                   items={specs}
@@ -225,6 +227,7 @@ export default function App() {
                   suppliers={suppliers}
                   items={items}
                   uoms={uoms}
+                   indents={indents}
                 />
               }
             />

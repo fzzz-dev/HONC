@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import ItemPriceListAPI from "../../services/Itempricelistapi";
 
 let _id = 700;
 const nextId = () => ++_id;
@@ -40,8 +41,6 @@ function generatePriceListNo(existing) {
 }
 
 export default function ItemPriceListPage({
-  priceLists = [],
-  setPriceLists,
   suppliers = [],
   heads = [],
   items = [],
@@ -49,6 +48,9 @@ export default function ItemPriceListPage({
   const today = new Date().toISOString().split("T")[0];
   const [view, setView] = useState("list");
   const [editId, setEditId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [priceLists, setPriceLists] = useState([]);
 
   const [header, setHeader] = useState({
     listNo: "",
@@ -57,6 +59,28 @@ export default function ItemPriceListPage({
     date: today,
   });
   const [details, setDetails] = useState([emptyDetail()]);
+
+  // Load price lists on component mount
+  useEffect(() => {
+    loadPriceLists();
+  }, []);
+
+  /**
+   * Load all price lists from API
+   */
+  async function loadPriceLists() {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await ItemPriceListAPI.getAll();
+      setPriceLists(response.data || response || []);
+    } catch (err) {
+      setError(err.message);
+      console.error("Failed to load price lists:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function openNew() {
     const autoNo = generatePriceListNo(priceLists);
@@ -71,16 +95,30 @@ export default function ItemPriceListPage({
     setView("form");
   }
 
-  function openEdit(rec) {
-    setHeader({
-      listNo: rec.listNo,
-      supplierId: rec.supplierId,
-      supplierName: rec.supplierName,
-      date: rec.date,
-    });
-    setDetails(rec.details.map((d) => ({ ...d })));
-    setEditId(rec.id);
-    setView("form");
+  async function openEdit(rec) {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch full details from API
+      const response = await ItemPriceListAPI.getById(rec.id);
+      const fullRecord = response.data || response;
+
+      setHeader({
+        listNo: fullRecord.listNo,
+        supplierId: fullRecord.supplierId,
+        supplierName: fullRecord.supplierName,
+        date: fullRecord.date,
+      });
+      setDetails(fullRecord.details.map((d) => ({ ...d })));
+      setEditId(fullRecord.id);
+      setView("form");
+    } catch (err) {
+      setError(err.message);
+      console.error("Failed to load price list:", err);
+      alert("Failed to load price list details");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function updateDetail(idx, field, val) {
@@ -105,17 +143,65 @@ export default function ItemPriceListPage({
     });
   }
 
-  function handleSave() {
-    if (!header.supplierId) return alert("Supplier is required");
-    const record = { ...header, details };
-    if (editId) {
-      setPriceLists((p) =>
-        p.map((x) => (x.id === editId ? { id: editId, ...record } : x)),
-      );
-    } else {
-      setPriceLists((p) => [...p, { id: nextId(), ...record }]);
+  async function handleSave() {
+    if (!header.supplierId) {
+      alert("Supplier is required");
+      return;
     }
-    setView("list");
+
+    setLoading(true);
+    setError(null);
+
+    const record = {
+      listNo: header.listNo,
+      supplierId: header.supplierId,
+      supplierName: header.supplierName,
+      date: header.date,
+      details: details,
+    };
+
+    try {
+      if (editId) {
+        // Update existing
+        await ItemPriceListAPI.update(editId, record);
+        alert("Price list updated successfully!");
+      } else {
+        // Create new
+        await ItemPriceListAPI.create(record);
+        alert("Price list created successfully!");
+      }
+
+      // Reload the list
+      await loadPriceLists();
+      setView("list");
+    } catch (err) {
+      setError(err.message);
+      console.error("Failed to save price list:", err);
+      alert(`Failed to save: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm("Are you sure you want to delete this price list?")) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await ItemPriceListAPI.delete(id);
+      alert("Price list deleted successfully!");
+      await loadPriceLists();
+    } catch (err) {
+      setError(err.message);
+      console.error("Failed to delete price list:", err);
+      alert(`Failed to delete: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const selectStyle = {
@@ -137,100 +223,130 @@ export default function ItemPriceListPage({
             <h1 className="inv-page-title">Item Price List</h1>
             <p className="inv-page-sub">Manage supplier item price lists</p>
           </div>
-          <button className="inv-btn-primary" onClick={openNew}>
+          <button
+            className="inv-btn-primary"
+            onClick={openNew}
+            disabled={loading}
+          >
             + New Price List
           </button>
         </div>
+
+        {error && (
+          <div
+            style={{
+              padding: "12px 16px",
+              background: "#fee",
+              border: "1px solid #fcc",
+              borderRadius: 6,
+              color: "#c00",
+              marginBottom: 16,
+            }}
+          >
+            Error: {error}
+          </div>
+        )}
+
         <div className="inv-card">
           <div className="inv-card-body">
-            <div className="inv-table-wrap">
-              <table className="inv-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>List No</th>
-                    <th>Supplier</th>
-                    <th>Date</th>
-                    <th>Items</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {priceLists.length === 0 && (
+            {loading ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "40px 0",
+                  color: "#999",
+                }}
+              >
+                Loading...
+              </div>
+            ) : (
+              <div className="inv-table-wrap">
+                <table className="inv-table">
+                  <thead>
                     <tr>
-                      <td colSpan={6} className="inv-empty">
-                        No price lists found
-                      </td>
+                      <th>#</th>
+                      <th>List No</th>
+                      <th>Supplier</th>
+                      <th>Date</th>
+                      <th>Items</th>
+                      <th>Actions</th>
                     </tr>
-                  )}
-                  {priceLists.map((rec, i) => (
-                    <tr key={rec.id}>
-                      <td className="inv-idx">
-                        {String(i + 1).padStart(2, "0")}
-                      </td>
-                      <td style={{ fontWeight: 600, color: "var(--accent)" }}>
-                        {rec.listNo}
-                      </td>
-                      <td>{rec.supplierName}</td>
-                      <td>{rec.date}</td>
-                      <td className="inv-muted-sm">
-                        {rec.details.length} item
-                        {rec.details.length !== 1 ? "s" : ""}
-                      </td>
-                      <td>
-                        <div className="inv-actions">
-                          <button
-                            className="inv-btn-icon"
-                            onClick={() => openEdit(rec)}
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="15"
-                              height="15"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+                  </thead>
+                  <tbody>
+                    {priceLists.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="inv-empty">
+                          No price lists found
+                        </td>
+                      </tr>
+                    )}
+                    {priceLists.map((rec, i) => (
+                      <tr key={rec.id}>
+                        <td className="inv-idx">
+                          {String(i + 1).padStart(2, "0")}
+                        </td>
+                        <td style={{ fontWeight: 600, color: "var(--accent)" }}>
+                          {rec.listNo}
+                        </td>
+                        <td>{rec.supplierName}</td>
+                        <td>{rec.date}</td>
+                        <td className="inv-muted-sm">
+                          {rec.details?.length || 0} item
+                          {rec.details?.length !== 1 ? "s" : ""}
+                        </td>
+                        <td>
+                          <div className="inv-actions">
+                            <button
+                              className="inv-btn-icon"
+                              onClick={() => openEdit(rec)}
+                              disabled={loading}
                             >
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                          </button>
-                          <button
-                            className="inv-btn-icon inv-btn-danger"
-                            onClick={() =>
-                              setPriceLists((p) =>
-                                p.filter((x) => x.id !== rec.id),
-                              )
-                            }
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="15"
-                              height="15"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="15"
+                                height="15"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </button>
+                            <button
+                              className="inv-btn-icon inv-btn-danger"
+                              onClick={() => handleDelete(rec.id)}
+                              disabled={loading}
                             >
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                              <path d="M10 11v6" />
-                              <path d="M14 11v6" />
-                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="15"
+                                height="15"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                <path d="M10 11v6" />
+                                <path d="M14 11v6" />
+                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -248,14 +364,37 @@ export default function ItemPriceListPage({
           <p className="inv-page-sub">Set item prices per supplier</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-secondary" onClick={() => setView("list")}>
+          <button
+            className="inv-btn-secondary"
+            onClick={() => setView("list")}
+            disabled={loading}
+          >
             ← Back
           </button>
-          <button className="inv-btn-primary" onClick={handleSave}>
-            Save
+          <button
+            className="inv-btn-primary"
+            onClick={handleSave}
+            disabled={loading}
+          >
+            {loading ? "Saving..." : "Save"}
           </button>
         </div>
       </div>
+
+      {error && (
+        <div
+          style={{
+            padding: "12px 16px",
+            background: "#fee",
+            border: "1px solid #fcc",
+            borderRadius: 6,
+            color: "#c00",
+            marginBottom: 16,
+          }}
+        >
+          Error: {error}
+        </div>
+      )}
 
       {/* Header */}
       <div className="inv-card">
