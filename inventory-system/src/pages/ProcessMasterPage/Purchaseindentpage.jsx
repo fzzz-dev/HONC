@@ -23,6 +23,10 @@ const sid = (v) => {
   return String(v);
 };
 
+// Always returns a guaranteed array from indent.details (handles null / object / non-array)
+const safeDetails = (details) =>
+  Array.isArray(details) ? details : [];
+
 const emptyDetail = () => ({
   _rowId: Date.now() + Math.random(), // local key only, not sent to API
   inventoryHeadId: "",
@@ -82,20 +86,18 @@ export default function PurchaseIndentPage() {
         mainCategoryApi.getAll(),
         itemApi.getAll(),
       ]);
-      setDepartments(depts);
-      setHeads(headsData);
-      // Normalize category headId to plain string
+      setDepartments(Array.isArray(depts) ? depts : []);
+      setHeads(Array.isArray(headsData) ? headsData : []);
       setCategories(
-        catsData.map((c) => ({
+        (Array.isArray(catsData) ? catsData : []).map((c) => ({
           ...c,
           id: sid(c.id || c._id),
           _id: sid(c.id || c._id),
           headId: sid(c.headId),
         })),
       );
-      // Normalize item headId to plain string
       setItems(
-        itemsData.map((it) => ({
+        (Array.isArray(itemsData) ? itemsData : []).map((it) => ({
           ...it,
           id: sid(it.id || it._id),
           _id: sid(it.id || it._id),
@@ -112,7 +114,7 @@ export default function PurchaseIndentPage() {
     setListError(null);
     try {
       const data = await purchaseIndentApi.getAll();
-      setIndents(data);
+      setIndents(Array.isArray(data) ? data : []);
     } catch (err) {
       setListError(err.message || "Failed to load indents");
     } finally {
@@ -148,7 +150,7 @@ export default function PurchaseIndentPage() {
       remarks: indent.remarks,
     });
     setDetails(
-      (indent.details || []).map((d) => ({
+      safeDetails(indent.details).map((d) => ({
         ...d,
         _rowId: Date.now() + Math.random(),
         inventoryHeadId: sid(d.inventoryHeadId),
@@ -169,7 +171,6 @@ export default function PurchaseIndentPage() {
       if (field === "inventoryHeadId") {
         const found = heads.find((h) => sid(h.id || h._id) === val);
         row.inventoryHeadName = found?.headName || "";
-        // Reset downstream
         row.mainCategoryId = "";
         row.mainCategoryName = "";
         row.itemId = "";
@@ -180,7 +181,6 @@ export default function PurchaseIndentPage() {
       if (field === "mainCategoryId") {
         const found = categories.find((c) => (c.id || c._id) === val);
         row.mainCategoryName = found?.groupName || "";
-        // Reset downstream
         row.itemId = "";
         row.itemName = "";
         row.uom = "";
@@ -214,14 +214,15 @@ export default function PurchaseIndentPage() {
     setFormError(null);
     setSaving(true);
 
-    // Strip local-only _rowId before sending to API
     const cleanDetails = details.map(({ _rowId, ...rest }) => rest);
     const payload = { ...header, details: cleanDetails };
 
     try {
       if (editId) {
         const updated = await purchaseIndentApi.update(editId, payload);
-        setIndents((p) => p.map((x) => (sid(x.id || x._id) === editId ? updated : x)));
+        setIndents((p) =>
+          p.map((x) => (sid(x.id || x._id) === editId ? updated : x)),
+        );
       } else {
         const created = await purchaseIndentApi.create(payload);
         setIndents((p) => [created, ...p]);
@@ -247,7 +248,6 @@ export default function PurchaseIndentPage() {
 
   const totalQty = details.reduce((s, r) => s + Number(r.indentQty || 0), 0);
 
-  // ── Inline select style ───────────────────────────────────────────────────
   const selectStyle = {
     width: "100%",
     border: "none",
@@ -318,7 +318,8 @@ export default function PurchaseIndentPage() {
                     </tr>
                   ) : (
                     indents.map((indent, i) => {
-                      const qty = (indent.details || []).reduce(
+                      const indentDetails = safeDetails(indent.details);
+                      const qty = indentDetails.reduce(
                         (s, d) => s + Number(d.indentQty || 0),
                         0,
                       );
@@ -336,8 +337,8 @@ export default function PurchaseIndentPage() {
                           <td>{indent.departmentName}</td>
                           <td>{indent.createdBy}</td>
                           <td className="inv-muted-sm">
-                            {(indent.details || []).length} item
-                            {(indent.details || []).length !== 1 ? "s" : ""}
+                            {indentDetails.length} item
+                            {indentDetails.length !== 1 ? "s" : ""}
                           </td>
                           <td
                             style={{
@@ -377,7 +378,9 @@ export default function PurchaseIndentPage() {
                               </button>
                               <button
                                 className="inv-btn-icon inv-btn-danger"
-                                onClick={() => handleDelete(sid(indent.id || indent._id))}
+                                onClick={() =>
+                                  handleDelete(sid(indent.id || indent._id))
+                                }
                               >
                                 <svg
                                   xmlns="http://www.w3.org/2000/svg"
@@ -450,7 +453,6 @@ export default function PurchaseIndentPage() {
           <div className="inv-section-label">Header</div>
 
           <div className="inv-form-row cols-4">
-            {/* Indent No — auto generated */}
             <div className="inv-field">
               <label className="inv-label">
                 Indent No
@@ -487,7 +489,6 @@ export default function PurchaseIndentPage() {
               />
             </div>
 
-            {/* Date */}
             <div className="inv-field">
               <label className="inv-label">Date</label>
               <input
@@ -500,7 +501,6 @@ export default function PurchaseIndentPage() {
               />
             </div>
 
-            {/* Department — from API */}
             <div className="inv-field">
               <label className="inv-label">Department *</label>
               <select
@@ -526,7 +526,6 @@ export default function PurchaseIndentPage() {
               </select>
             </div>
 
-            {/* Status */}
             <div className="inv-field">
               <label className="inv-label">Status</label>
               <select
@@ -618,19 +617,17 @@ export default function PurchaseIndentPage() {
               </thead>
               <tbody>
                 {details.map((row, idx) => {
-                  // Categories filtered by selected inventory head
                   const filteredCategories = row.inventoryHeadId
                     ? categories.filter((c) => c.headId === row.inventoryHeadId)
                     : [];
 
-                  // Items filtered by selected category (by groupName match), or by head
                   const filteredItems = row.mainCategoryId
                     ? items.filter((it) => {
-                        const cat = categories.find(
-                          (c) => (c.id || c._id) === row.mainCategoryId,
-                        );
-                        return cat ? it.group === cat.groupName : false;
-                      })
+                      const cat = categories.find(
+                        (c) => (c.id || c._id) === row.mainCategoryId,
+                      );
+                      return cat ? it.group === cat.groupName : false;
+                    })
                     : row.inventoryHeadId
                       ? items.filter((it) => it.headId === row.inventoryHeadId)
                       : [];
@@ -646,7 +643,6 @@ export default function PurchaseIndentPage() {
                         {idx + 1}
                       </td>
 
-                      {/* Item Category (Inventory Head) */}
                       <td>
                         <select
                           value={row.inventoryHeadId}
@@ -657,14 +653,16 @@ export default function PurchaseIndentPage() {
                         >
                           <option value="">Select category</option>
                           {heads.map((h) => (
-                            <option key={sid(h.id || h._id)} value={sid(h.id || h._id)}>
+                            <option
+                              key={sid(h.id || h._id)}
+                              value={sid(h.id || h._id)}
+                            >
                               {h.headName}
                             </option>
                           ))}
                         </select>
                       </td>
 
-                      {/* Main Category — filtered by head */}
                       <td>
                         <select
                           value={row.mainCategoryId}
@@ -687,7 +685,6 @@ export default function PurchaseIndentPage() {
                         </select>
                       </td>
 
-                      {/* Item — filtered by category (or head) */}
                       <td style={{ minWidth: 170 }}>
                         <select
                           value={row.itemId}
@@ -703,14 +700,16 @@ export default function PurchaseIndentPage() {
                               : "Select category first"}
                           </option>
                           {filteredItems.map((it) => (
-                            <option key={it.id || it._id} value={it.id || it._id}>
+                            <option
+                              key={it.id || it._id}
+                              value={it.id || it._id}
+                            >
                               {it.itemName}
                             </option>
                           ))}
                         </select>
                       </td>
 
-                      {/* UOM — auto-filled, read-only */}
                       <td>
                         <input
                           value={row.uom}
@@ -728,7 +727,6 @@ export default function PurchaseIndentPage() {
                         />
                       </td>
 
-                      {/* Indent Qty */}
                       <td>
                         <input
                           type="number"
@@ -741,7 +739,6 @@ export default function PurchaseIndentPage() {
                         />
                       </td>
 
-                      {/* Due Date */}
                       <td>
                         <input
                           type="date"
@@ -759,7 +756,6 @@ export default function PurchaseIndentPage() {
                         />
                       </td>
 
-                      {/* Remarks */}
                       <td>
                         <input
                           value={row.remarks}
@@ -771,7 +767,6 @@ export default function PurchaseIndentPage() {
                         />
                       </td>
 
-                      {/* Remove row */}
                       <td>
                         <button
                           className="inv-btn-icon inv-btn-danger"

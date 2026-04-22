@@ -1,6 +1,6 @@
 // pages/PurchaseOrderPage.jsx
-import { useState, useEffect, useCallback } from "react";
-import { purchaseOrderApi } from "../../services/inventoryApi"; // adjust path as needed
+import { useState, useEffect } from "react";
+import { purchaseOrderApi } from "../../services/inventoryApi";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n) =>
@@ -17,37 +17,27 @@ const sid = (v) => {
   return String(v);
 };
 
+// Always returns a guaranteed array (handles null / object / non-array)
+const safeDetails = (details) => (Array.isArray(details) ? details : []);
 
 // ─── empty row factory ────────────────────────────────────────────────────────
 const emptyDetail = () => ({
-  _rowId: Date.now() + Math.random(), // local key only
-
-  // Indent linkage
+  _rowId: Date.now() + Math.random(),
   indentId: "",
   indentNo: "",
-  indentDetailId: "", // _id of the selected indent detail row
-
-  // Item
+  indentDetailId: "",
   itemId: "",
   itemName: "",
   uom: "",
-
-  // Qty
   indentQty: 0,
   alPoQty: 0,
   balQty: 0,
   poQty: 0,
-
-  // Pricing
   priceListRate: 0,
   poRate: 0,
-
-  // Discount
   discMode: "pct",
   discPct: 0,
   discPrice: 0,
-
-  // Computed
   poAmount: 0,
   gstPct: 18,
   sgst: 0,
@@ -55,8 +45,6 @@ const emptyDetail = () => ({
   igst: 0,
   totGst: 0,
   totalAmount: 0,
-
-  // Remarks
   indentRemarks: "",
   poRemarks: "",
 });
@@ -72,7 +60,7 @@ const emptyHeader = () => ({
   remarks: "",
 });
 
-// ─── GST calculation (server mirrors this logic) ──────────────────────────────
+// ─── GST calculation ──────────────────────────────────────────────────────────
 function calcRow(row, gstEnabled, gstType) {
   const baseAmt = (row.poQty || 0) * (row.poRate || 0);
 
@@ -90,9 +78,7 @@ function calcRow(row, gstEnabled, gstType) {
   const netAmt = baseAmt - discPrice;
   const gst = gstEnabled ? netAmt * ((row.gstPct || 0) / 100) : 0;
 
-  let sgst = 0,
-    cgst = 0,
-    igst = 0;
+  let sgst = 0, cgst = 0, igst = 0;
   if (gstEnabled) {
     if (gstType === "other") {
       igst = gst;
@@ -117,19 +103,14 @@ function calcRow(row, gstEnabled, gstType) {
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function PurchaseOrderPage() {
-  // ── list state ──────────────────────────────────────────────────────────────
   const [pos, setPos] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState(null);
 
-  // ── indent lookup (for PO form) ─────────────────────────────────────────────
-  const [indents, setIndents] = useState([]); // Open purchase indents
-
-  // ── supplier lookup (fetched from backend) ──────────────────────────────────
+  const [indents, setIndents] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
 
-  // ── form state ──────────────────────────────────────────────────────────────
   const [view, setView] = useState("list");
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -138,12 +119,9 @@ export default function PurchaseOrderPage() {
   const [header, setHeader] = useState(emptyHeader());
   const [details, setDetails] = useState([emptyDetail()]);
 
-  // ── GST config ──────────────────────────────────────────────────────────────
   const [gstEnabled, setGstEnabled] = useState(true);
-  // "local" → SGST + CGST split; "other" → IGST only
   const [gstType, setGstType] = useState("local");
 
-  // ── boot ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     loadPos();
     loadIndents();
@@ -155,7 +133,7 @@ export default function PurchaseOrderPage() {
     setListError(null);
     try {
       const data = await purchaseOrderApi.getAll();
-      setPos(data);
+      setPos(Array.isArray(data) ? data : []);
     } catch (err) {
       setListError(err.message || "Failed to load purchase orders");
     } finally {
@@ -165,9 +143,8 @@ export default function PurchaseOrderPage() {
 
   async function loadIndents() {
     try {
-      // Returns all Open indents regardless of balQty
       const data = await purchaseOrderApi.getIndents();
-      setIndents(data);
+      setIndents(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to load indents for PO:", err);
     }
@@ -177,7 +154,7 @@ export default function PurchaseOrderPage() {
     setLoadingSuppliers(true);
     try {
       const data = await purchaseOrderApi.getSuppliers();
-      setSuppliers(data);
+      setSuppliers(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to load suppliers:", err);
     } finally {
@@ -185,7 +162,6 @@ export default function PurchaseOrderPage() {
     }
   }
 
-  // ── open new form ────────────────────────────────────────────────────────────
   async function openNew() {
     setFormError(null);
     let poNo = "";
@@ -203,7 +179,6 @@ export default function PurchaseOrderPage() {
     setView("form");
   }
 
-  // ── open edit form ───────────────────────────────────────────────────────────
   function openEdit(po) {
     setFormError(null);
     setHeader({
@@ -217,7 +192,7 @@ export default function PurchaseOrderPage() {
       remarks: po.remarks,
     });
     setDetails(
-      (po.details || []).map((d) => ({
+      safeDetails(po.details).map((d) => ({
         ...d,
         _rowId: Date.now() + Math.random(),
         indentId: sid(d.indentId),
@@ -231,21 +206,18 @@ export default function PurchaseOrderPage() {
     setView("form");
   }
 
-  // ── GST enable toggle ────────────────────────────────────────────────────────
   function toggleGst() {
     const next = !gstEnabled;
     setGstEnabled(next);
     setDetails((prev) => prev.map((r) => calcRow(r, next, gstType)));
   }
 
-  // ── GST type toggle (local ↔ other state) ────────────────────────────────────
   function toggleGstType() {
     const next = gstType === "local" ? "other" : "local";
     setGstType(next);
     setDetails((prev) => prev.map((r) => calcRow(r, gstEnabled, next)));
   }
 
-  // ── update a detail field ────────────────────────────────────────────────────
   function updateDetail(idx, field, val) {
     setDetails((prev) => {
       const rows = [...prev];
@@ -254,14 +226,13 @@ export default function PurchaseOrderPage() {
         [field]: isNaN(val) || val === "" ? val : +val,
       };
 
-      // If user picked an indent row, auto-fill item / qty fields
       if (field === "indentDetailId") {
-        // val here is the _id of the indent detail row (string)
-        // Find which indent + detail it belongs to
         let found = null;
         let foundIndent = null;
         for (const indent of indents) {
-          const detail = (indent.details || []).find((d) => sid(d._id) === val);
+          const detail = safeDetails(indent.details).find(
+            (d) => sid(d._id) === val,
+          );
           if (detail) {
             found = detail;
             foundIndent = indent;
@@ -278,10 +249,8 @@ export default function PurchaseOrderPage() {
           row.indentQty = found.indentQty || 0;
           row.alPoQty = found.alPoQty || 0;
           row.balQty = found.balQty || 0;
-          // Pre-fill poQty with balQty (but don't exceed)
           row.poQty = found.balQty || 0;
         } else {
-          // Cleared
           row.indentDetailId = "";
           row.indentId = "";
           row.indentNo = "";
@@ -293,16 +262,11 @@ export default function PurchaseOrderPage() {
     });
   }
 
-  // ── toggle per-row discount mode ─────────────────────────────────────────────
   function toggleDiscMode(idx) {
     setDetails((prev) => {
       const rows = [...prev];
       const next = rows[idx].discMode === "pct" ? "price" : "pct";
-      rows[idx] = calcRow(
-        { ...rows[idx], discMode: next },
-        gstEnabled,
-        gstType,
-      );
+      rows[idx] = calcRow({ ...rows[idx], discMode: next }, gstEnabled, gstType);
       return rows;
     });
   }
@@ -314,13 +278,11 @@ export default function PurchaseOrderPage() {
     setDetails((p) => p.filter((_, i) => i !== idx));
   }
 
-  // ── save ─────────────────────────────────────────────────────────────────────
   async function handleSave() {
     if (!header.poNo.trim()) return setFormError("PO No is required");
     setFormError(null);
     setSaving(true);
 
-    // Strip local-only _rowId
     const cleanDetails = details.map(({ _rowId, ...rest }) => rest);
     const payload = { ...header, gstEnabled, gstType, details: cleanDetails };
 
@@ -332,7 +294,6 @@ export default function PurchaseOrderPage() {
         const created = await purchaseOrderApi.create(payload);
         setPos((p) => [created, ...p]);
       }
-      // Refresh indents so balQty is up-to-date for next PO
       await loadIndents();
       setView("list");
     } catch (err) {
@@ -342,7 +303,6 @@ export default function PurchaseOrderPage() {
     }
   }
 
-  // ── delete ───────────────────────────────────────────────────────────────────
   async function handleDelete(id) {
     if (!window.confirm("Delete this purchase order?")) return;
     try {
@@ -354,7 +314,6 @@ export default function PurchaseOrderPage() {
     }
   }
 
-  // ── totals ───────────────────────────────────────────────────────────────────
   const totals = details.reduce(
     (acc, r) => ({
       grossAmount: acc.grossAmount + (r.poQty || 0) * (r.poRate || 0),
@@ -381,14 +340,11 @@ export default function PurchaseOrderPage() {
   const effectiveDiscPct =
     totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
-  // ── Build a flat list of all indent detail rows for the dropdown ──────────────
-  // Each entry carries enough info to show "IndentNo – ItemName (bal: X)"
-  // FIX: Filter out invalid detailIds to prevent duplicate empty keys
+  // Build flat list of all indent detail rows for the dropdown
   const indentDetailOptions = [];
   for (const indent of indents) {
-    for (const d of indent.details || []) {
+    for (const d of safeDetails(indent.details)) {
       const detailId = sid(d._id);
-      // Only include if detailId is valid (not empty string)
       if (detailId) {
         indentDetailOptions.push({
           detailId,
@@ -404,7 +360,6 @@ export default function PurchaseOrderPage() {
     }
   }
 
-  // ── inline select style ──────────────────────────────────────────────────────
   const selectStyle = {
     width: "100%",
     border: "none",
@@ -413,6 +368,17 @@ export default function PurchaseOrderPage() {
     background: "transparent",
     padding: "2px 4px",
     cursor: "pointer",
+  };
+
+  const roInputStyle = {
+    border: "none",
+    outline: "none",
+    fontSize: 11.5,
+    background: "#f9fafb",
+    color: "var(--text-secondary)",
+    padding: "2px 4px",
+    textAlign: "right",
+    width: 70,
   };
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -476,7 +442,7 @@ export default function PurchaseOrderPage() {
                     </tr>
                   ) : (
                     pos.map((po, i) => {
-                      const total = (po.details || []).reduce(
+                      const total = safeDetails(po.details).reduce(
                         (s, d) => s + (d.totalAmount || 0),
                         0,
                       );
@@ -485,9 +451,7 @@ export default function PurchaseOrderPage() {
                           <td className="inv-idx">
                             {String(i + 1).padStart(2, "0")}
                           </td>
-                          <td
-                            style={{ fontWeight: 600, color: "var(--accent)" }}
-                          >
+                          <td style={{ fontWeight: 600, color: "var(--accent)" }}>
                             {po.poNo}
                           </td>
                           <td>{po.date}</td>
@@ -505,9 +469,7 @@ export default function PurchaseOrderPage() {
                               <span
                                 className={`inv-badge ${po.gstType === "other" ? "inv-badge-no" : "inv-badge-yes"}`}
                               >
-                                {po.gstType === "other"
-                                  ? "Other State"
-                                  : "Local"}
+                                {po.gstType === "other" ? "Other State" : "Local"}
                               </span>
                             ) : (
                               <span className="inv-badge inv-badge-no">—</span>
@@ -534,17 +496,7 @@ export default function PurchaseOrderPage() {
                                 className="inv-btn-icon"
                                 onClick={() => openEdit(po)}
                               >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  width="15"
-                                  height="15"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                                 </svg>
@@ -553,17 +505,7 @@ export default function PurchaseOrderPage() {
                                 className="inv-btn-icon inv-btn-danger"
                                 onClick={() => handleDelete(sid(po._id))}
                               >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  width="15"
-                                  height="15"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <polyline points="3 6 5 6 21 6" />
                                   <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
                                   <path d="M10 11v6" />
@@ -591,7 +533,6 @@ export default function PurchaseOrderPage() {
   // ════════════════════════════════════════════════════════════════════════════
   return (
     <div className="inv-page">
-      {/* ── Page header ── */}
       <div className="inv-page-header">
         <div>
           <h1 className="inv-page-title">
@@ -601,7 +542,7 @@ export default function PurchaseOrderPage() {
         </div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {/* ── GST Enabled toggle ── */}
+          {/* GST Enabled toggle */}
           <button
             type="button"
             onClick={toggleGst}
@@ -649,7 +590,7 @@ export default function PurchaseOrderPage() {
             GST {gstEnabled ? "On" : "Off"}
           </button>
 
-          {/* ── GST Type toggle (only when GST is enabled) ── */}
+          {/* GST Type toggle */}
           {gstEnabled && (
             <button
               type="button"
@@ -662,10 +603,7 @@ export default function PurchaseOrderPage() {
                 padding: "7px 14px",
                 borderRadius: 8,
                 cursor: "pointer",
-                border:
-                  gstType === "local"
-                    ? "1px solid #93c5fd"
-                    : "1px solid #c4b5fd",
+                border: gstType === "local" ? "1px solid #93c5fd" : "1px solid #c4b5fd",
                 background: gstType === "local" ? "#eff6ff" : "#f5f3ff",
                 color: gstType === "local" ? "#1d4ed8" : "#7c3aed",
                 fontWeight: 600,
@@ -673,17 +611,7 @@ export default function PurchaseOrderPage() {
                 transition: "all 0.2s",
               }}
             >
-              {/* small icon */}
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               </svg>
               {gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)"}
@@ -764,9 +692,7 @@ export default function PurchaseOrderPage() {
               <label className="inv-label">
                 Supplier
                 {loadingSuppliers && (
-                  <span
-                    style={{ marginLeft: 6, fontSize: 10, color: "#6b7280" }}
-                  >
+                  <span style={{ marginLeft: 6, fontSize: 10, color: "#6b7280" }}>
                     Loading...
                   </span>
                 )}
@@ -775,9 +701,7 @@ export default function PurchaseOrderPage() {
                 className="inv-input"
                 value={header.supplierId}
                 onChange={(e) => {
-                  const s = suppliers.find(
-                    (x) => sid(x._id) === e.target.value,
-                  );
+                  const s = suppliers.find((x) => sid(x._id) === e.target.value);
                   setHeader((h) => ({
                     ...h,
                     supplierId: e.target.value,
@@ -787,9 +711,7 @@ export default function PurchaseOrderPage() {
                 disabled={loadingSuppliers}
               >
                 <option value="">
-                  {loadingSuppliers
-                    ? "Loading suppliers..."
-                    : "Select supplier"}
+                  {loadingSuppliers ? "Loading suppliers..." : "Select supplier"}
                 </option>
                 {suppliers.map((s) => (
                   <option key={sid(s._id)} value={sid(s._id)}>
@@ -876,17 +798,9 @@ export default function PurchaseOrderPage() {
               <thead>
                 <tr>
                   <th>#</th>
-                  {/* Indent picker column */}
                   <th style={{ minWidth: 220 }}>
                     Indent Item
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 400,
-                        color: "var(--text-secondary)",
-                        marginLeft: 4,
-                      }}
-                    >
+                    <span style={{ fontSize: 10, fontWeight: 400, color: "var(--text-secondary)", marginLeft: 4 }}>
                       (from Purchase Indent)
                     </span>
                   </th>
@@ -899,14 +813,7 @@ export default function PurchaseOrderPage() {
                   <th style={{ minWidth: 90 }}>PO Rate</th>
                   <th style={{ minWidth: 140 }}>
                     Disc
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: "var(--text-secondary)",
-                        fontWeight: 400,
-                        marginLeft: 4,
-                      }}
-                    >
+                    <span style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 400, marginLeft: 4 }}>
                       (per row ▾)
                     </span>
                   </th>
@@ -934,16 +841,11 @@ export default function PurchaseOrderPage() {
               <tbody>
                 {details.map((row, idx) => (
                   <tr key={row._rowId}>
-                    <td
-                      style={{
-                        textAlign: "center",
-                        color: "var(--text-secondary)",
-                      }}
-                    >
+                    <td style={{ textAlign: "center", color: "var(--text-secondary)" }}>
                       {idx + 1}
                     </td>
 
-                    {/* ── Indent item picker ── */}
+                    {/* Indent item picker */}
                     <td style={{ minWidth: 220 }}>
                       <select
                         value={row.indentDetailId}
@@ -954,106 +856,62 @@ export default function PurchaseOrderPage() {
                       >
                         <option value="">— select indent item —</option>
                         {indentDetailOptions.map((opt, optIdx) => (
-                          <option
-                            key={`${opt.detailId}-${optIdx}`}
-                            value={opt.detailId}
-                          >
-                            {opt.indentNo} › {opt.itemName} (bal: {opt.balQty} /{" "}
-                            {opt.indentQty} {opt.uom})
+                          <option key={`${opt.detailId}-${optIdx}`} value={opt.detailId}>
+                            {opt.indentNo} › {opt.itemName} (bal: {opt.balQty} / {opt.indentQty} {opt.uom})
                           </option>
                         ))}
                       </select>
-                      {/* Show indent no as small hint */}
                       {row.indentNo && (
-                        <div
-                          style={{
-                            fontSize: 10,
-                            color: "#6366f1",
-                            paddingLeft: 4,
-                            marginTop: 2,
-                          }}
-                        >
+                        <div style={{ fontSize: 10, color: "#6366f1", paddingLeft: 4, marginTop: 2 }}>
                           📋 {row.indentNo}
                         </div>
                       )}
                     </td>
 
-                    {/* UOM — read-only, auto-filled from indent */}
+                    {/* UOM — read-only */}
                     <td>
                       <input
                         value={row.uom}
                         readOnly
-                        style={{
-                          width: 60,
-                          border: "none",
-                          outline: "none",
-                          fontSize: 11.5,
-                          background: "transparent",
-                          color: "var(--text-secondary)",
-                          padding: "2px 4px",
-                        }}
+                        style={{ ...roInputStyle, width: 60 }}
                         placeholder="—"
                       />
                     </td>
 
-                    {/* Indent Qty — read-only (from indent) */}
+                    {/* Indent Qty — read-only */}
                     <td>
                       <input
                         type="number"
                         value={row.indentQty}
                         readOnly
-                        style={{
-                          width: 70,
-                          textAlign: "right",
-                          background: "#f9fafb",
-                          color: "var(--text-secondary)",
-                          border: "none",
-                          outline: "none",
-                          fontSize: 11.5,
-                          padding: "2px 4px",
-                        }}
+                        style={roInputStyle}
                       />
                     </td>
 
-                    {/* Al PO Qty — read-only */}
+                    {/* Al PO Qty — read-only (THE FIX: added readOnly) */}
                     <td>
                       <input
                         type="number"
                         value={row.alPoQty}
-                        style={{
-                          width: 70,
-                          textAlign: "right",
-                          background: "#f9fafb",
-                          color: "var(--text-secondary)",
-                          border: "none",
-                          outline: "none",
-                          fontSize: 11.5,
-                          padding: "2px 4px",
-                        }}
+                        readOnly
+                        style={roInputStyle}
                       />
                     </td>
 
-                    {/* Bal Qty — read-only, highlight if zero */}
+                    {/* Bal Qty — read-only */}
                     <td>
                       <input
                         type="number"
                         value={row.balQty}
                         readOnly
                         style={{
-                          width: 70,
-                          textAlign: "right",
+                          ...roInputStyle,
                           background:
-                            row.balQty === 0 && row.indentQty > 0
-                              ? "#fff7ed"
-                              : "#f9fafb",
+                            row.balQty === 0 && row.indentQty > 0 ? "#fff7ed" : "#f9fafb",
                           color:
                             row.balQty === 0 && row.indentQty > 0
                               ? "#c2410c"
                               : "var(--text-secondary)",
-                          border: "none",
-                          outline: "none",
-                          fontSize: 11.5,
-                          padding: "2px 4px",
                         }}
                       />
                     </td>
@@ -1064,9 +922,7 @@ export default function PurchaseOrderPage() {
                         type="number"
                         value={row.poQty}
                         min={0}
-                        onChange={(e) =>
-                          updateDetail(idx, "poQty", e.target.value)
-                        }
+                        onChange={(e) => updateDetail(idx, "poQty", e.target.value)}
                         style={{ width: 70, textAlign: "right" }}
                       />
                     </td>
@@ -1076,9 +932,7 @@ export default function PurchaseOrderPage() {
                       <input
                         type="number"
                         value={row.priceListRate}
-                        onChange={(e) =>
-                          updateDetail(idx, "priceListRate", e.target.value)
-                        }
+                        onChange={(e) => updateDetail(idx, "priceListRate", e.target.value)}
                         style={{ width: 80, textAlign: "right" }}
                       />
                     </td>
@@ -1088,22 +942,14 @@ export default function PurchaseOrderPage() {
                       <input
                         type="number"
                         value={row.poRate}
-                        onChange={(e) =>
-                          updateDetail(idx, "poRate", e.target.value)
-                        }
+                        onChange={(e) => updateDetail(idx, "poRate", e.target.value)}
                         style={{ width: 80, textAlign: "right" }}
                       />
                     </td>
 
-                    {/* ── Discount column ── */}
+                    {/* Discount */}
                     <td style={{ minWidth: 140 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 3,
-                        }}
-                      >
+                      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
                         <button
                           type="button"
                           onClick={() => toggleDiscMode(idx)}
@@ -1120,24 +966,18 @@ export default function PurchaseOrderPage() {
                             minWidth: 32,
                             textAlign: "center",
                             transition: "all 0.15s",
-                            background:
-                              row.discMode === "pct" ? "#eff6ff" : "#fefce8",
-                            borderColor:
-                              row.discMode === "pct" ? "#93c5fd" : "#fde047",
-                            color:
-                              row.discMode === "pct" ? "#1d4ed8" : "#854d0e",
+                            background: row.discMode === "pct" ? "#eff6ff" : "#fefce8",
+                            borderColor: row.discMode === "pct" ? "#93c5fd" : "#fde047",
+                            color: row.discMode === "pct" ? "#1d4ed8" : "#854d0e",
                           }}
                         >
                           {row.discMode === "pct" ? "%" : "₹"}
                         </button>
-
                         {row.discMode === "pct" ? (
                           <input
                             type="number"
                             value={row.discPct}
-                            onChange={(e) =>
-                              updateDetail(idx, "discPct", e.target.value)
-                            }
+                            onChange={(e) => updateDetail(idx, "discPct", e.target.value)}
                             style={{ width: 56, textAlign: "right" }}
                             placeholder="0"
                           />
@@ -1145,21 +985,12 @@ export default function PurchaseOrderPage() {
                           <input
                             type="number"
                             value={row.discPrice}
-                            onChange={(e) =>
-                              updateDetail(idx, "discPrice", e.target.value)
-                            }
+                            onChange={(e) => updateDetail(idx, "discPrice", e.target.value)}
                             style={{ width: 72, textAlign: "right" }}
                             placeholder="0.00"
                           />
                         )}
-
-                        <span
-                          style={{
-                            fontSize: 10,
-                            color: "var(--text-secondary)",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
+                        <span style={{ fontSize: 10, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
                           {row.discMode === "pct"
                             ? `₹${fmt(row.discPrice)}`
                             : `${(row.discPct || 0).toFixed(2)}%`}
@@ -1168,13 +999,7 @@ export default function PurchaseOrderPage() {
                     </td>
 
                     {/* PO Amount */}
-                    <td
-                      style={{
-                        textAlign: "right",
-                        fontFamily: "DM Mono",
-                        fontSize: 11,
-                      }}
-                    >
+                    <td style={{ textAlign: "right", fontFamily: "DM Mono", fontSize: 11 }}>
                       {fmt(row.poAmount)}
                     </td>
 
@@ -1185,64 +1010,32 @@ export default function PurchaseOrderPage() {
                           <input
                             type="number"
                             value={row.gstPct}
-                            onChange={(e) =>
-                              updateDetail(idx, "gstPct", e.target.value)
-                            }
+                            onChange={(e) => updateDetail(idx, "gstPct", e.target.value)}
                             style={{ width: 50, textAlign: "right" }}
                           />
                         </td>
                         {gstType === "local" ? (
                           <>
-                            <td
-                              style={{
-                                textAlign: "right",
-                                fontFamily: "DM Mono",
-                                fontSize: 11,
-                              }}
-                            >
+                            <td style={{ textAlign: "right", fontFamily: "DM Mono", fontSize: 11 }}>
                               {fmt(row.sgst)}
                             </td>
-                            <td
-                              style={{
-                                textAlign: "right",
-                                fontFamily: "DM Mono",
-                                fontSize: 11,
-                              }}
-                            >
+                            <td style={{ textAlign: "right", fontFamily: "DM Mono", fontSize: 11 }}>
                               {fmt(row.cgst)}
                             </td>
                           </>
                         ) : (
-                          <td
-                            style={{
-                              textAlign: "right",
-                              fontFamily: "DM Mono",
-                              fontSize: 11,
-                            }}
-                          >
+                          <td style={{ textAlign: "right", fontFamily: "DM Mono", fontSize: 11 }}>
                             {fmt(row.igst)}
                           </td>
                         )}
-                        <td
-                          style={{
-                            textAlign: "right",
-                            fontFamily: "DM Mono",
-                            fontSize: 11,
-                          }}
-                        >
+                        <td style={{ textAlign: "right", fontFamily: "DM Mono", fontSize: 11 }}>
                           {fmt(row.totGst)}
                         </td>
                       </>
                     )}
 
                     {/* Total Amount */}
-                    <td
-                      style={{
-                        textAlign: "right",
-                        fontFamily: "DM Mono",
-                        fontSize: 11,
-                      }}
-                    >
+                    <td style={{ textAlign: "right", fontFamily: "DM Mono", fontSize: 11 }}>
                       {fmt(row.totalAmount)}
                     </td>
 
@@ -1250,9 +1043,7 @@ export default function PurchaseOrderPage() {
                     <td>
                       <input
                         value={row.indentRemarks}
-                        onChange={(e) =>
-                          updateDetail(idx, "indentRemarks", e.target.value)
-                        }
+                        onChange={(e) => updateDetail(idx, "indentRemarks", e.target.value)}
                         style={{ width: 120 }}
                         placeholder="Indent rem…"
                       />
@@ -1262,9 +1053,7 @@ export default function PurchaseOrderPage() {
                     <td>
                       <input
                         value={row.poRemarks}
-                        onChange={(e) =>
-                          updateDetail(idx, "poRemarks", e.target.value)
-                        }
+                        onChange={(e) => updateDetail(idx, "poRemarks", e.target.value)}
                         style={{ width: 120 }}
                         placeholder="PO rem…"
                       />
@@ -1284,24 +1073,13 @@ export default function PurchaseOrderPage() {
                 ))}
               </tbody>
 
-              {/* ── Footer totals ── */}
+              {/* Footer totals */}
               <tfoot>
                 <tr>
-                  <td
-                    colSpan={9}
-                    style={{ textAlign: "right", fontWeight: 600 }}
-                  >
+                  <td colSpan={9} style={{ textAlign: "right", fontWeight: 600 }}>
                     Total
                   </td>
-                  {/* disc total */}
-                  <td
-                    style={{
-                      textAlign: "right",
-                      fontFamily: "DM Mono",
-                      fontSize: 11,
-                      color: "#dc2626",
-                    }}
-                  >
+                  <td style={{ textAlign: "right", fontFamily: "DM Mono", fontSize: 11, color: "#dc2626" }}>
                     −₹{fmt(totals.discPrice)}
                   </td>
                   <td style={{ textAlign: "right", fontFamily: "DM Mono" }}>
@@ -1312,27 +1090,15 @@ export default function PurchaseOrderPage() {
                       <td></td>
                       {gstType === "local" ? (
                         <>
-                          <td
-                            style={{
-                              textAlign: "right",
-                              fontFamily: "DM Mono",
-                            }}
-                          >
+                          <td style={{ textAlign: "right", fontFamily: "DM Mono" }}>
                             {fmt(totals.sgst)}
                           </td>
-                          <td
-                            style={{
-                              textAlign: "right",
-                              fontFamily: "DM Mono",
-                            }}
-                          >
+                          <td style={{ textAlign: "right", fontFamily: "DM Mono" }}>
                             {fmt(totals.cgst)}
                           </td>
                         </>
                       ) : (
-                        <td
-                          style={{ textAlign: "right", fontFamily: "DM Mono" }}
-                        >
+                        <td style={{ textAlign: "right", fontFamily: "DM Mono" }}>
                           {fmt(totals.igst)}
                         </td>
                       )}
@@ -1357,29 +1123,16 @@ export default function PurchaseOrderPage() {
         <div className="inv-card-body">
           <div className="inv-section-label">Summary</div>
           <div className="inv-summary-grid">
-            {/* Gross */}
-            <div
-              className="inv-summary-box"
-              style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}
-            >
+            <div className="inv-summary-box" style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}>
               <div className="inv-summary-box-label">Gross Amount</div>
-              <div
-                className="inv-summary-box-value"
-                style={{ color: "#64748b" }}
-              >
+              <div className="inv-summary-box-value" style={{ color: "#64748b" }}>
                 ₹{fmt(totals.grossAmount)}
               </div>
             </div>
 
-            {/* Discount */}
             <div
               className="inv-summary-box"
-              style={{
-                background: "#fffbeb",
-                borderColor: "#fcd34d",
-                position: "relative",
-                overflow: "hidden",
-              }}
+              style={{ background: "#fffbeb", borderColor: "#fcd34d", position: "relative", overflow: "hidden" }}
             >
               {totals.discPrice > 0 && (
                 <div
@@ -1400,56 +1153,30 @@ export default function PurchaseOrderPage() {
                 </div>
               )}
               <div className="inv-summary-box-label">Total Discount</div>
-              <div
-                className="inv-summary-box-value"
-                style={{ color: "#b45309" }}
-              >
+              <div className="inv-summary-box-value" style={{ color: "#b45309" }}>
                 −₹{fmt(totals.discPrice)}
               </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "#92400e",
-                  marginTop: 2,
-                  fontWeight: 500,
-                }}
-              >
+              <div style={{ fontSize: 11, color: "#92400e", marginTop: 2, fontWeight: 500 }}>
                 {effectiveDiscPct.toFixed(2)}% effective
               </div>
             </div>
 
-            {/* PO Amount */}
             <div className="inv-summary-box">
-              <div className="inv-summary-box-label">
-                PO Amount (after disc, before GST)
-              </div>
-              <div className="inv-summary-box-value">
-                ₹{fmt(totals.poAmount)}
-              </div>
+              <div className="inv-summary-box-label">PO Amount (after disc, before GST)</div>
+              <div className="inv-summary-box-value">₹{fmt(totals.poAmount)}</div>
               {totals.discPrice > 0 && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "#16a34a",
-                    marginTop: 2,
-                    fontWeight: 500,
-                  }}
-                >
+                <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2, fontWeight: 500 }}>
                   ↓ ₹{fmt(totals.discPrice)} saved vs gross
                 </div>
               )}
             </div>
 
-            {/* GST breakdown */}
             {gstEnabled && (
               <>
                 <div className="inv-summary-box">
                   <div className="inv-summary-box-label">Total GST</div>
-                  <div className="inv-summary-box-value">
-                    ₹{fmt(totals.totGst)}
-                  </div>
+                  <div className="inv-summary-box-value">₹{fmt(totals.totGst)}</div>
                 </div>
-
                 {gstType === "local" ? (
                   <div className="inv-summary-box">
                     <div className="inv-summary-box-label">SGST + CGST</div>
@@ -1459,13 +1186,8 @@ export default function PurchaseOrderPage() {
                   </div>
                 ) : (
                   <div className="inv-summary-box">
-                    <div className="inv-summary-box-label">
-                      IGST (Other State)
-                    </div>
-                    <div
-                      className="inv-summary-box-value"
-                      style={{ color: "#7c3aed" }}
-                    >
+                    <div className="inv-summary-box-label">IGST (Other State)</div>
+                    <div className="inv-summary-box-value" style={{ color: "#7c3aed" }}>
                       ₹{fmt(totals.igst)}
                     </div>
                   </div>
@@ -1473,29 +1195,14 @@ export default function PurchaseOrderPage() {
               </>
             )}
 
-            {/* Grand total */}
-            <div
-              className="inv-summary-box"
-              style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}
-            >
+            <div className="inv-summary-box" style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}>
               <div className="inv-summary-box-label">Grand Total</div>
-              <div
-                className="inv-summary-box-value"
-                style={{ color: "var(--accent)" }}
-              >
+              <div className="inv-summary-box-value" style={{ color: "var(--accent)" }}>
                 ₹{fmt(totals.totalAmount)}
               </div>
               {totals.discPrice > 0 && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "#1d4ed8",
-                    marginTop: 2,
-                    fontWeight: 500,
-                  }}
-                >
-                  vs gross ₹{fmt(totals.grossAmount + totals.totGst)} — saved ₹
-                  {fmt(totals.discPrice)}
+                <div style={{ fontSize: 11, color: "#1d4ed8", marginTop: 2, fontWeight: 500 }}>
+                  vs gross ₹{fmt(totals.grossAmount + totals.totGst)} — saved ₹{fmt(totals.discPrice)}
                 </div>
               )}
             </div>
