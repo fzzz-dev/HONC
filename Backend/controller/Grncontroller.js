@@ -1,119 +1,83 @@
 const PurchaseGRN = require("../model/purchaseGRN");
-const PurchaseOrder = require("../models/PurchaseOrder");
-const Item = require("../models/Item");
-const Supplier = require("../models/Supplier");
-const Store = require("../models/Store");
+const PurchaseOrder = require("../model/purchaseOrder");
+const Item = require("../model/item");
+const Supplier = require("../model/supplier");
+const Store = require("../model/Store");
+const { Op } = require("sequelize");
 
-/**
- * @desc    Get all GRNs with optional filters
- * @route   GET /api/grn
- * @access  Private
- */
+// @desc    Get all GRNs with optional filters
 exports.getAllGRNs = async (req, res) => {
   try {
-    const {
-      status,
-      supplierId,
-      storeId,
-      fromDate,
-      toDate,
-      search,
-      page = 1,
-      limit = 50,
-    } = req.query;
+    const { status, supplierId, storeId, fromDate, toDate, search, page = 1, limit = 50 } = req.query;
 
-    const query = {};
+    const where = {};
+    if (status) where.status = status;
+    if (supplierId) where.supplierId = supplierId;
+    if (storeId) where.storeId = storeId;
 
-    // Filters
-    if (status) query.status = status;
-    if (supplierId) query.supplierId = supplierId;
-    if (storeId) query.storeId = storeId;
-
-    // Date range
     if (fromDate || toDate) {
-      query.date = {};
-      if (fromDate) query.date.$gte = fromDate;
-      if (toDate) query.date.$lte = toDate;
+      where.date = {};
+      if (fromDate) where.date[Op.gte] = fromDate;
+      if (toDate) where.date[Op.lte] = toDate;
     }
 
-    // Search by GRN No, Invoice No, or Supplier Name
     if (search) {
-      query.$or = [
-        { grnNo: { $regex: search, $options: "i" } },
-        { invoiceNo: { $regex: search, $options: "i" } },
-        { supplierName: { $regex: search, $options: "i" } },
+      where[Op.or] = [
+        { grnNo: { [Op.like]: `%${search}%` } },
+        { invoiceNo: { [Op.like]: `%${search}%` } },
+        { supplierName: { [Op.like]: `%${search}%` } },
       ];
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const grns = await PurchaseGRN.find(query)
-      .sort({ date: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .populate("supplierId", "supplierName contactPerson phone")
-      .populate("storeId", "name location")
-      .lean();
-
-    const total = await PurchaseGRN.countDocuments(query);
+    const { count, rows } = await PurchaseGRN.findAndCountAll({
+      where,
+      offset: (parseInt(page) - 1) * parseInt(limit),
+      limit: parseInt(limit),
+      order: [["date", "DESC"], ["createdAt", "DESC"]],
+    });
 
     res.json({
       success: true,
-      data: grns,
+      data: rows,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
+        total: count,
+        pages: Math.ceil(count / parseInt(limit)),
       },
     });
   } catch (error) {
     console.error("Get all GRNs error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch GRNs",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch GRNs", error: error.message });
   }
 };
 
-/**
- * @desc    Get GRNs by Purchase Order
- * @route   GET /api/grn/by-po/:poId
- * @access  Private
- */
+// @desc    Get GRNs by Purchase Order
 exports.getGRNsByPO = async (req, res) => {
   try {
     const { poId } = req.params;
 
-    // Find all GRNs that reference this PO
-    const grns = await PurchaseGRN.find({
-      "details.poId": poId,
-      status: { $ne: "Cancelled" },
-    })
-      .sort({ date: -1 })
-      .populate("supplierId", "supplierName")
-      .populate("storeId", "name")
-      .lean();
+    // Find all GRNs that reference this PO in their details JSON
+    // Note: SQL JSON search. 
+    const grns = await PurchaseGRN.findAll({
+      where: {
+        status: { [Op.ne]: "Cancelled" }
+      }
+    });
+    
+    // Filter manually because JSON searching in Sequelize is dialect-dependent
+    const filteredGrns = grns.filter(grn => 
+      grn.details && grn.details.some(d => String(d.poId) === String(poId))
+    );
 
-    // Get the PO for reference
-    const po = await PurchaseOrder.findById(poId)
-      .select("poNo date supplierName status")
-      .lean();
+    const po = await PurchaseOrder.findByPk(poId);
+    if (!po) return res.status(404).json({ success: false, message: "Purchase Order not found" });
 
-    if (!po) {
-      return res.status(404).json({
-        success: false,
-        message: "Purchase Order not found",
-      });
-    }
-
-    // Calculate summary for each PO detail item
     const poSummary = {};
-    grns.forEach((grn) => {
+    filteredGrns.forEach((grn) => {
       grn.details.forEach((detail) => {
-        if (detail.poId?.toString() === poId) {
-          const key = detail.itemId?.toString() || detail.itemName;
+        if (String(detail.poId) === String(poId)) {
+          const key = String(detail.itemId || detail.itemName);
           if (!poSummary[key]) {
             poSummary[key] = {
               itemId: detail.itemId,
@@ -137,396 +101,173 @@ exports.getGRNsByPO = async (req, res) => {
       });
     });
 
-    // Calculate balance
     Object.keys(poSummary).forEach((key) => {
-      poSummary[key].balQty =
-        poSummary[key].poQty - poSummary[key].totalGrnQty;
+      poSummary[key].balQty = poSummary[key].poQty - poSummary[key].totalGrnQty;
     });
 
-    res.json({
-      success: true,
-      data: {
-        po,
-        grns,
-        summary: Object.values(poSummary),
-      },
-    });
+    res.json({ success: true, data: { po, grns: filteredGrns, summary: Object.values(poSummary) } });
   } catch (error) {
     console.error("Get GRNs by PO error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch GRNs for PO",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch GRNs for PO", error: error.message });
   }
 };
 
-/**
- * @desc    Get single GRN by ID
- * @route   GET /api/grn/:id
- * @access  Private
- */
+// @desc    Get single GRN by ID
 exports.getGRNById = async (req, res) => {
   try {
-    const grn = await PurchaseGRN.findById(req.params.id)
-      .populate("supplierId", "supplierName contactPerson phone email address")
-      .populate("storeId", "name location type")
-      .lean();
-
-    if (!grn) {
-      return res.status(404).json({
-        success: false,
-        message: "GRN not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      data: grn,
-    });
+    const grn = await PurchaseGRN.findByPk(req.params.id);
+    if (!grn) return res.status(404).json({ success: false, message: "GRN not found" });
+    res.json({ success: true, data: grn });
   } catch (error) {
-    console.error("Get GRN by ID error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch GRN",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch GRN", error: error.message });
   }
 };
 
-/**
- * @desc    Create new GRN
- * @route   POST /api/grn
- * @access  Private
- */
+// @desc    Create new GRN
 exports.createGRN = async (req, res) => {
   try {
-    const {
-      grnNo,
-      date,
-      supplierId,
-      storeId,
-      invoiceNo,
-      invoiceDate,
-      vehicleNo,
-      lrNo,
-      transporterName,
-      gstEnabled,
-      gstType,
-      status,
-      remarks,
-      details,
-      createdBy,
-    } = req.body;
+    const { grnNo, date, supplierId, storeId, invoiceNo, invoiceDate, vehicleNo, lrNo, transporterName, gstEnabled, gstType, status, remarks, details, createdBy } = req.body;
 
-    // Validation
-    if (!grnNo || !date || !supplierId) {
-      return res.status(400).json({
-        success: false,
-        message: "GRN No, Date, and Supplier are required",
-      });
-    }
+    if (!grnNo || !date || !supplierId) return res.status(400).json({ success: false, message: "GRN No, Date, and Supplier are required" });
 
-    if (!details || details.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "At least one detail line is required",
-      });
-    }
+    const existing = await PurchaseGRN.findOne({ where: { grnNo } });
+    if (existing) return res.status(400).json({ success: false, message: `GRN No ${grnNo} already exists` });
 
-    // Check for duplicate GRN No
-    const existing = await PurchaseGRN.findOne({ grnNo });
-    if (existing) {
-      return res.status(400).json({
-        success: false,
-        message: `GRN No ${grnNo} already exists`,
-      });
-    }
+    const supplier = await Supplier.findByPk(supplierId);
+    if (!supplier) return res.status(404).json({ success: false, message: "Supplier not found" });
 
-    // Get supplier name
-    const supplier = await Supplier.findById(supplierId).lean();
-    if (!supplier) {
-      return res.status(404).json({
-        success: false,
-        message: "Supplier not found",
-      });
-    }
-
-    // Get store name if provided
     let storeName = "";
     if (storeId) {
-      const store = await Store.findById(storeId).lean();
+      const store = await Store.findByPk(storeId);
       if (store) storeName = store.name;
     }
 
-    // Process details: fetch item info, validate, calculate amounts
-    const processedDetails = await Promise.all(
-      details.map(async (detail) => {
-        let itemInfo = { itemName: detail.itemName, uom: detail.uom };
+    const processedDetails = await Promise.all(details.map(async (detail) => {
+      let itemName = detail.itemName;
+      let uom = detail.uom;
+      if (detail.itemId) {
+        const item = await Item.findByPk(detail.itemId);
+        if (item) { itemName = item.itemName; uom = item.uom; }
+      }
+      const grnAmount = detail.grnQty * detail.grnRate * (1 - (detail.discPct || 0) / 100);
+      const gst = grnAmount * ((detail.gstPct || 18) / 100);
+      return {
+        ...detail,
+        itemName, uom,
+        grnAmount: parseFloat(grnAmount.toFixed(2)),
+        sgst: gstType === "local" ? parseFloat((gst / 2).toFixed(2)) : 0,
+        cgst: gstType === "local" ? parseFloat((gst / 2).toFixed(2)) : 0,
+        igst: gstType === "other" ? parseFloat(gst.toFixed(2)) : 0,
+        totGst: parseFloat(gst.toFixed(2)),
+        totalAmount: parseFloat((grnAmount + gst).toFixed(2)),
+        id: detail.id || detail._id || Date.now() + Math.random()
+      };
+    }));
 
-        if (detail.itemId) {
-          const item = await Item.findById(detail.itemId).lean();
-          if (item) {
-            itemInfo = { itemName: item.itemName, uom: item.uom };
-          }
-        }
+    const grn = await PurchaseGRN.create({
+      grnNo, date, supplierId, supplierName: supplier.supplierName,
+      storeId: storeId || null, storeName, invoiceNo: invoiceNo || "", invoiceDate: invoiceDate || "",
+      vehicleNo: vehicleNo || "", lrNo: lrNo || "", transporterName: transporterName || "",
+      gstEnabled: gstEnabled !== false, gstType: gstType || "local",
+      status: status || "Completed", remarks: remarks || "",
+      details: processedDetails, createdBy: createdBy || "Admin",
+      createdOn: new Date().toISOString()
+    });
 
-        // Calculate amounts
-        const grnAmount =
-          detail.grnQty *
-          detail.grnRate *
-          (1 - (detail.discPct || 0) / 100);
+    res.status(201).json({ success: true, message: "GRN created successfully", data: grn });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to create GRN", error: error.message });
+  }
+};
+
+// @desc    Update GRN
+exports.updateGRN = async (req, res) => {
+  try {
+    const grn = await PurchaseGRN.findByPk(req.params.id);
+    if (!grn) return res.status(404).json({ success: false, message: "GRN not found" });
+    if (grn.status === "Cancelled") return res.status(400).json({ success: false, message: "Cannot edit cancelled GRN" });
+
+    const { date, supplierId, storeId, invoiceNo, invoiceDate, vehicleNo, lrNo, transporterName, gstEnabled, gstType, status, remarks, details } = req.body;
+
+    const updateData = { date, supplierId, storeId, invoiceNo, invoiceDate, vehicleNo, lrNo, transporterName, gstEnabled, gstType, status, remarks };
+
+    if (supplierId && supplierId !== grn.supplierId) {
+      const supplier = await Supplier.findByPk(supplierId);
+      if (supplier) updateData.supplierName = supplier.supplierName;
+    }
+
+    if (storeId !== undefined && storeId !== grn.storeId) {
+      const store = await Store.findByPk(storeId);
+      updateData.storeName = store ? store.name : "";
+      updateData.storeId = storeId || null;
+    }
+
+    if (details) {
+      updateData.details = await Promise.all(details.map(async (detail) => {
+        const grnAmount = detail.grnQty * detail.grnRate * (1 - (detail.discPct || 0) / 100);
         const gst = grnAmount * ((detail.gstPct || 18) / 100);
-
         return {
           ...detail,
-          itemName: itemInfo.itemName,
-          uom: itemInfo.uom,
           grnAmount: parseFloat(grnAmount.toFixed(2)),
-          sgst: gstType === "local" ? parseFloat((gst / 2).toFixed(2)) : 0,
-          cgst: gstType === "local" ? parseFloat((gst / 2).toFixed(2)) : 0,
-          igst: gstType === "other" ? parseFloat(gst.toFixed(2)) : 0,
+          sgst: (gstType || grn.gstType) === "local" ? parseFloat((gst / 2).toFixed(2)) : 0,
+          cgst: (gstType || grn.gstType) === "local" ? parseFloat((gst / 2).toFixed(2)) : 0,
+          igst: (gstType || grn.gstType) === "other" ? parseFloat(gst.toFixed(2)) : 0,
           totGst: parseFloat(gst.toFixed(2)),
           totalAmount: parseFloat((grnAmount + gst).toFixed(2)),
         };
-      })
-    );
+      }));
+    }
 
-    // Create GRN
-    const grn = await PurchaseGRN.create({
-      grnNo,
-      date,
-      supplierId,
-      supplierName: supplier.supplierName,
-      storeId: storeId || null,
-      storeName,
-      invoiceNo: invoiceNo || "",
-      invoiceDate: invoiceDate || "",
-      vehicleNo: vehicleNo || "",
-      lrNo: lrNo || "",
-      transporterName: transporterName || "",
-      gstEnabled: gstEnabled !== false,
-      gstType: gstType || "local",
-      status: status || "Completed",
-      remarks: remarks || "",
-      details: processedDetails,
-      createdBy: createdBy || "Admin",
-      createdOn: new Date().toISOString(),
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "GRN created successfully",
-      data: grn,
-    });
+    await grn.update(updateData);
+    res.json({ success: true, message: "GRN updated successfully", data: grn });
   } catch (error) {
-    console.error("Create GRN error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to create GRN",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Failed to update GRN", error: error.message });
   }
 };
 
-/**
- * @desc    Update GRN
- * @route   PUT /api/grn/:id
- * @access  Private
- */
-exports.updateGRN = async (req, res) => {
-  try {
-    const grn = await PurchaseGRN.findById(req.params.id);
-
-    if (!grn) {
-      return res.status(404).json({
-        success: false,
-        message: "GRN not found",
-      });
-    }
-
-    // Don't allow editing Cancelled GRNs
-    if (grn.status === "Cancelled") {
-      return res.status(400).json({
-        success: false,
-        message: "Cannot edit cancelled GRN",
-      });
-    }
-
-    const {
-      date,
-      supplierId,
-      storeId,
-      invoiceNo,
-      invoiceDate,
-      vehicleNo,
-      lrNo,
-      transporterName,
-      gstEnabled,
-      gstType,
-      status,
-      remarks,
-      details,
-    } = req.body;
-
-    // Update supplier name if changed
-    if (supplierId && supplierId !== grn.supplierId?.toString()) {
-      const supplier = await Supplier.findById(supplierId).lean();
-      if (supplier) {
-        grn.supplierName = supplier.supplierName;
-      }
-    }
-
-    // Update store name if changed
-    if (storeId && storeId !== grn.storeId?.toString()) {
-      const store = await Store.findById(storeId).lean();
-      if (store) {
-        grn.storeName = store.name;
-      }
-    }
-
-    // Process details if provided
-    if (details) {
-      const processedDetails = await Promise.all(
-        details.map(async (detail) => {
-          let itemInfo = { itemName: detail.itemName, uom: detail.uom };
-
-          if (detail.itemId) {
-            const item = await Item.findById(detail.itemId).lean();
-            if (item) {
-              itemInfo = { itemName: item.itemName, uom: item.uom };
-            }
-          }
-
-          const grnAmount =
-            detail.grnQty *
-            detail.grnRate *
-            (1 - (detail.discPct || 0) / 100);
-          const gst = grnAmount * ((detail.gstPct || 18) / 100);
-
-          return {
-            ...detail,
-            itemName: itemInfo.itemName,
-            uom: itemInfo.uom,
-            grnAmount: parseFloat(grnAmount.toFixed(2)),
-            sgst:
-              (gstType || grn.gstType) === "local"
-                ? parseFloat((gst / 2).toFixed(2))
-                : 0,
-            cgst:
-              (gstType || grn.gstType) === "local"
-                ? parseFloat((gst / 2).toFixed(2))
-                : 0,
-            igst:
-              (gstType || grn.gstType) === "other"
-                ? parseFloat(gst.toFixed(2))
-                : 0,
-            totGst: parseFloat(gst.toFixed(2)),
-            totalAmount: parseFloat((grnAmount + gst).toFixed(2)),
-          };
-        })
-      );
-      grn.details = processedDetails;
-    }
-
-    // Update other fields
-    if (date) grn.date = date;
-    if (supplierId) grn.supplierId = supplierId;
-    if (storeId !== undefined) grn.storeId = storeId || null;
-    if (invoiceNo !== undefined) grn.invoiceNo = invoiceNo;
-    if (invoiceDate !== undefined) grn.invoiceDate = invoiceDate;
-    if (vehicleNo !== undefined) grn.vehicleNo = vehicleNo;
-    if (lrNo !== undefined) grn.lrNo = lrNo;
-    if (transporterName !== undefined) grn.transporterName = transporterName;
-    if (gstEnabled !== undefined) grn.gstEnabled = gstEnabled;
-    if (gstType) grn.gstType = gstType;
-    if (status) grn.status = status;
-    if (remarks !== undefined) grn.remarks = remarks;
-
-    await grn.save();
-
-    res.json({
-      success: true,
-      message: "GRN updated successfully",
-      data: grn,
-    });
-  } catch (error) {
-    console.error("Update GRN error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to update GRN",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * @desc    Delete GRN
- * @route   DELETE /api/grn/:id
- * @access  Private
- */
+// @desc    Delete GRN
 exports.deleteGRN = async (req, res) => {
   try {
-    const grn = await PurchaseGRN.findById(req.params.id);
-
-    if (!grn) {
-      return res.status(404).json({
-        success: false,
-        message: "GRN not found",
-      });
-    }
-
-    await PurchaseGRN.findByIdAndDelete(req.params.id);
-
-    res.json({
-      success: true,
-      message: "GRN deleted successfully",
-    });
+    const grn = await PurchaseGRN.findByPk(req.params.id);
+    if (!grn) return res.status(404).json({ success: false, message: "GRN not found" });
+    await grn.destroy();
+    res.json({ success: true, message: "GRN deleted successfully" });
   } catch (error) {
-    console.error("Delete GRN error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete GRN",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Failed to delete GRN", error: error.message });
   }
 };
 
-/**
- * @desc    Get pending PO items for GRN creation
- * @route   GET /api/grn/pending-po-items
- * @access  Private
- */
+// @desc    Get pending PO items for GRN creation
 exports.getPendingPOItems = async (req, res) => {
   try {
     const { supplierId, poId } = req.query;
 
     const query = { status: "Open" };
     if (supplierId) query.supplierId = supplierId;
-    if (poId) query._id = poId;
+    if (poId) query.id = poId;
 
-    const pos = await PurchaseOrder.find(query)
-      .sort({ date: -1 })
-      .lean();
+    const pos = await PurchaseOrder.findAll({
+      where: query,
+      order: [["date", "DESC"]],
+    });
 
-    // For each PO, calculate pending quantities
     const pendingItems = [];
 
     for (const po of pos) {
-      for (const detail of po.details) {
+      const details = po.details || [];
+      for (const detail of details) {
         // Calculate already received quantity from all GRNs
-        const grns = await PurchaseGRN.find({
-          "details.poId": po._id,
-          "details.itemId": detail.itemId,
-          status: { $ne: "Cancelled" },
-        }).lean();
+        const grns = await PurchaseGRN.findAll({
+          where: { status: { [Op.ne]: "Cancelled" } }
+        });
 
         let alreadyReceived = 0;
         grns.forEach((grn) => {
-          grn.details.forEach((grnDetail) => {
+          const grnDetails = grn.details || [];
+          grnDetails.forEach((grnDetail) => {
             if (
-              grnDetail.poId?.toString() === po._id.toString() &&
-              grnDetail.itemId?.toString() === detail.itemId?.toString()
+              String(grnDetail.poId) === String(po.id) &&
+              String(grnDetail.itemId) === String(detail.itemId)
             ) {
               alreadyReceived += grnDetail.grnQty;
             }
@@ -537,10 +278,10 @@ exports.getPendingPOItems = async (req, res) => {
 
         if (balanceQty > 0) {
           pendingItems.push({
-            poId: po._id,
+            poId: po.id,
             poNo: po.poNo,
             poDate: po.date,
-            poDetailId: detail._id,
+            poDetailId: detail.id || detail._id,
             indentId: detail.indentId,
             indentNo: detail.indentNo,
             itemId: detail.itemId,
@@ -558,25 +299,14 @@ exports.getPendingPOItems = async (req, res) => {
       }
     }
 
-    res.json({
-      success: true,
-      data: pendingItems,
-    });
+    res.json({ success: true, data: pendingItems });
   } catch (error) {
     console.error("Get pending PO items error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch pending PO items",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch pending PO items", error: error.message });
   }
 };
 
-/**
- * @desc    Get items nearing expiry
- * @route   GET /api/grn/expiring-items
- * @access  Private
- */
+// @desc    Get items nearing expiry
 exports.getExpiringItems = async (req, res) => {
   try {
     const { days = 90, storeId } = req.query;
@@ -588,29 +318,21 @@ exports.getExpiringItems = async (req, res) => {
     const todayStr = today.toISOString().split("T")[0];
     const futureDateStr = futureDate.toISOString().split("T")[0];
 
-    const query = {
-      status: "Completed",
-      "details.expiryDate": {
-        $gte: todayStr,
-        $lte: futureDateStr,
-      },
-    };
-
-    if (storeId) query.storeId = storeId;
-
-    const grns = await PurchaseGRN.find(query)
-      .populate("storeId", "name")
-      .lean();
+    const grns = await PurchaseGRN.findAll({
+      where: {
+        status: "Completed",
+        storeId: storeId || { [Op.ne]: null }
+      }
+    });
 
     const expiringItems = [];
 
     grns.forEach((grn) => {
-      grn.details.forEach((detail) => {
+      const details = grn.details || [];
+      details.forEach((detail) => {
         if (detail.expiryDate && detail.expiryDate >= todayStr && detail.expiryDate <= futureDateStr) {
           const expiryDate = new Date(detail.expiryDate);
-          const daysToExpiry = Math.ceil(
-            (expiryDate - today) / (1000 * 60 * 60 * 24)
-          );
+          const daysToExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
 
           expiringItems.push({
             grnNo: grn.grnNo,
@@ -628,60 +350,32 @@ exports.getExpiringItems = async (req, res) => {
       });
     });
 
-    // Sort by days to expiry
     expiringItems.sort((a, b) => a.daysToExpiry - b.daysToExpiry);
-
-    res.json({
-      success: true,
-      data: expiringItems,
-    });
+    res.json({ success: true, data: expiringItems });
   } catch (error) {
     console.error("Get expiring items error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch expiring items",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch expiring items", error: error.message });
   }
 };
 
-/**
- * @desc    Generate next GRN number
- * @route   GET /api/grn/next-number
- * @access  Private
- */
+// @desc    Get next GRN number
 exports.getNextGRNNumber = async (req, res) => {
   try {
     const year = new Date().getFullYear();
     const prefix = `GRN-${year}-`;
-
     const latestGRN = await PurchaseGRN.findOne({
-      grnNo: { $regex: `^${prefix}` },
-    })
-      .sort({ grnNo: -1 })
-      .lean();
+      where: { grnNo: { [Op.like]: `${prefix}%` } },
+      order: [["grnNo", "DESC"]]
+    });
 
     let nextNumber = 1;
-
     if (latestGRN) {
       const match = latestGRN.grnNo.match(/^GRN-\d{4}-(\d+)$/);
-      if (match) {
-        nextNumber = parseInt(match[1], 10) + 1;
-      }
+      if (match) nextNumber = parseInt(match[1], 10) + 1;
     }
-
     const nextGRNNo = `${prefix}${String(nextNumber).padStart(3, "0")}`;
-
-    res.json({
-      success: true,
-      data: { nextGRNNo },
-    });
+    res.json({ success: true, data: { nextGRNNo } });
   } catch (error) {
-    console.error("Get next GRN number error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to generate GRN number",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Failed to generate GRN number", error: error.message });
   }
 };

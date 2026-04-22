@@ -19,7 +19,7 @@ const today = () => new Date().toISOString().split("T")[0];
 // Normalize any _id / headId to a plain string safely
 const sid = (v) => {
   if (!v) return "";
-  if (typeof v === "object" && v._id) return String(v._id);
+  if (typeof v === "object") return String(v.id || v._id || "");
   return String(v);
 };
 
@@ -88,7 +88,8 @@ export default function PurchaseIndentPage() {
       setCategories(
         catsData.map((c) => ({
           ...c,
-          _id: sid(c._id),
+          id: sid(c.id || c._id),
+          _id: sid(c.id || c._id),
           headId: sid(c.headId),
         })),
       );
@@ -96,7 +97,8 @@ export default function PurchaseIndentPage() {
       setItems(
         itemsData.map((it) => ({
           ...it,
-          _id: sid(it._id),
+          id: sid(it.id || it._id),
+          _id: sid(it.id || it._id),
           headId: sid(it.headId),
         })),
       );
@@ -154,7 +156,7 @@ export default function PurchaseIndentPage() {
         itemId: sid(d.itemId),
       })),
     );
-    setEditId(sid(indent._id));
+    setEditId(sid(indent.id || indent._id));
     setView("form");
   }
 
@@ -165,7 +167,7 @@ export default function PurchaseIndentPage() {
       const row = { ...rows[idx], [field]: val };
 
       if (field === "inventoryHeadId") {
-        const found = heads.find((h) => sid(h._id) === val);
+        const found = heads.find((h) => sid(h.id || h._id) === val);
         row.inventoryHeadName = found?.headName || "";
         // Reset downstream
         row.mainCategoryId = "";
@@ -176,7 +178,7 @@ export default function PurchaseIndentPage() {
       }
 
       if (field === "mainCategoryId") {
-        const found = categories.find((c) => c._id === val);
+        const found = categories.find((c) => (c.id || c._id) === val);
         row.mainCategoryName = found?.groupName || "";
         // Reset downstream
         row.itemId = "";
@@ -185,7 +187,7 @@ export default function PurchaseIndentPage() {
       }
 
       if (field === "itemId") {
-        const found = items.find((it) => it._id === val);
+        const found = items.find((it) => (it.id || it._id) === val);
         row.itemName = found?.itemName || "";
         row.uom = found?.uom || "";
       }
@@ -219,7 +221,7 @@ export default function PurchaseIndentPage() {
     try {
       if (editId) {
         const updated = await purchaseIndentApi.update(editId, payload);
-        setIndents((p) => p.map((x) => (sid(x._id) === editId ? updated : x)));
+        setIndents((p) => p.map((x) => (sid(x.id || x._id) === editId ? updated : x)));
       } else {
         const created = await purchaseIndentApi.create(payload);
         setIndents((p) => [created, ...p]);
@@ -237,7 +239,7 @@ export default function PurchaseIndentPage() {
     if (!window.confirm("Delete this indent?")) return;
     try {
       await purchaseIndentApi.remove(id);
-      setIndents((p) => p.filter((x) => sid(x._id) !== id));
+      setIndents((p) => p.filter((x) => sid(x.id || x._id) !== id));
     } catch (err) {
       alert(err.message || "Delete failed");
     }
@@ -321,7 +323,7 @@ export default function PurchaseIndentPage() {
                         0,
                       );
                       return (
-                        <tr key={sid(indent._id)}>
+                        <tr key={sid(indent.id || indent._id)}>
                           <td className="inv-idx">
                             {String(i + 1).padStart(2, "0")}
                           </td>
@@ -375,7 +377,7 @@ export default function PurchaseIndentPage() {
                               </button>
                               <button
                                 className="inv-btn-icon inv-btn-danger"
-                                onClick={() => handleDelete(sid(indent._id))}
+                                onClick={() => handleDelete(sid(indent.id || indent._id))}
                               >
                                 <svg
                                   xmlns="http://www.w3.org/2000/svg"
@@ -506,7 +508,7 @@ export default function PurchaseIndentPage() {
                 value={header.departmentId}
                 onChange={(e) => {
                   const d = departments.find(
-                    (x) => sid(x._id) === e.target.value,
+                    (x) => sid(x.id || x._id) === e.target.value,
                   );
                   setHeader((h) => ({
                     ...h,
@@ -517,7 +519,7 @@ export default function PurchaseIndentPage() {
               >
                 <option value="">Select department</option>
                 {departments.map((d) => (
-                  <option key={sid(d._id)} value={sid(d._id)}>
+                  <option key={sid(d.id || d._id)} value={sid(d.id || d._id)}>
                     {d.name || d.departmentName}
                   </option>
                 ))}
@@ -625,7 +627,7 @@ export default function PurchaseIndentPage() {
                   const filteredItems = row.mainCategoryId
                     ? items.filter((it) => {
                         const cat = categories.find(
-                          (c) => c._id === row.mainCategoryId,
+                          (c) => (c.id || c._id) === row.mainCategoryId,
                         );
                         return cat ? it.group === cat.groupName : false;
                       })
@@ -655,7 +657,7 @@ export default function PurchaseIndentPage() {
                         >
                           <option value="">Select category</option>
                           {heads.map((h) => (
-                            <option key={sid(h._id)} value={sid(h._id)}>
+                            <option key={sid(h.id || h._id)} value={sid(h.id || h._id)}>
                               {h.headName}
                             </option>
                           ))}
@@ -678,7 +680,7 @@ export default function PurchaseIndentPage() {
                               : "Select category first"}
                           </option>
                           {filteredCategories.map((c) => (
-                            <option key={c._id} value={c._id}>
+                            <option key={c.id || c._id} value={c.id || c._id}>
                               {c.groupName}
                             </option>
                           ))}
@@ -701,7 +703,7 @@ export default function PurchaseIndentPage() {
                               : "Select category first"}
                           </option>
                           {filteredItems.map((it) => (
-                            <option key={it._id} value={it._id}>
+                            <option key={it.id || it._id} value={it.id || it._id}>
                               {it.itemName}
                             </option>
                           ))}

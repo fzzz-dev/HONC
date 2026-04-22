@@ -1,34 +1,38 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
-const processSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: [true, "Process name is required"],
-      trim: true,
-    },
-    departmentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Department",
-      default: null,
-    },
-    departmentName: {
-      type: String,
-      default: "",
-      trim: true,
-    },
-    active: {
-      type: Boolean,
-      default: true,
+const Process = sequelize.define("Process", {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true,
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: true,
     },
   },
-  {
-    timestamps: true,
-  }
-);
+  departmentId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Departments',
+      key: 'id',
+    },
+  },
+  departmentName: {
+    type: DataTypes.STRING,
+    defaultValue: "",
+  },
+  active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+}, {
+  timestamps: true,
+  indexes: [{ fields: ["name"] }, { fields: ["departmentId"] }, { fields: ["active"] }],
+});
 
-processSchema.index({ name: 1 });
-processSchema.index({ departmentId: 1 });
-processSchema.index({ active: 1 });
-
-module.exports = mongoose.model("Process", processSchema);
+module.exports = Process;

@@ -7,7 +7,8 @@ const {
   updateMake,
   deleteMake,
   toggleMakeStatus,
-} = require("../controller/makeController");
+} = require("../controller/Makecontroller");
+
 
 // GET    /api/makes           → list all (supports ?search= & ?active=)
 // POST   /api/makes           → create new

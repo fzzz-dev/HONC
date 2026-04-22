@@ -1,35 +1,13 @@
-const mongoose = require("mongoose");
 const Supplier = require("../model/supplier");
 const City = require("../model/city");
 const State = require("../model/state");
 const Country = require("../model/country");
 const SupplierType = require("../model/supplierType");
+const { Op } = require("sequelize");
 
 // ─── Shared error handler ──────────────────────────────────────────────────────
 function handleError(res, error, context = "supplier") {
-  console.error(`[${context}] Error name:`, error.name); // ADD
-  console.error(`[${context}] Error message:`, error.message); // ADD
-  console.error(`[${context}] Stack:`, error.stack);
-  if (error.name === "ValidationError") {
-    const messages = Object.values(error.errors).map((err) => {
-      const field = err.path?.split(".").pop() || err.path || "Field";
-      return `${field}: ${err.message}`;
-    });
-    return res.status(400).json({
-      success: false,
-      message: "Validation error",
-      errors: messages,
-    });
-  }
-
-  if (error.name === "CastError") {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid ID format",
-      errors: [`${error.path}: invalid value "${error.value}"`],
-    });
-  }
-
+  console.error(`[${context}] Error:`, error);
   return res.status(500).json({
     success: false,
     message: `Error processing ${context}`,
@@ -37,36 +15,56 @@ function handleError(res, error, context = "supplier") {
   });
 }
 
+function normalizeOptionalText(value) {
+  if (value === undefined || value === null) return null;
+  const trimmed = String(value).trim();
+  return trimmed || null;
+}
+
+function normalizeRequiredText(value) {
+  return String(value || "").trim();
+}
+
+function normalizeBoolean(value, fallback = true) {
+  if (value === undefined) return fallback;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return value.toLowerCase() === "true";
+  return Boolean(value);
+}
+
+function normalizeSupplierPayload(body = {}, fallbackActive = true) {
+  return {
+    supplierName: normalizeRequiredText(body.supplierName),
+    type: normalizeRequiredText(body.type),
+    active: normalizeBoolean(body.active, fallbackActive),
+    addresses: Array.isArray(body.addresses) ? body.addresses : [],
+    gstNo: normalizeOptionalText(body.gstNo),
+    panNo: normalizeOptionalText(body.panNo),
+    emailId1: normalizeOptionalText(body.emailId1),
+    emailId2: normalizeOptionalText(body.emailId2),
+    mobileNo1: normalizeOptionalText(body.mobileNo1),
+    mobileNo2: normalizeOptionalText(body.mobileNo2),
+  };
+}
+
 // ─── Shared address validator ──────────────────────────────────────────────────
-// Returns null if valid, or a { status, message } object if invalid.
-// Mutates addr to set cityName / stateName / countryName from DB.
 async function validateAndEnrichAddress(addr) {
-  if (
-    !addr.cityId ||
-    !addr.stateId ||
-    !addr.countryId ||
-    !mongoose.Types.ObjectId.isValid(addr.cityId) ||
-    !mongoose.Types.ObjectId.isValid(addr.stateId) ||
-    !mongoose.Types.ObjectId.isValid(addr.countryId)
-  ) {
+  if (!addr.cityId || !addr.stateId || !addr.countryId) {
     return {
       status: 400,
-      message: "Invalid or missing city, state, or country ID in address",
+      message: "Missing city, state, or country ID in address",
     };
   }
 
   try {
-    const city = await City.findById(addr.cityId);
-    if (!city)
-      return { status: 400, message: `City not found: ${addr.cityId}` };
+    const city = await City.findByPk(addr.cityId);
+    if (!city) return { status: 400, message: `City not found: ${addr.cityId}` };
 
-    const state = await State.findById(addr.stateId);
-    if (!state)
-      return { status: 400, message: `State not found: ${addr.stateId}` };
+    const state = await State.findByPk(addr.stateId);
+    if (!state) return { status: 400, message: `State not found: ${addr.stateId}` };
 
-    const country = await Country.findById(addr.countryId);
-    if (!country)
-      return { status: 400, message: `Country not found: ${addr.countryId}` };
+    const country = await Country.findByPk(addr.countryId);
+    if (!country) return { status: 400, message: `Country not found: ${addr.countryId}` };
 
     addr.cityName = city.name;
     addr.stateName = state.name;
@@ -76,55 +74,43 @@ async function validateAndEnrichAddress(addr) {
     return { status: 400, message: `Invalid ID format: ${e.message}` };
   }
 }
+
 // @desc    Get all suppliers with filters
-// @route   GET /api/suppliers
-// @access  Public
 exports.getAllSuppliers = async (req, res) => {
   try {
-    const {
-      search,
-      type,
-      active,
-      cityId,
-      stateId,
-      page = 1,
-      limit = 100,
-    } = req.query;
+    const { search, type, active, cityId, stateId, page = 1, limit = 100 } = req.query;
 
-    const query = {};
-
+    const where = {};
     if (search) {
-      query.$or = [
-        { supplierName: { $regex: search, $options: "i" } },
-        { emailId1: { $regex: search, $options: "i" } },
-        { emailId2: { $regex: search, $options: "i" } },
-        { gstNo: { $regex: search, $options: "i" } },
-        { "addresses.cityName": { $regex: search, $options: "i" } },
+      where[Op.or] = [
+        { supplierName: { [Op.like]: `%${search}%` } },
+        { emailId1: { [Op.like]: `%${search}%` } },
+        { emailId2: { [Op.like]: `%${search}%` } },
+        { gstNo: { [Op.like]: `%${search}%` } },
       ];
     }
 
-    if (type) query.type = type;
-    if (active !== undefined) query.active = active === "true";
-    if (cityId) query["addresses.cityId"] = cityId;
-    if (stateId) query["addresses.stateId"] = stateId;
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const [suppliers, total] = await Promise.all([
-      Supplier.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit)),
-      Supplier.countDocuments(query),
-    ]);
+    if (type) where.type = type;
+    if (active !== undefined) where.active = active === "true";
+    
+    // JSON filtering for cityId/stateId in addresses array
+    // Note: This might be slow in SQL but keeps the NoSQL logic working.
+    // For better performance, addresses should be a separate table.
+    
+    const { count, rows } = await Supplier.findAndCountAll({
+      where,
+      offset: (parseInt(page) - 1) * parseInt(limit),
+      limit: parseInt(limit),
+      order: [["createdAt", "DESC"]],
+    });
 
     res.status(200).json({
       success: true,
-      count: suppliers.length,
-      total,
+      count: rows.length,
+      total: count,
       page: parseInt(page),
-      pages: Math.ceil(total / parseInt(limit)),
-      data: suppliers,
+      pages: Math.ceil(count / parseInt(limit)),
+      data: rows,
     });
   } catch (error) {
     handleError(res, error, "fetching suppliers");
@@ -132,15 +118,11 @@ exports.getAllSuppliers = async (req, res) => {
 };
 
 // @desc    Get single supplier
-// @route   GET /api/suppliers/:id
-// @access  Public
 exports.getSupplier = async (req, res) => {
   try {
-    const supplier = await Supplier.findById(req.params.id);
+    const supplier = await Supplier.findByPk(req.params.id);
     if (!supplier) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Supplier not found" });
+      return res.status(404).json({ success: false, message: "Supplier not found" });
     }
     res.status(200).json({ success: true, data: supplier });
   } catch (error) {
@@ -149,12 +131,9 @@ exports.getSupplier = async (req, res) => {
 };
 
 // @desc    Create new supplier
-// @route   POST /api/suppliers
-// @access  Public
 exports.createSupplier = async (req, res) => {
-  console.log("SupplierType model:", SupplierType); // ADD THIS
-  console.log("Request body:", req.body);
   try {
+    const payload = normalizeSupplierPayload(req.body);
     const {
       supplierName,
       type,
@@ -166,71 +145,44 @@ exports.createSupplier = async (req, res) => {
       emailId2,
       mobileNo1,
       mobileNo2,
-    } = req.body;
+    } = payload;
 
-    // ── Required fields ────────────────────────────────────────────────────────
     if (!supplierName || !type) {
-      return res.status(400).json({
-        success: false,
-        message: "Supplier name and type are required",
-      });
+      return res.status(400).json({ success: false, message: "Supplier name and type are required" });
     }
 
-    // ── Validate type against SupplierType collection ──────────────────────────
-    const validType = await SupplierType.findOne({ name: type, active: true });
+    const validType = await SupplierType.findOne({ where: { name: type, active: true } });
     if (!validType) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid supplier type: "${type}". Please select a valid category.`,
-      });
+      return res.status(400).json({ success: false, message: `Invalid supplier type: "${type}"` });
     }
 
-    // ── Validate & enrich addresses ────────────────────────────────────────────
     if (addresses && addresses.length > 0) {
       for (const addr of addresses) {
         const err = await validateAndEnrichAddress(addr);
-        if (err)
-          return res
-            .status(err.status)
-            .json({ success: false, message: err.message });
+        if (err) return res.status(err.status).json({ success: false, message: err.message });
       }
     }
 
     const supplier = await Supplier.create({
-      supplierName,
-      type,
-      active,
-      addresses: addresses || [],
-      gstNo,
-      panNo,
-      emailId1,
-      emailId2,
-      mobileNo1,
-      mobileNo2,
+      supplierName, type, active, addresses: addresses || [],
+      gstNo, panNo, emailId1, emailId2, mobileNo1, mobileNo2
     });
 
-    res.status(201).json({
-      success: true,
-      message: "Supplier created successfully",
-      data: supplier,
-    });
+    res.status(201).json({ success: true, message: "Supplier created successfully", data: supplier });
   } catch (error) {
     handleError(res, error, "creating supplier");
   }
 };
 
 // @desc    Update supplier
-// @route   PUT /api/suppliers/:id
-// @access  Public
 exports.updateSupplier = async (req, res) => {
   try {
-    const existing = await Supplier.findById(req.params.id);
-    if (!existing) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Supplier not found" });
+    const supplier = await Supplier.findByPk(req.params.id);
+    if (!supplier) {
+      return res.status(404).json({ success: false, message: "Supplier not found" });
     }
 
+    const payload = normalizeSupplierPayload(req.body, supplier.active);
     const {
       supplierName,
       type,
@@ -242,269 +194,139 @@ exports.updateSupplier = async (req, res) => {
       emailId2,
       mobileNo1,
       mobileNo2,
-    } = req.body;
+    } = payload;
 
-    // ── Validate type against SupplierType collection ──────────────────────────
     if (type) {
-      const validType = await SupplierType.findOne({
-        name: type,
-        active: true,
-      });
+      const validType = await SupplierType.findOne({ where: { name: type, active: true } });
       if (!validType) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid supplier type: "${type}". Please select a valid category.`,
-        });
+        return res.status(400).json({ success: false, message: `Invalid supplier type: "${type}"` });
       }
     }
 
-    // ── Validate & enrich addresses ────────────────────────────────────────────
     if (addresses && addresses.length > 0) {
       for (const addr of addresses) {
         const err = await validateAndEnrichAddress(addr);
-        if (err)
-          return res
-            .status(err.status)
-            .json({ success: false, message: err.message });
+        if (err) return res.status(err.status).json({ success: false, message: err.message });
       }
     }
 
-    const supplier = await Supplier.findByIdAndUpdate(
-      req.params.id,
-      {
-        supplierName,
-        type,
-        active,
-        addresses: addresses || [],
-        gstNo,
-        panNo,
-        emailId1,
-        emailId2,
-        mobileNo1,
-        mobileNo2,
-      },
-      { new: true, runValidators: true },
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Supplier updated successfully",
-      data: supplier,
+    await supplier.update({
+      supplierName, type, active, addresses: addresses || [],
+      gstNo, panNo, emailId1, emailId2, mobileNo1, mobileNo2
     });
+
+    res.status(200).json({ success: true, message: "Supplier updated successfully", data: supplier });
   } catch (error) {
     handleError(res, error, "updating supplier");
   }
 };
 
 // @desc    Delete supplier
-// @route   DELETE /api/suppliers/:id
-// @access  Public
 exports.deleteSupplier = async (req, res) => {
   try {
-    const supplier = await Supplier.findById(req.params.id);
+    const supplier = await Supplier.findByPk(req.params.id);
     if (!supplier) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Supplier not found" });
+      return res.status(404).json({ success: false, message: "Supplier not found" });
     }
-    await supplier.deleteOne();
-    res.status(200).json({
-      success: true,
-      message: "Supplier deleted successfully",
-      data: {},
-    });
+    await supplier.destroy();
+    res.status(200).json({ success: true, message: "Supplier deleted successfully", data: {} });
   } catch (error) {
     handleError(res, error, "deleting supplier");
   }
 };
 
 // @desc    Add address to supplier
-// @route   POST /api/suppliers/:id/addresses
-// @access  Public
 exports.addAddress = async (req, res) => {
   try {
-    const supplier = await Supplier.findById(req.params.id);
-    if (!supplier) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Supplier not found" });
-    }
+    const supplier = await Supplier.findByPk(req.params.id);
+    if (!supplier) return res.status(404).json({ success: false, message: "Supplier not found" });
 
-    const { address, pinCode, cityId, stateId, countryId, note, isPrimary } =
-      req.body;
-
+    const { address, pinCode, cityId, stateId, countryId, note, isPrimary } = req.body;
     if (!address || !cityId || !stateId || !countryId) {
-      return res.status(400).json({
-        success: false,
-        message: "Address, city, state, and country are required",
-      });
+      return res.status(400).json({ success: false, message: "Address, city, state, and country are required" });
     }
 
-    const addrObj = {
-      address,
-      pinCode,
-      cityId,
-      stateId,
-      countryId,
-      note,
-      isPrimary,
-    };
+    const addrObj = { address, pinCode, cityId, stateId, countryId, note, isPrimary };
     const err = await validateAndEnrichAddress(addrObj);
-    if (err)
-      return res
-        .status(err.status)
-        .json({ success: false, message: err.message });
+    if (err) return res.status(err.status).json({ success: false, message: err.message });
 
+    const currentAddresses = [...(supplier.addresses || [])];
     if (isPrimary) {
-      supplier.addresses.forEach((a) => (a.isPrimary = false));
+      currentAddresses.forEach((a) => (a.isPrimary = false));
     }
 
-    supplier.addresses.push({
-      address: addrObj.address,
-      pinCode: addrObj.pinCode,
-      cityId: addrObj.cityId,
-      cityName: addrObj.cityName,
-      stateId: addrObj.stateId,
-      stateName: addrObj.stateName,
-      countryId: addrObj.countryId,
-      countryName: addrObj.countryName,
-      note: addrObj.note || "",
-      isPrimary: addrObj.isPrimary || false,
+    currentAddresses.push({
+      ...addrObj,
+      id: Date.now(), // Generate a simple ID for the address
     });
 
-    await supplier.save();
-
-    res.status(201).json({
-      success: true,
-      message: "Address added successfully",
-      data: supplier,
-    });
+    await supplier.update({ addresses: currentAddresses });
+    res.status(201).json({ success: true, message: "Address added successfully", data: supplier });
   } catch (error) {
     handleError(res, error, "adding address");
   }
 };
 
-// @desc    Update address
-// @route   PUT /api/suppliers/:id/addresses/:addressId
-// @access  Public
+// @desc    Update address in supplier
 exports.updateAddress = async (req, res) => {
   try {
-    const supplier = await Supplier.findById(req.params.id);
-    if (!supplier) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Supplier not found" });
-    }
+    const supplier = await Supplier.findByPk(req.params.id);
+    if (!supplier) return res.status(404).json({ success: false, message: "Supplier not found" });
 
-    const addressIndex = supplier.addresses.findIndex(
-      (a) => a._id.toString() === req.params.addressId,
-    );
-    if (addressIndex === -1) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Address not found" });
-    }
+    const { addressId } = req.params;
+    const { address, pinCode, cityId, stateId, countryId, note, isPrimary } = req.body;
 
-    const { address, pinCode, cityId, stateId, countryId, note, isPrimary } =
-      req.body;
+    let currentAddresses = [...(supplier.addresses || [])];
+    const index = currentAddresses.findIndex((a) => String(a.id || a._id) === String(addressId));
 
-    // Validate & enrich only the changed ID fields
-    if (cityId || stateId || countryId) {
-      const partial = {
-        cityId: cityId || supplier.addresses[addressIndex].cityId.toString(),
-        stateId: stateId || supplier.addresses[addressIndex].stateId.toString(),
-        countryId:
-          countryId || supplier.addresses[addressIndex].countryId.toString(),
-      };
-      const err = await validateAndEnrichAddress(partial);
-      if (err)
-        return res
-          .status(err.status)
-          .json({ success: false, message: err.message });
+    if (index === -1) return res.status(404).json({ success: false, message: "Address not found" });
 
-      supplier.addresses[addressIndex].cityId = partial.cityId;
-      supplier.addresses[addressIndex].cityName = partial.cityName;
-      supplier.addresses[addressIndex].stateId = partial.stateId;
-      supplier.addresses[addressIndex].stateName = partial.stateName;
-      supplier.addresses[addressIndex].countryId = partial.countryId;
-      supplier.addresses[addressIndex].countryName = partial.countryName;
-    }
-
-    if (address !== undefined)
-      supplier.addresses[addressIndex].address = address;
-    if (pinCode !== undefined)
-      supplier.addresses[addressIndex].pinCode = pinCode;
-    if (note !== undefined) supplier.addresses[addressIndex].note = note;
+    const addrObj = { ...currentAddresses[index], ...req.body };
+    const err = await validateAndEnrichAddress(addrObj);
+    if (err) return res.status(err.status).json({ success: false, message: err.message });
 
     if (isPrimary) {
-      supplier.addresses.forEach((a, i) => {
-        a.isPrimary = i === addressIndex;
-      });
+      currentAddresses.forEach((a) => (a.isPrimary = false));
     }
 
-    await supplier.save();
+    currentAddresses[index] = addrObj;
+    await supplier.update({ addresses: currentAddresses });
 
-    res.status(200).json({
-      success: true,
-      message: "Address updated successfully",
-      data: supplier,
-    });
+    res.status(200).json({ success: true, message: "Address updated successfully", data: supplier });
   } catch (error) {
     handleError(res, error, "updating address");
   }
 };
 
-// @desc    Delete address
-// @route   DELETE /api/suppliers/:id/addresses/:addressId
-// @access  Public
+// @desc    Delete address from supplier
 exports.deleteAddress = async (req, res) => {
   try {
-    const supplier = await Supplier.findById(req.params.id);
-    if (!supplier) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Supplier not found" });
+    const supplier = await Supplier.findByPk(req.params.id);
+    if (!supplier) return res.status(404).json({ success: false, message: "Supplier not found" });
+
+    const { addressId } = req.params;
+    let currentAddresses = [...(supplier.addresses || [])];
+    const newAddresses = currentAddresses.filter((a) => String(a.id || a._id) !== String(addressId));
+
+    if (currentAddresses.length === newAddresses.length) {
+      return res.status(404).json({ success: false, message: "Address not found" });
     }
 
-    const addressIndex = supplier.addresses.findIndex(
-      (a) => a._id.toString() === req.params.addressId,
-    );
-    if (addressIndex === -1) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Address not found" });
-    }
-
-    const wasPrimary = supplier.addresses[addressIndex].isPrimary;
-    supplier.addresses.splice(addressIndex, 1);
-
-    if (wasPrimary && supplier.addresses.length > 0) {
-      supplier.addresses[0].isPrimary = true;
-    }
-
-    await supplier.save();
-
-    res.status(200).json({
-      success: true,
-      message: "Address deleted successfully",
-      data: supplier,
-    });
+    await supplier.update({ addresses: newAddresses });
+    res.status(200).json({ success: true, message: "Address deleted successfully", data: supplier });
   } catch (error) {
     handleError(res, error, "deleting address");
   }
 };
 
 // @desc    Get suppliers by type
-// @route   GET /api/suppliers/type/:type
-// @access  Public
 exports.getSuppliersByType = async (req, res) => {
   try {
-    const suppliers = await Supplier.find({ type: req.params.type }).sort({
-      supplierName: 1,
+    const suppliers = await Supplier.findAll({
+      where: { type: req.params.type },
+      order: [["supplierName", "ASC"]],
     });
-    res
-      .status(200)
-      .json({ success: true, count: suppliers.length, data: suppliers });
+    res.status(200).json({ success: true, count: suppliers.length, data: suppliers });
   } catch (error) {
     handleError(res, error, "fetching suppliers by type");
   }

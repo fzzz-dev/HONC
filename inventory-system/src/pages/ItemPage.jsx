@@ -17,7 +17,7 @@ import {
   specApi,
 } from "../services/inventoryApi";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
 const EMPTY = {
   headId: "",
@@ -97,7 +97,7 @@ export default function ItemPage() {
 
   // ── Derived dropdown options ──────────────────────────────────────────────────
   const headSelectOptions = heads.map((h) => ({
-    value: String(h._id),
+    value: String(h.id || h._id),
     label: h.headName,
   }));
 
@@ -117,7 +117,7 @@ export default function ItemPage() {
   const uomSelectOptions = uomOptions
     .filter((u) => u.active !== false)
     .map((u) => ({
-      value: u.name ?? u.uom ?? String(u._id),
+      value: u.name ?? u.uom ?? String(u.id || u._id),
       label: u.name ?? u.uom,
     }));
 
@@ -149,7 +149,7 @@ export default function ItemPage() {
 
   function openEdit(row) {
     setForm({
-      headId: String(row.headId),
+      headId: String(row.headId?.id || row.headId?._id || row.headId),
       head: row.head || "",
       group: row.group || "",
       itemName: row.itemName || "",
@@ -162,11 +162,11 @@ export default function ItemPage() {
       image: row.image || null,
       imageFile: null,
     });
-    setModal({ mode: "edit", id: row._id });
+    setModal({ mode: "edit", id: row.id || row._id });
   }
 
   function handleHeadChange(val) {
-    const head = heads.find((h) => String(h._id) === val);
+    const head = heads.find((h) => String(h.id || h._id) === val);
     setForm((f) => ({
       ...f,
       headId: val,
@@ -185,7 +185,7 @@ export default function ItemPage() {
   // ── Save ─────────────────────────────────────────────────────────────────────
   async function handleSave() {
     if (!form.itemName.trim()) return alert("Item Name is required");
-    if (!form.head) return alert("Head is required");
+    if (!form.headId || !form.head) return alert("Head is required");
 
     setSaving(true);
     try {
@@ -242,7 +242,7 @@ export default function ItemPage() {
         setItems((prev) => [result, ...prev]);
       } else {
         setItems((prev) =>
-          prev.map((it) => (it._id === modal.id ? result : it)),
+          prev.map((it) => ((it.id || it._id) === modal.id ? result : it)),
         );
       }
       setModal(null);
@@ -257,7 +257,7 @@ export default function ItemPage() {
   async function handleDelete(id) {
     try {
       await itemApi.remove(id);
-      setItems((prev) => prev.filter((it) => it._id !== id));
+      setItems((prev) => prev.filter((it) => (it.id || it._id) !== id));
       setDeleteConfirm(null);
     } catch (err) {
       alert(err.message || "Delete failed");
@@ -309,7 +309,7 @@ export default function ItemPage() {
           >
             <option value="">All Heads</option>
             {heads.map((h) => (
-              <option key={h._id} value={String(h._id)}>
+              <option key={h.id || h._id} value={String(h.id || h._id)}>
                 {h.headName}
               </option>
             ))}
@@ -362,7 +362,7 @@ export default function ItemPage() {
                 </tr>
               ) : (
                 filtered.map((row) => (
-                  <tr key={row._id}>
+                  <tr key={row.id || row._id}>
                     <td>
                       {row.image ? (
                         <img
@@ -417,7 +417,7 @@ export default function ItemPage() {
                         </button>
                         <button
                           className="inv-btn-icon inv-btn-danger"
-                          onClick={() => setDeleteConfirm(row._id)}
+                          onClick={() => setDeleteConfirm(row.id || row._id)}
                           title="Delete"
                         >
                           <svg

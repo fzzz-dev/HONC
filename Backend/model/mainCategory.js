@@ -1,34 +1,35 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
-const mainCategorySchema = new mongoose.Schema(
-  {
-    headId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "InventoryHead",
-      required: [true, "Inventory head is required"],
-    },
-    headName: {
-      type: String,
-      required: true,
-    },
-    groupName: {
-      type: String,
-      required: [true, "Group name is required"],
-      trim: true,
-    },
-    active: {
-      type: Boolean,
-      default: true,
+const MainCategory = sequelize.define("MainCategory", {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true,
+  },
+  headId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'InventoryHeads',
+      key: 'id',
     },
   },
-  {
-    timestamps: true,
+  headName: {
+    type: DataTypes.STRING,
+    allowNull: false,
   },
-);
+  groupName: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+}, {
+  timestamps: true,
+  indexes: [{ fields: ["headId", "groupName"] }, { fields: ["active"] }],
+});
 
-mainCategorySchema.index({ headId: 1, groupName: 1 });
-mainCategorySchema.index({ active: 1 });
-const MainCategory =
-  mongoose.models.MainCategory ||
-  mongoose.model("MainCategory", mainCategorySchema);
 module.exports = MainCategory;

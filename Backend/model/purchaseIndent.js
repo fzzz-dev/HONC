@@ -1,68 +1,66 @@
-// models/PurchaseIndent.js
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
-const detailSchema = new mongoose.Schema(
-  {
-    inventoryHeadId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "InventoryHead",
-    },
-    inventoryHeadName: { type: String, default: "" },
-    mainCategoryId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "MainCategory",
-    },
-    mainCategoryName: { type: String, default: "" },
-    itemId: { type: mongoose.Schema.Types.ObjectId, ref: "Item" },
-    itemName: { type: String, default: "" },
-    uom: { type: String, default: "" },
-    indentQty: { type: Number, default: 0, min: 0 },
-    dueDate: { type: String, default: "" },
-    remarks: { type: String, default: "" },
-
-    // PO fulfilment tracking — computed by recalculateIndents(), never set manually
-    alPoQty: { type: Number, default: 0 }, // sum of poQty across all non-Cancelled POs
-    // ✅ FIX: default balQty to indentQty so new indents show correct balance immediately
-    balQty: { type: Number, default: 0 }, // indentQty - alPoQty
+const PurchaseIndent = sequelize.define("PurchaseIndent", {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true,
   },
-  { _id: true },
-);
-
-const purchaseIndentSchema = new mongoose.Schema(
-  {
-    indentNo: { type: String, required: true, unique: true, trim: true },
-    date: { type: String, required: true },
-    departmentId: { type: mongoose.Schema.Types.ObjectId, ref: "Department" },
-    departmentName: { type: String, default: "" },
-    createdBy: { type: String, default: "Admin" },
-    createdOn: { type: String, default: "" },
-    status: {
-      type: String,
-      enum: ["Open", "Closed", "Cancelled"],
-      default: "Open",
-    },
-    remarks: { type: String, default: "" },
-    details: { type: [detailSchema], default: [] },
+  indentNo: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
   },
-  { timestamps: true },
-);
-
-// ✅ FIX: on save, initialise balQty = indentQty for any detail row
-//         where balQty hasn't been set by recalculateIndents yet (alPoQty === 0)
-purchaseIndentSchema.pre("save", async function () {
-  for (const d of this.details) {
-    if (d.alPoQty === 0) {
-      d.balQty = d.indentQty;
-    }
-  }
+  date: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  departmentId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Departments',
+      key: 'id',
+    },
+  },
+  departmentName: {
+    type: DataTypes.STRING,
+    defaultValue: "",
+  },
+  createdBy: {
+    type: DataTypes.STRING,
+    defaultValue: "Admin",
+  },
+  createdOn: {
+    type: DataTypes.STRING,
+    defaultValue: "",
+  },
+  status: {
+    type: DataTypes.ENUM("Open", "Closed", "Cancelled"),
+    defaultValue: "Open",
+  },
+  remarks: {
+    type: DataTypes.TEXT,
+    defaultValue: "",
+  },
+  details: {
+    type: DataTypes.JSON,
+    defaultValue: [],
+  },
+}, {
+  timestamps: true,
+  hooks: {
+    beforeSave: (indent) => {
+      if (indent.details && Array.isArray(indent.details)) {
+        indent.details.forEach(d => {
+          if (!d.alPoQty || d.alPoQty === 0) {
+            d.balQty = d.indentQty || 0;
+          }
+        });
+      }
+    },
+  },
 });
-
-purchaseIndentSchema.index({ indentNo: 1 });
-purchaseIndentSchema.index({ status: 1 });
-purchaseIndentSchema.index({ departmentId: 1 });
-
-const PurchaseIndent =
-  mongoose.models.PurchaseIndent ||
-  mongoose.model("PurchaseIndent", purchaseIndentSchema);
 
 module.exports = PurchaseIndent;

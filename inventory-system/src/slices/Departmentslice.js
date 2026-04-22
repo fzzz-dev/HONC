@@ -110,7 +110,10 @@ const departmentSlice = createSlice({
       })
       .addCase(updateDepartment.fulfilled, (state, action) => {
         state.actionLoading = false;
-        const idx = state.items.findIndex((d) => d._id === action.payload._id);
+        const updatedId = action.payload.id || action.payload._id;
+        const idx = state.items.findIndex(
+          (d) => (d.id || d._id) === updatedId,
+        );
         if (idx !== -1) state.items[idx] = action.payload;
       })
       .addCase(updateDepartment.rejected, (state, action) => {
@@ -126,7 +129,9 @@ const departmentSlice = createSlice({
       })
       .addCase(deleteDepartment.fulfilled, (state, action) => {
         state.actionLoading = false;
-        state.items = state.items.filter((d) => d._id !== action.payload);
+        state.items = state.items.filter(
+          (d) => (d.id || d._id) !== action.payload,
+        );
       })
       .addCase(deleteDepartment.rejected, (state, action) => {
         state.actionLoading = false;

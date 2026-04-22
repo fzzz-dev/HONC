@@ -1,34 +1,30 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
-const makeSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: [true, "Name is required"],
-      trim: true,
-      unique: true,
-      maxlength: [100, "Name cannot exceed 100 characters"],
-    },
-    description: {
-      type: String,
-      trim: true,
-      default: "",
-      maxlength: [500, "Description cannot exceed 500 characters"],
-    },
-    active: {
-      type: Boolean,
-      default: true,
+const Make = sequelize.define("Make", {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true,
+  },
+  name: {
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    unique: "make_name_unique",
+    validate: {
+      notEmpty: true,
     },
   },
-  {
-    timestamps: true, // createdAt, updatedAt
+  description: {
+    type: DataTypes.STRING(500),
+    defaultValue: "",
   },
-);
+  active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+}, {
+  timestamps: true,
+});
 
-// Case-insensitive unique index on name
-makeSchema.index(
-  { name: 1 },
-  { unique: true, collation: { locale: "en", strength: 2 } },
-);
-
-module.exports = mongoose.model("Make", makeSchema);
+module.exports = Make;

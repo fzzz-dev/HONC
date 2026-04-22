@@ -1,16 +1,20 @@
 const Process = require("../model/Process");
 const Department = require("../model/Department");
+const { Op } = require("sequelize");
 
 // GET /api/processes
 exports.getAll = async (req, res) => {
   try {
     const { search = "", active, departmentId } = req.query;
-    const filter = {};
-    if (search) filter.name = { $regex: search, $options: "i" };
-    if (active !== undefined) filter.active = active === "true";
-    if (departmentId) filter.departmentId = departmentId;
+    const where = {};
+    if (search) where.name = { [Op.like]: `%${search}%` };
+    if (active !== undefined) where.active = active === "true";
+    if (departmentId) where.departmentId = departmentId;
 
-    const processes = await Process.find(filter).sort({ createdAt: -1 });
+    const processes = await Process.findAll({
+      where,
+      order: [["createdAt", "DESC"]],
+    });
     res.json({ success: true, data: processes });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -20,7 +24,7 @@ exports.getAll = async (req, res) => {
 // GET /api/processes/:id
 exports.getOne = async (req, res) => {
   try {
-    const process = await Process.findById(req.params.id);
+    const process = await Process.findByPk(req.params.id);
     if (!process)
       return res.status(404).json({ success: false, message: "Not found" });
     res.json({ success: true, data: process });
@@ -35,7 +39,7 @@ exports.create = async (req, res) => {
     const { name, departmentId, active } = req.body;
 
     const exists = await Process.findOne({
-      name: { $regex: `^${name.trim()}$`, $options: "i" },
+      where: { name: name.trim() },
     });
     if (exists) {
       return res
@@ -43,10 +47,9 @@ exports.create = async (req, res) => {
         .json({ success: false, message: "Process name already exists" });
     }
 
-    // Resolve department name from id
     let departmentName = "";
     if (departmentId) {
-      const dept = await Department.findById(departmentId);
+      const dept = await Department.findByPk(departmentId);
       if (dept) departmentName = dept.name;
     }
 
@@ -67,9 +70,15 @@ exports.update = async (req, res) => {
   try {
     const { name, departmentId, active } = req.body;
 
+    const process = await Process.findByPk(req.params.id);
+    if (!process)
+      return res.status(404).json({ success: false, message: "Not found" });
+
     const duplicate = await Process.findOne({
-      name: { $regex: `^${name.trim()}$`, $options: "i" },
-      _id: { $ne: req.params.id },
+      where: {
+        name: name.trim(),
+        id: { [Op.ne]: req.params.id },
+      },
     });
     if (duplicate) {
       return res
@@ -77,21 +86,13 @@ exports.update = async (req, res) => {
         .json({ success: false, message: "Process name already exists" });
     }
 
-    // Resolve department name from id
     let departmentName = "";
     if (departmentId) {
-      const dept = await Department.findById(departmentId);
+      const dept = await Department.findByPk(departmentId);
       if (dept) departmentName = dept.name;
     }
 
-    const process = await Process.findByIdAndUpdate(
-      req.params.id,
-      { name: name.trim(), departmentId: departmentId || null, departmentName, active },
-      { new: true, runValidators: true }
-    );
-    if (!process)
-      return res.status(404).json({ success: false, message: "Not found" });
-
+    await process.update({ name: name.trim(), departmentId: departmentId || null, departmentName, active });
     res.json({ success: true, data: process });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -101,10 +102,10 @@ exports.update = async (req, res) => {
 // DELETE /api/processes/:id
 exports.remove = async (req, res) => {
   try {
-    const process = await Process.findById(req.params.id);
+    const process = await Process.findByPk(req.params.id);
     if (!process)
       return res.status(404).json({ success: false, message: "Not found" });
-    await process.deleteOne();
+    await process.destroy();
     res.json({ success: true, message: "Deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

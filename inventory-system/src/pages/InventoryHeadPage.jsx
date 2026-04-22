@@ -23,7 +23,8 @@ export default function InventoryHeadPage() {
       setError(null);
       const data = await inventoryHeadApi.getAll();
       // Normalise: map _id → id for frontend compatibility
-      setHeads(data.map((h) => ({ ...h, id: h._id })));
+      setHeads(data.map((h) => ({ ...h, id: h.id || h._id })));
+
     } catch (err) {
       setError(err.message);
     } finally {
@@ -47,7 +48,7 @@ export default function InventoryHeadPage() {
   }
   function openEdit(row) {
     setForm({ headName: row.headName, active: row.active });
-    setModal({ mode: "edit", id: row._id || row.id });
+    setModal({ mode: "edit", id: row.id });
   }
 
   async function handleSave() {

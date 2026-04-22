@@ -87,13 +87,13 @@ const slice = createSlice({
     // update
     builder.addCase(updateCountry.fulfilled, (state, action) => {
       state.data = state.data.map((c) =>
-        c._id === action.payload._id ? action.payload : c,
+        (c.id || c._id) === (action.payload.id || action.payload._id) ? action.payload : c
       );
     });
 
     // delete
     builder.addCase(deleteCountry.fulfilled, (state, action) => {
-      state.data = state.data.filter((c) => c._id !== action.payload);
+      state.data = state.data.filter((c) => (c.id || c._id) !== action.payload);
     });
   },
 });

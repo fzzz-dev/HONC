@@ -6,7 +6,8 @@ const {
   create,
   update,
   remove,
-} = require("../controller/storeController");
+} = require("../controller/Storecontroller");
+
 
 router.get("/", getAll);
 router.get("/:id", getOne);

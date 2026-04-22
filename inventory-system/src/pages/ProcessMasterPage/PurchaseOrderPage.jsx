@@ -13,9 +13,10 @@ const today = () => new Date().toISOString().split("T")[0];
 
 const sid = (v) => {
   if (!v) return "";
-  if (typeof v === "object" && v._id) return String(v._id);
+  if (typeof v === "object") return String(v.id || v._id || "");
   return String(v);
 };
+
 
 // ─── empty row factory ────────────────────────────────────────────────────────
 const emptyDetail = () => ({

@@ -1,27 +1,29 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
-const inventoryHeadSchema = new mongoose.Schema(
-  {
-    headName: {
-      type: String,
-      required: [true, "Head name is required"],
-      trim: true,
-    },
-    active: {
-      type: Boolean,
-      default: true,
+const InventoryHead = sequelize.define("InventoryHead", {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true,
+  },
+  headName: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: "Head name is required" },
     },
   },
-  {
-    timestamps: true,
+  active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
   },
-);
-
-inventoryHeadSchema.index({ headName: 1 });
-inventoryHeadSchema.index({ active: 1 });
-
-const InventoryHead =
-  mongoose.models.InventoryHead ||
-  mongoose.model("InventoryHead", inventoryHeadSchema);
+}, {
+  timestamps: true,
+  indexes: [
+    { fields: ["headName"] },
+    { fields: ["active"] },
+  ],
+});
 
 module.exports = InventoryHead;

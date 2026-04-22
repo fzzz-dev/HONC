@@ -654,7 +654,7 @@ export function StoreMasterPage() {
   function openEdit(row) {
     setForm({ name: row.name, location: row.location, active: row.active });
     dispatch(clearStoreError());
-    setModal({ mode: "edit", id: row._id });
+    setModal({ mode: "edit", id: row.id || row._id });
   }
 
   async function handleSave() {
@@ -700,7 +700,7 @@ export function StoreMasterPage() {
                 {loading && <tr><td colSpan={5} className="inv-empty">Loading...</td></tr>}
                 {!loading && filtered.length === 0 && <tr><td colSpan={5} className="inv-empty">No records found</td></tr>}
                 {!loading && filtered.map((row, i) => (
-                  <tr key={row._id}>
+                  <tr key={row.id || row._id}>
                     <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
                     <td className="inv-bold">{row.name}</td>
                     <td>{row.location}</td>
@@ -717,7 +717,7 @@ export function StoreMasterPage() {
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                           </svg>
                         </button>
-                        <button className="inv-btn-icon inv-btn-danger" onClick={() => setDeleteConfirm(row._id)}>
+                        <button className="inv-btn-icon inv-btn-danger" onClick={() => setDeleteConfirm(row.id || row._id)}>
                           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="3 6 5 6 21 6" />
                             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -794,7 +794,7 @@ export function DepartmentMasterPage() {
   function openEdit(row) {
     setForm({ name: row.name, code: row.code, active: row.active });
     dispatch(clearDeptError());
-    setModal({ mode: "edit", id: row._id });
+    setModal({ mode: "edit", id: row.id || row._id });
   }
 
   async function handleSave() {
@@ -840,7 +840,7 @@ export function DepartmentMasterPage() {
                 {loading && <tr><td colSpan={5} className="inv-empty">Loading...</td></tr>}
                 {!loading && filtered.length === 0 && <tr><td colSpan={5} className="inv-empty">No records found</td></tr>}
                 {!loading && filtered.map((row, i) => (
-                  <tr key={row._id}>
+                  <tr key={row.id || row._id}>
                     <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
                     <td className="inv-bold">{row.name}</td>
                     <td>{row.code}</td>
@@ -857,7 +857,7 @@ export function DepartmentMasterPage() {
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                           </svg>
                         </button>
-                        <button className="inv-btn-icon inv-btn-danger" onClick={() => setDeleteConfirm(row._id)}>
+                        <button className="inv-btn-icon inv-btn-danger" onClick={() => setDeleteConfirm(row.id || row._id)}>
                           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="3 6 5 6 21 6" />
                             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -936,7 +936,7 @@ export function ProcessMasterPage() {
   function openEdit(row) {
     setForm({ name: row.name, departmentId: row.departmentId || "", active: row.active });
     dispatch(clearProcessError());
-    setModal({ mode: "edit", id: row._id });
+    setModal({ mode: "edit", id: row.id || row._id });
   }
 
   async function handleSave() {
@@ -982,7 +982,7 @@ export function ProcessMasterPage() {
                 {loading && <tr><td colSpan={5} className="inv-empty">Loading...</td></tr>}
                 {!loading && filtered.length === 0 && <tr><td colSpan={5} className="inv-empty">No records found</td></tr>}
                 {!loading && filtered.map((row, i) => (
-                  <tr key={row._id}>
+                  <tr key={row.id || row._id}>
                     <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
                     <td className="inv-bold">{row.name}</td>
                     <td className="inv-muted-sm">{row.departmentName}</td>
@@ -999,7 +999,7 @@ export function ProcessMasterPage() {
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                           </svg>
                         </button>
-                        <button className="inv-btn-icon inv-btn-danger" onClick={() => setDeleteConfirm(row._id)}>
+                        <button className="inv-btn-icon inv-btn-danger" onClick={() => setDeleteConfirm(row.id || row._id)}>
                           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="3 6 5 6 21 6" />
                             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -1032,8 +1032,9 @@ export function ProcessMasterPage() {
               >
                 <option value="">Select dept</option>
                 {departments.map((d) => (
-                  <option key={d._id} value={d._id}>{d.name}</option>
+                  <option key={d.id || d._id} value={d.id || d._id}>{d.name}</option>
                 ))}
+
               </select>
             </Field>
           </FormGrid>

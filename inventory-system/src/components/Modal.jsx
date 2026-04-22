@@ -64,6 +64,7 @@ export default function Modal({
   onSave,
   children,
   saveLabel = "Save",
+  saving,
 }) {
   useEffect(() => {
     const handler = (e) => {
@@ -86,12 +87,12 @@ export default function Modal({
           </button>
         </div>
         <div style={styles.body}>{children}</div>
-        <div style={styles.footer}>
-          <button className="inv-btn-ghost" onClick={onClose}>
+        <div className="inv-modal-footer">
+          <button className="inv-btn-ghost" onClick={onClose} disabled={saving}>
             Cancel
           </button>
-          <button className="inv-btn-primary" onClick={onSave}>
-            {saveLabel}
+          <button className="inv-btn-primary" onClick={onSave} disabled={saving}>
+            {saving ? "Saving..." : saveLabel}
           </button>
         </div>
       </div>

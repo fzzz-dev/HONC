@@ -2,6 +2,7 @@ const Item = require("../model/item");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
+const { Op } = require("sequelize");
 
 // ── Multer disk storage config ────────────────────────────────────────────────
 const storage = multer.diskStorage({
@@ -29,35 +30,128 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
+function toBoolean(value) {
+  if (value === undefined) return value;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return value.toLowerCase() === "true";
+  return Boolean(value);
+}
+
+function getStoredImageName(imageValue) {
+  if (!imageValue || typeof imageValue !== "string" || imageValue.startsWith("data:")) {
+    return imageValue;
+  }
+
+  const uploadsMarker = "/uploads/items/";
+  const uploadsIndex = imageValue.lastIndexOf(uploadsMarker);
+  if (uploadsIndex !== -1) {
+    return decodeURIComponent(
+      imageValue.slice(uploadsIndex + uploadsMarker.length),
+    );
+  }
+
+  if (/^https?:\/\//i.test(imageValue)) {
+    try {
+      return decodeURIComponent(path.basename(new URL(imageValue).pathname));
+    } catch (error) {
+      return path.basename(imageValue);
+    }
+  }
+
+  return path.basename(imageValue);
+}
+
+function removeStoredImage(imageValue) {
+  const fileName = getStoredImageName(imageValue);
+  if (!fileName || typeof fileName !== "string" || fileName.startsWith("data:")) {
+    return;
+  }
+
+  const filePath = path.join(__dirname, "../uploads/items", fileName);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+}
+
+function normalizePayload(body) {
+  const payload = { ...body };
+
+  if (payload.headId !== undefined && payload.headId !== "") {
+    payload.headId = Number(payload.headId);
+  }
+
+  if (payload.rate !== undefined && payload.rate !== "") {
+    payload.rate = Number(payload.rate) || 0;
+  }
+
+  if (payload.active !== undefined) {
+    payload.active = toBoolean(payload.active);
+  }
+
+  [
+    "head",
+    "group",
+    "subCategory",
+    "itemName",
+    "uom",
+    "make",
+    "spec",
+    "itemDescription",
+  ].forEach((field) => {
+    if (typeof payload[field] === "string") {
+      payload[field] = payload[field].trim();
+    }
+  });
+
+  if (payload.image !== undefined && payload.image !== null && payload.image !== "") {
+    payload.image = getStoredImageName(payload.image);
+  }
+
+  return payload;
+}
+
+function serializeItem(item, req) {
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const obj = item.get({ plain: true });
+
+  if (
+    obj.image &&
+    typeof obj.image === "string" &&
+    !obj.image.startsWith("data:") &&
+    !/^https?:\/\//i.test(obj.image)
+  ) {
+    if (obj.image.startsWith("/uploads/items/")) {
+      obj.image = `${baseUrl}${obj.image}`;
+    } else {
+      obj.image = `${baseUrl}/uploads/items/${obj.image}`;
+    }
+  }
+
+  return obj;
+}
+
 // ── GET all items ─────────────────────────────────────────────────────────────
 exports.getAll = async (req, res) => {
   try {
     const { headId, group, search } = req.query;
-    const filter = {};
+    const where = {};
 
-    if (headId) filter.headId = headId;
-    if (group) filter.group = group;
+    if (headId) where.headId = headId;
+    if (group) where.group = group;
     if (search) {
-      filter.$or = [
-        { itemName: { $regex: search, $options: "i" } },
-        { make: { $regex: search, $options: "i" } },
-        { spec: { $regex: search, $options: "i" } },
+      where[Op.or] = [
+        { itemName: { [Op.like]: `%${search}%` } },
+        { make: { [Op.like]: `%${search}%` } },
+        { spec: { [Op.like]: `%${search}%` } },
       ];
     }
 
-    const items = await Item.find(filter).sort({ createdAt: -1 });
-
-    // Attach full image URL if image is a filename (not base64)
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const itemsWithImageUrl = items.map((item) => {
-      const obj = item.toObject();
-      if (obj.image && !obj.image.startsWith("data:")) {
-        obj.image = `${baseUrl}/uploads/items/${obj.image}`;
-      }
-      return obj;
+    const items = await Item.findAll({
+      where,
+      order: [["createdAt", "DESC"]],
     });
 
-    res.json({ success: true, data: itemsWithImageUrl });
+    res.json({ success: true, data: items.map((item) => serializeItem(item, req)) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -66,19 +160,13 @@ exports.getAll = async (req, res) => {
 // ── GET single item ───────────────────────────────────────────────────────────
 exports.getOne = async (req, res) => {
   try {
-    const item = await Item.findById(req.params.id);
+    const item = await Item.findByPk(req.params.id);
     if (!item)
       return res
         .status(404)
         .json({ success: false, message: "Item not found" });
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const obj = item.toObject();
-    if (obj.image && !obj.image.startsWith("data:")) {
-      obj.image = `${baseUrl}/uploads/items/${obj.image}`;
-    }
-
-    res.json({ success: true, data: obj });
+    res.json({ success: true, data: serializeItem(item, req) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -87,22 +175,15 @@ exports.getOne = async (req, res) => {
 // ── CREATE item ───────────────────────────────────────────────────────────────
 exports.create = async (req, res) => {
   try {
-    const payload = { ...req.body };
+    const payload = normalizePayload(req.body);
 
-    // If a file was uploaded via multipart, store just the filename
     if (req.file) {
       payload.image = req.file.filename;
     }
 
     const item = await Item.create(payload);
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const obj = item.toObject();
-    if (obj.image && !obj.image.startsWith("data:")) {
-      obj.image = `${baseUrl}/uploads/items/${obj.image}`;
-    }
-
-    res.status(201).json({ success: true, data: obj });
+    res.status(201).json({ success: true, data: serializeItem(item, req) });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
@@ -111,52 +192,27 @@ exports.create = async (req, res) => {
 // ── UPDATE item ───────────────────────────────────────────────────────────────
 exports.update = async (req, res) => {
   try {
-    const payload = { ...req.body };
-
-    // If a new file was uploaded, delete old image and store new filename
-    if (req.file) {
-      const existing = await Item.findById(req.params.id);
-      if (existing && existing.image && !existing.image.startsWith("data:")) {
-        const oldPath = path.join(
-          __dirname,
-          "../uploads/items",
-          existing.image,
-        );
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
-      payload.image = req.file.filename;
-    }
-
-    // If image is explicitly set to null/empty string, remove old file too
-    if (payload.image === null || payload.image === "") {
-      const existing = await Item.findById(req.params.id);
-      if (existing && existing.image && !existing.image.startsWith("data:")) {
-        const oldPath = path.join(
-          __dirname,
-          "../uploads/items",
-          existing.image,
-        );
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
-      payload.image = null;
-    }
-
-    const item = await Item.findByIdAndUpdate(req.params.id, payload, {
-      new: true,
-      runValidators: true,
-    });
+    const item = await Item.findByPk(req.params.id);
     if (!item)
       return res
         .status(404)
         .json({ success: false, message: "Item not found" });
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const obj = item.toObject();
-    if (obj.image && !obj.image.startsWith("data:")) {
-      obj.image = `${baseUrl}/uploads/items/${obj.image}`;
+    const payload = normalizePayload(req.body);
+
+    if (req.file) {
+      removeStoredImage(item.image);
+      payload.image = req.file.filename;
     }
 
-    res.json({ success: true, data: obj });
+    if (payload.image === null || payload.image === "") {
+      removeStoredImage(item.image);
+      payload.image = null;
+    }
+
+    await item.update(payload);
+
+    res.json({ success: true, data: serializeItem(item, req) });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
@@ -165,18 +221,15 @@ exports.update = async (req, res) => {
 // ── DELETE item ───────────────────────────────────────────────────────────────
 exports.remove = async (req, res) => {
   try {
-    const item = await Item.findByIdAndDelete(req.params.id);
+    const item = await Item.findByPk(req.params.id);
     if (!item)
       return res
         .status(404)
         .json({ success: false, message: "Item not found" });
 
-    // Delete image from disk if it exists
-    if (item.image && !item.image.startsWith("data:")) {
-      const imgPath = path.join(__dirname, "../uploads/items", item.image);
-      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-    }
+    removeStoredImage(item.image);
 
+    await item.destroy();
     res.json({ success: true, message: "Item deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

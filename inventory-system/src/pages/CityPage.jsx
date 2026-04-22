@@ -57,7 +57,7 @@ export default function CityPage() {
 
   // ─── State dropdown options ───────────────────────────────────────────────
   const stateOptions = (states ?? []).map((s) => ({
-    value: s._id,
+    value: s.id || s._id,
     label: s.name,
   }));
 
@@ -71,16 +71,16 @@ export default function CityPage() {
   function openEdit(row) {
     dispatch(clearActionError());
     setForm({
-      stateId: row.stateId?._id ?? row.stateId,
+      stateId: row.stateId?.id || row.stateId?._id || row.stateId,
       stateName: row.stateName,
       name: row.name,
       active: row.active,
     });
-    setModal({ mode: "edit", id: row._id });
+    setModal({ mode: "edit", id: row.id || row._id });
   }
 
   function handleStateChange(val) {
-    const s = states.find((x) => x._id === val);
+    const s = states.find((x) => (x.id || x._id) === val);
     setForm((f) => ({ ...f, stateId: val, stateName: s ? s.name : "" }));
   }
 
@@ -173,7 +173,7 @@ export default function CityPage() {
                 )}
                 {!loading &&
                   cities.map((row, i) => (
-                    <tr key={row._id}>
+                    <tr key={row.id || row._id}>
                       <td className="inv-idx">
                         {String((page - 1) * limit + i + 1).padStart(2, "0")}
                       </td>
@@ -213,7 +213,7 @@ export default function CityPage() {
                           {/* Delete */}
                           <button
                             className="inv-btn-icon inv-btn-danger"
-                            onClick={() => setDeleteConfirm(row._id)}
+                            onClick={() => setDeleteConfirm(row.id || row._id)}
                           >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"

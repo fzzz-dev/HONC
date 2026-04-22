@@ -7,7 +7,8 @@ const {
   updateSpec,
   deleteSpec,
   toggleSpecStatus,
-} = require("../controller/speccontroller");
+} = require("../controller/Speccontroller");
+
 
 // GET    /api/specs           → list all (supports ?search= & ?active=)
 // POST   /api/specs           → create new

@@ -3,7 +3,8 @@
 
 const express = require("express");
 const router = express.Router();
-const poController = require("../controller/purchaseOrderController");
+const poController = require("../controller/Purchaseordercontroller");
+
 
 // Get next PO number
 router.get("/next-number", poController.getNextNumber);

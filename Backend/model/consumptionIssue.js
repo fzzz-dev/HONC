@@ -1,68 +1,51 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
-const issueDetailSchema = new mongoose.Schema({
-  category: String,
-  subCategory: String,
-  itemName: String,
-  grnNo: String,
-  stkQty: {
-    type: Number,
-    default: 0,
+const ConsumptionIssue = sequelize.define("ConsumptionIssue", {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true,
   },
-  issueQty: {
-    type: Number,
-    default: 0,
+  issNo: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: "iss_no_unique",
   },
-  rate: {
-    type: Number,
-    default: 0,
+  date: {
+    type: DataTypes.STRING,
+    allowNull: false,
   },
-  amount: {
-    type: Number,
-    default: 0,
+  departmentId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Departments',
+      key: 'id',
+    },
   },
+  departmentName: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  storeId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Stores',
+      key: 'id',
+    },
+  },
+  storeName: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  details: {
+    type: DataTypes.JSON,
+    defaultValue: [],
+  },
+}, {
+  timestamps: true,
 });
 
-const consumptionIssueSchema = new mongoose.Schema(
-  {
-    issNo: {
-      type: String,
-      required: [true, 'Issue number is required'],
-      unique: true,
-      trim: true,
-    },
-    date: {
-      type: String,
-      required: true,
-    },
-    departmentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Department',
-      required: [true, 'Department is required'],
-    },
-    departmentName: {
-      type: String,
-      required: true,
-    },
-    storeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Store',
-      required: [true, 'Store is required'],
-    },
-    storeName: {
-      type: String,
-      required: true,
-    },
-    details: [issueDetailSchema],
-  },
-  {
-    timestamps: true,
-  }
-);
-
-consumptionIssueSchema.index({ issNo: 1 });
-consumptionIssueSchema.index({ departmentId: 1 });
-consumptionIssueSchema.index({ storeId: 1 });
-consumptionIssueSchema.index({ date: 1 });
-
-module.exports = mongoose.model('ConsumptionIssue', consumptionIssueSchema);
+module.exports = ConsumptionIssue;

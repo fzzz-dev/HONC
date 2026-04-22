@@ -1,32 +1,44 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
-const stateSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: [true, "State name is required"],
-      trim: true,
-    },
-    country: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Country", // 🔥 IMPORTANT
-    },
-    code: {
-      type: String,
-      trim: true,
-      uppercase: true,
-    },
-    active: {
-      type: Boolean,
-      default: true,
+const State = sequelize.define("State", {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true,
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: "State name is required" },
     },
   },
-  {
-    timestamps: true,
+  countryId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Countries',
+      key: 'id',
+    },
   },
-);
+  code: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    set(val) {
+      if (val) this.setDataValue("code", val.toUpperCase());
+    },
+  },
+  active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+}, {
+  timestamps: true,
+  indexes: [
+    { fields: ["countryId", "name"] },
+    { fields: ["active"] },
+  ],
+});
 
-stateSchema.index({ countryId: 1, name: 1 });
-stateSchema.index({ active: 1 });
-
-module.exports = mongoose.model("State", stateSchema);
+module.exports = State;

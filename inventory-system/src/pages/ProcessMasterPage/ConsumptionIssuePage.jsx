@@ -1,10 +1,14 @@
-import { useState } from "react";
-
-let _id = 900;
-const nextId = () => ++_id;
+import { useState, useEffect, useCallback } from "react";
+import {
+  consumptionIssueApi,
+  departmentApi,
+  storeApi,
+  itemApi,
+  grnApi,
+} from "../../services/inventoryApi";
 
 const emptyDetail = () => ({
-  id: nextId(),
+  _rowId: Date.now() + Math.random(),
   category: "",
   subCategory: "",
   itemName: "",
@@ -21,31 +25,20 @@ const fmt = (n) =>
     maximumFractionDigits: 2,
   });
 
-function generateIssNo(existing) {
-  const year = new Date().getFullYear();
-  const prefix = `ISS-${year}-`;
-  const nums = existing
-    .map((r) => {
-      const m = r.issNo?.match(/^ISS-\d{4}-(\d+)$/);
-      return m ? parseInt(m[1], 10) : 0;
-    })
-    .filter(Boolean);
-  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
-  return `${prefix}${String(next).padStart(3, "0")}`;
-}
-
-export default function ConsumptionIssuePage({
-  issues = [],
-  setIssues,
-  departments = [],
-  stores = [],
-  items = [],
-  heads = [],
-  grns = [],
-}) {
+export default function ConsumptionIssuePage() {
   const today = new Date().toISOString().split("T")[0];
+  
+  // ── State ──
+  const [issues, setIssues] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [items, setItems] = useState([]);
+  const [grns, setGrns] = useState([]);
+  
+  const [loading, setLoading] = useState(true);
   const [view, setView] = useState("list");
   const [editId, setEditId] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const [header, setHeader] = useState({
     issNo: "",
@@ -57,9 +50,38 @@ export default function ConsumptionIssuePage({
   });
   const [details, setDetails] = useState([emptyDetail()]);
 
+  // ── Fetch ──
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [issData, deptData, storeData, itemData, grnData] = await Promise.all([
+        consumptionIssueApi.getAll(),
+        departmentApi.getAll(),
+        storeApi.getAll(),
+        itemApi.getAll(),
+        // Assuming grnApi.getAll() exists or similar
+        fetch("/api/grns").then(r => r.json()).then(r => r.data || []),
+      ]);
+      setIssues(issData || []);
+      setDepartments(deptData || []);
+      setStores(storeData || []);
+      setItems(itemData || []);
+      setGrns(grnData || []);
+    } catch (err) {
+      console.error("Failed to load consumption data", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // ── Handlers ──
   function openNew() {
     setHeader({
-      issNo: generateIssNo(issues),
+      issNo: "AUTO", // Backend should handle numbering or we generate
       date: today,
       departmentId: "",
       departmentName: "",
@@ -80,7 +102,7 @@ export default function ConsumptionIssuePage({
       storeId: rec.storeId,
       storeName: rec.storeName,
     });
-    setDetails(rec.details.map((d) => ({ ...d })));
+    setDetails((rec.details || []).map((d) => ({ ...d, _rowId: Math.random() })));
     setEditId(rec.id);
     setView("form");
   }
@@ -90,15 +112,13 @@ export default function ConsumptionIssuePage({
       const rows = [...prev];
       const row = { ...rows[idx], [field]: val };
 
-      // Auto-fill from item selection
       if (field === "itemName") {
         const found = items.find((it) => it.itemName === val);
-        row.category = found?.head || "";
+        row.category = found?.head || found?.category || "";
         row.subCategory = found?.subCategory || "";
         row.rate = found?.rate || 0;
       }
 
-      // Recalculate amount
       const issQty = field === "issueQty" ? +val : +row.issueQty;
       const rate = field === "rate" ? +val : +row.rate;
       row.amount = +(issQty * rate).toFixed(2);
@@ -108,19 +128,37 @@ export default function ConsumptionIssuePage({
     });
   }
 
-  function handleSave() {
-    if (!header.issNo.trim()) return alert("Issue No is required");
+  async function handleSave() {
     if (!header.departmentId) return alert("Department is required");
     if (!header.storeId) return alert("Store is required");
-    const record = { ...header, details };
-    if (editId) {
-      setIssues((p) =>
-        p.map((x) => (x.id === editId ? { id: editId, ...record } : x)),
-      );
-    } else {
-      setIssues((p) => [...p, { id: nextId(), ...record }]);
+    
+    try {
+      setSaving(true);
+      const payload = { ...header, details };
+      if (editId) {
+        await consumptionIssueApi.update(editId, payload);
+      } else {
+        // If issNo is "AUTO", let backend generate or just use a timestamp for now
+        if (payload.issNo === "AUTO") payload.issNo = "ISS-" + Date.now();
+        await consumptionIssueApi.create(payload);
+      }
+      await loadData();
+      setView("list");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
     }
-    setView("list");
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm("Delete this issue?")) return;
+    try {
+      await consumptionIssueApi.remove(id);
+      await loadData();
+    } catch (err) {
+      alert(err.message);
+    }
   }
 
   const totals = details.reduce(
@@ -131,23 +169,7 @@ export default function ConsumptionIssuePage({
     { issueQty: 0, amount: 0 },
   );
 
-  const selectStyle = {
-    width: "100%",
-    border: "none",
-    outline: "none",
-    fontSize: 11.5,
-    background: "transparent",
-    padding: "2px 4px",
-    cursor: "pointer",
-  };
-  const roStyle = {
-    border: "none",
-    outline: "none",
-    fontSize: 11.5,
-    background: "transparent",
-    color: "var(--text-secondary)",
-    padding: "2px 4px",
-  };
+  if (loading && view === "list") return <div className="inv-empty">Loading...</div>;
 
   /* ── LIST ── */
   if (view === "list") {
@@ -182,92 +204,29 @@ export default function ConsumptionIssuePage({
                 <tbody>
                   {issues.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="inv-empty">
-                        No issue records found
-                      </td>
+                      <td colSpan={9} className="inv-empty">No records found</td>
                     </tr>
                   )}
                   {issues.map((rec, i) => {
-                    const qty = rec.details.reduce(
-                      (s, d) => s + Number(d.issueQty || 0),
-                      0,
-                    );
-                    const amt = rec.details.reduce(
-                      (s, d) => s + Number(d.amount || 0),
-                      0,
-                    );
+                    const qty = (rec.details || []).reduce((s, d) => s + Number(d.issueQty || 0), 0);
+                    const amt = (rec.details || []).reduce((s, d) => s + Number(d.amount || 0), 0);
                     return (
                       <tr key={rec.id}>
-                        <td className="inv-idx">
-                          {String(i + 1).padStart(2, "0")}
-                        </td>
-                        <td style={{ fontWeight: 600, color: "var(--accent)" }}>
-                          {rec.issNo}
-                        </td>
+                        <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
+                        <td style={{ fontWeight: 600, color: "var(--accent)" }}>{rec.issNo}</td>
                         <td>{rec.date}</td>
                         <td>{rec.departmentName}</td>
                         <td>{rec.storeName}</td>
-                        <td className="inv-muted-sm">
-                          {rec.details.length} item
-                          {rec.details.length !== 1 ? "s" : ""}
-                        </td>
-                        <td style={{ fontFamily: "DM Mono, monospace" }}>
-                          {fmt(qty)}
-                        </td>
-                        <td
-                          style={{
-                            fontFamily: "DM Mono, monospace",
-                            fontWeight: 500,
-                          }}
-                        >
-                          ₹{fmt(amt)}
-                        </td>
+                        <td className="inv-muted-sm">{rec.details?.length || 0} items</td>
+                        <td>{fmt(qty)}</td>
+                        <td>₹{fmt(amt)}</td>
                         <td>
                           <div className="inv-actions">
-                            <button
-                              className="inv-btn-icon"
-                              onClick={() => openEdit(rec)}
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="15"
-                                height="15"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
+                            <button className="inv-btn-icon" onClick={() => openEdit(rec)}>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                             </button>
-                            <button
-                              className="inv-btn-icon inv-btn-danger"
-                              onClick={() =>
-                                setIssues((p) =>
-                                  p.filter((x) => x.id !== rec.id),
-                                )
-                              }
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="15"
-                                height="15"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                <path d="M10 11v6" />
-                                <path d="M14 11v6" />
-                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                              </svg>
+                            <button className="inv-btn-icon inv-btn-danger" onClick={() => handleDelete(rec.id)}>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
                             </button>
                           </div>
                         </td>
@@ -288,350 +247,109 @@ export default function ConsumptionIssuePage({
     <div className="inv-page">
       <div className="inv-page-header">
         <div>
-          <h1 className="inv-page-title">
-            {editId ? "Edit Issue" : "New Consumption Issue"}
-          </h1>
-          <p className="inv-page-sub">
-            Issue materials from store to department
-          </p>
+          <h1 className="inv-page-title">{editId ? "Edit Issue" : "New Consumption Issue"}</h1>
+          <p className="inv-page-sub">Issue materials from store to department</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-secondary" onClick={() => setView("list")}>
-            ← Back
-          </button>
-          <button className="inv-btn-primary" onClick={handleSave}>
-            Save Issue
-          </button>
+          <button className="inv-btn-secondary" onClick={() => setView("list")}>← Back</button>
+          <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save Issue"}</button>
         </div>
       </div>
 
-      {/* Header */}
       <div className="inv-card">
         <div className="inv-card-body">
           <div className="inv-section-label">Header</div>
           <div className="inv-form-row cols-4">
-            <div className="inv-field">
-              <label className="inv-label">
-                ISS No
-                <span
-                  style={{
-                    marginLeft: 6,
-                    fontSize: 10,
-                    fontWeight: 500,
-                    color: "#6366f1",
-                    background: "#eef2ff",
-                    border: "1px solid #c7d2fe",
-                    borderRadius: 4,
-                    padding: "1px 6px",
-                  }}
-                >
-                  Auto
-                </span>
-              </label>
-              <input
-                className="inv-input"
-                value={header.issNo}
-                readOnly={!editId}
-                style={{
-                  background: editId ? undefined : "#f8f7ff",
-                  color: "#4f46e5",
-                  fontWeight: 600,
-                  cursor: editId ? "text" : "default",
-                  border: "1px solid #c7d2fe",
-                }}
-              />
+             <div className="inv-field">
+              <label className="inv-label">ISS No</label>
+              <input className="inv-input" value={header.issNo} readOnly style={{ background: "#f8f9fa" }} />
             </div>
             <div className="inv-field">
               <label className="inv-label">Date</label>
-              <input
-                className="inv-input"
-                type="date"
-                value={header.date}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, date: e.target.value }))
-                }
-              />
+              <input className="inv-input" type="date" value={header.date} onChange={(e) => setHeader(h => ({ ...h, date: e.target.value }))} />
             </div>
             <div className="inv-field">
               <label className="inv-label">Department *</label>
-              <select
-                className="inv-input"
-                value={header.departmentId}
-                onChange={(e) => {
-                  const d = departments.find(
-                    (x) => String(x.id) === e.target.value,
-                  );
-                  setHeader((h) => ({
-                    ...h,
-                    departmentId: e.target.value,
-                    departmentName: d?.name || "",
-                  }));
-                }}
-              >
+              <select className="inv-input" value={header.departmentId} onChange={(e) => {
+                const d = departments.find(x => String(x.id) === e.target.value);
+                setHeader(h => ({ ...h, departmentId: e.target.value, departmentName: d?.name || "" }));
+              }}>
                 <option value="">Select department</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={String(d.id)}>
-                    {d.name}
-                  </option>
-                ))}
+                {departments.map(d => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
               </select>
             </div>
             <div className="inv-field">
-              <label className="inv-label">Store Name *</label>
-              <select
-                className="inv-input"
-                value={header.storeId}
-                onChange={(e) => {
-                  const st = stores.find(
-                    (x) => String(x.id) === e.target.value,
-                  );
-                  setHeader((h) => ({
-                    ...h,
-                    storeId: e.target.value,
-                    storeName: st?.name || "",
-                  }));
-                }}
-              >
+              <label className="inv-label">Store *</label>
+              <select className="inv-input" value={header.storeId} onChange={(e) => {
+                const s = stores.find(x => String(x.id) === e.target.value);
+                setHeader(h => ({ ...h, storeId: e.target.value, storeName: s?.name || "" }));
+              }}>
                 <option value="">Select store</option>
-                {stores.map((st) => (
-                  <option key={st.id} value={String(st.id)}>
-                    {st.name}
-                  </option>
-                ))}
+                {stores.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
               </select>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Detail */}
       <div className="inv-card">
         <div className="inv-card-body">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 10,
-            }}
-          >
-            <div className="inv-section-label" style={{ marginBottom: 0 }}>
-              Detail
-            </div>
-            <button
-              className="inv-btn-secondary inv-btn-sm"
-              onClick={() => setDetails((p) => [...p, emptyDetail()])}
-            >
-              + Add Row
-            </button>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+            <div className="inv-section-label">Details</div>
+            <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
           </div>
           <div style={{ overflowX: "auto" }}>
-            <table className="po-table">
+            <table className="inv-table">
               <thead>
                 <tr>
                   <th>#</th>
-                  <th style={{ minWidth: 140 }}>Category</th>
-                  <th style={{ minWidth: 120 }}>Sub Category</th>
-                  <th style={{ minWidth: 170 }}>Item Name</th>
-                  <th style={{ minWidth: 120 }}>GRN No</th>
-                  <th style={{ minWidth: 80 }}>Stk Qty</th>
-                  <th style={{ minWidth: 80 }}>Issue Qty</th>
-                  <th style={{ minWidth: 80 }}>Rate</th>
-                  <th style={{ minWidth: 90 }}>Amount</th>
+                  <th>Item Name</th>
+                  <th>Category</th>
+                  <th>GRN No</th>
+                  <th>Stk Qty</th>
+                  <th>Issue Qty</th>
+                  <th>Rate</th>
+                  <th>Amount</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {details.map((row, idx) => (
-                  <tr key={row.id}>
-                    <td
-                      style={{
-                        textAlign: "center",
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      {idx + 1}
-                    </td>
-                    {/* Category — auto filled */}
+                  <tr key={row._rowId}>
+                    <td>{idx + 1}</td>
                     <td>
-                      <input
-                        value={row.category}
-                        readOnly
-                        style={{ ...roStyle, width: 130 }}
-                        placeholder="—"
-                      />
-                    </td>
-                    {/* Sub Category — auto filled */}
-                    <td>
-                      <input
-                        value={row.subCategory}
-                        readOnly
-                        style={{ ...roStyle, width: 110 }}
-                        placeholder="—"
-                      />
-                    </td>
-                    {/* Item Name */}
-                    <td>
-                      <select
-                        value={row.itemName}
-                        onChange={(e) =>
-                          updateDetail(idx, "itemName", e.target.value)
-                        }
-                        style={selectStyle}
-                      >
+                      <select className="inv-input" style={{ border: "none", width: 200 }} value={row.itemName} onChange={e => updateDetail(idx, "itemName", e.target.value)}>
                         <option value="">Select item</option>
-                        {items.map((it) => (
-                          <option key={it.id} value={it.itemName}>
-                            {it.itemName}
-                          </option>
-                        ))}
+                        {items.map(it => <option key={it.id} value={it.itemName}>{it.itemName}</option>)}
                       </select>
                     </td>
-                    {/* GRN No */}
+                    <td>{row.category || "—"}</td>
                     <td>
-                      <select
-                        value={row.grnNo}
-                        onChange={(e) =>
-                          updateDetail(idx, "grnNo", e.target.value)
-                        }
-                        style={selectStyle}
-                      >
+                      <select className="inv-input" style={{ border: "none", width: 120 }} value={row.grnNo} onChange={e => updateDetail(idx, "grnNo", e.target.value)}>
                         <option value="">Select GRN</option>
-                        {grns.map((g) => (
-                          <option key={g.id} value={g.grnNo}>
-                            {g.grnNo}
-                          </option>
-                        ))}
+                        {grns.map(g => <option key={g.id} value={g.grnNo}>{g.grnNo}</option>)}
                       </select>
                     </td>
-                    {/* Stk Qty */}
+                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.stkQty} onChange={e => updateDetail(idx, "stkQty", e.target.value)} /></td>
+                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.issueQty} onChange={e => updateDetail(idx, "issueQty", e.target.value)} /></td>
+                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.rate} onChange={e => updateDetail(idx, "rate", e.target.value)} /></td>
+                    <td style={{ textAlign: "right" }}>{fmt(row.amount)}</td>
                     <td>
-                      <input
-                        type="number"
-                        value={row.stkQty}
-                        onChange={(e) =>
-                          updateDetail(idx, "stkQty", e.target.value)
-                        }
-                        style={{ width: 70, textAlign: "right" }}
-                      />
-                    </td>
-                    {/* Issue Qty */}
-                    <td>
-                      <input
-                        type="number"
-                        value={row.issueQty}
-                        onChange={(e) =>
-                          updateDetail(idx, "issueQty", e.target.value)
-                        }
-                        style={{ width: 70, textAlign: "right" }}
-                      />
-                    </td>
-                    {/* Rate */}
-                    <td>
-                      <input
-                        type="number"
-                        value={row.rate}
-                        onChange={(e) =>
-                          updateDetail(idx, "rate", e.target.value)
-                        }
-                        style={{ width: 70, textAlign: "right" }}
-                      />
-                    </td>
-                    {/* Amount — calculated */}
-                    <td
-                      style={{
-                        textAlign: "right",
-                        fontFamily: "DM Mono",
-                        fontSize: 11,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {fmt(row.amount)}
-                    </td>
-                    <td>
-                      <button
-                        className="inv-btn-icon inv-btn-danger"
-                        onClick={() =>
-                          setDetails((p) => p.filter((_, i) => i !== idx))
-                        }
-                        style={{ padding: "2px 6px", fontSize: 13 }}
-                      >
-                        ✕
-                      </button>
+                      <button className="inv-btn-icon inv-btn-danger" onClick={() => setDetails(p => p.filter((_, i) => i !== idx))}>✕</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <td
-                    colSpan={6}
-                    style={{ textAlign: "right", fontWeight: 600 }}
-                  >
-                    Total
-                  </td>
-                  <td
-                    style={{
-                      textAlign: "right",
-                      fontFamily: "DM Mono",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {fmt(totals.issueQty)}
-                  </td>
+                  <td colSpan={5} style={{ textAlign: "right", fontWeight: 600 }}>Total</td>
+                  <td>{fmt(totals.issueQty)}</td>
                   <td></td>
-                  <td
-                    style={{
-                      textAlign: "right",
-                      fontFamily: "DM Mono",
-                      fontWeight: 600,
-                    }}
-                  >
-                    ₹{fmt(totals.amount)}
-                  </td>
+                  <td style={{ textAlign: "right", fontWeight: 600 }}>₹{fmt(totals.amount)}</td>
                   <td></td>
                 </tr>
               </tfoot>
             </table>
-          </div>
-        </div>
-      </div>
-
-      {/* Summary */}
-      <div className="inv-card">
-        <div className="inv-card-body">
-          <div className="inv-section-label">Summary</div>
-          <div className="inv-summary-grid">
-            <div className="inv-summary-box">
-              <div className="inv-summary-box-label">Department</div>
-              <div className="inv-summary-box-value" style={{ fontSize: 15 }}>
-                {header.departmentName || "—"}
-              </div>
-            </div>
-            <div className="inv-summary-box">
-              <div className="inv-summary-box-label">Store</div>
-              <div className="inv-summary-box-value" style={{ fontSize: 15 }}>
-                {header.storeName || "—"}
-              </div>
-            </div>
-            <div className="inv-summary-box">
-              <div className="inv-summary-box-label">Total Issue Qty</div>
-              <div className="inv-summary-box-value">
-                {fmt(totals.issueQty)}
-              </div>
-            </div>
-            <div
-              className="inv-summary-box"
-              style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}
-            >
-              <div className="inv-summary-box-label">Total Amount</div>
-              <div
-                className="inv-summary-box-value"
-                style={{ color: "var(--accent)" }}
-              >
-                ₹{fmt(totals.amount)}
-              </div>
-            </div>
           </div>
         </div>
       </div>

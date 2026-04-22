@@ -1,11 +1,7 @@
 import { useState, useEffect } from "react";
 import Modal from "../components/Modal";
 import { Field, Input, Toggle } from "../components/FormFields";
-
-// ✅ FIX: was `import.meta.env.VITE_API_URL || "http://localhost:5000/api"`
-//   Removed the hardcoded localhost fallback. Vite proxy forwards /api/* to
-//   the Express server, so a relative path works in every environment.
-const API_BASE = import.meta.env.VITE_API_URL || "/api";
+import { specApi } from "../services/inventoryApi";
 
 const EMPTY = { name: "", active: true };
 
@@ -27,10 +23,8 @@ export default function SpecPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/specs`);
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      setSpecs(data.data);
+      const data = await specApi.getAll();
+      setSpecs(data);
     } catch (err) {
       setError(err.message || "Failed to load specs");
     } finally {
@@ -48,7 +42,7 @@ export default function SpecPage() {
   }
   function openEdit(row) {
     setForm({ name: row.name, active: row.active });
-    setModal({ mode: "edit", id: row._id });
+    setModal({ mode: "edit", id: row.id || row._id });
   }
 
   async function handleSave() {
@@ -56,21 +50,17 @@ export default function SpecPage() {
     setSaving(true);
     try {
       const isAdd = modal.mode === "add";
-      const url = isAdd ? `${API_BASE}/specs` : `${API_BASE}/specs/${modal.id}`;
-      const method = isAdd ? "POST" : "PUT";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
+      const payload = { name: form.name.trim(), active: form.active };
+      const saved = isAdd
+        ? await specApi.create(payload)
+        : await specApi.update(modal.id, payload);
 
-      if (isAdd) setSpecs((prev) => [...prev, data.data]);
+      if (isAdd) setSpecs((prev) => [...prev, saved]);
       else
         setSpecs((prev) =>
-          prev.map((x) => (x._id === modal.id ? data.data : x)),
+          prev.map((x) => ((x.id || x._id) === modal.id ? saved : x)),
         );
+
       setModal(null);
     } catch (err) {
       alert(err.message || "Save failed");
@@ -81,11 +71,10 @@ export default function SpecPage() {
 
   async function handleDelete(id) {
     try {
-      const res = await fetch(`${API_BASE}/specs/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      setSpecs((prev) => prev.filter((x) => x._id !== id));
+      await specApi.remove(id);
+      setSpecs((prev) => prev.filter((x) => (x.id || x._id) !== id));
       setDeleteConfirm(null);
+
     } catch (err) {
       alert(err.message || "Delete failed");
     }
@@ -153,7 +142,8 @@ export default function SpecPage() {
                   </tr>
                 ) : (
                   filtered.map((row, i) => (
-                    <tr key={row._id}>
+                    <tr key={row.id || row._id}>
+
                       <td className="inv-idx">
                         {String(i + 1).padStart(2, "0")}
                       </td>
@@ -190,7 +180,7 @@ export default function SpecPage() {
                           <button
                             className="inv-btn-icon inv-btn-danger"
                             title="Delete"
-                            onClick={() => setDeleteConfirm(row._id)}
+                            onClick={() => setDeleteConfirm(row.id || row._id)}
                           >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"

@@ -2,8 +2,9 @@ const express = require("express");
 const router = express.Router();
 
 const inventoryHeadController = require("../controller/Inventoryheadcontroller");
-const mainCategoryController = require("../controller/mainCategoryController");
-const uomController = require("../controller/uomController");
+const mainCategoryController = require("../controller/Maincategorycontroller");
+const uomController = require("../controller/uomcontroller");
+
 
 // ── Main Categories ─────────────────────────
 router.get("/main-categories", mainCategoryController.getAll);

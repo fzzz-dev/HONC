@@ -6,7 +6,8 @@ const {
   create,
   update,
   remove,
-} = require("../controller/departmentController");
+} = require("../controller/Departmentcontroller");
+
 
 router.get("/", getAll);
 router.get("/:id", getOne);

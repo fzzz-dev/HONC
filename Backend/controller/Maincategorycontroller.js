@@ -1,17 +1,18 @@
-const MainCategory = require("../model/mainCategory"); // adjust path if needed
-const InventoryHead = require("../model/inventoryHead"); // adjust path if needed
+const MainCategory = require("../model/mainCategory");
+const InventoryHead = require("../model/inventoryHead");
 
 // ── GET all ───────────────────────────────────────────────────────────────────
 exports.getAll = async (req, res) => {
   try {
     const { headId, active } = req.query;
-    const filter = {};
-    if (headId) filter.headId = headId;
-    if (active !== undefined) filter.active = active === "true";
+    const where = {};
+    if (headId) where.headId = headId;
+    if (active !== undefined) where.active = active === "true";
 
-    // ⚠️  Do NOT use .populate("headId") — keep headId as a plain ObjectId string
-    //     so the frontend string comparison always works.
-    const categories = await MainCategory.find(filter).sort({ groupName: 1 });
+    const categories = await MainCategory.findAll({
+      where,
+      order: [["groupName", "ASC"]],
+    });
     res.json({ success: true, data: categories });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -21,7 +22,7 @@ exports.getAll = async (req, res) => {
 // ── GET one ───────────────────────────────────────────────────────────────────
 exports.getOne = async (req, res) => {
   try {
-    const category = await MainCategory.findById(req.params.id);
+    const category = await MainCategory.findByPk(req.params.id);
     if (!category)
       return res
         .status(404)
@@ -37,8 +38,7 @@ exports.create = async (req, res) => {
   try {
     const { headId, groupName, active } = req.body;
 
-    // Auto-fill headName from the referenced InventoryHead
-    const head = await InventoryHead.findById(headId);
+    const head = await InventoryHead.findByPk(headId);
     if (!head)
       return res
         .status(400)
@@ -62,12 +62,17 @@ exports.create = async (req, res) => {
 // ── UPDATE ────────────────────────────────────────────────────────────────────
 exports.update = async (req, res) => {
   try {
+    const category = await MainCategory.findByPk(req.params.id);
+    if (!category)
+      return res
+        .status(404)
+        .json({ success: false, message: "Category not found" });
+
     const { headId, groupName, active } = req.body;
     const patch = { groupName, active };
 
-    // If headId changed, refresh headName too
     if (headId) {
-      const head = await InventoryHead.findById(headId);
+      const head = await InventoryHead.findByPk(headId);
       if (!head)
         return res
           .status(400)
@@ -79,16 +84,7 @@ exports.update = async (req, res) => {
       patch.headName = head.headName;
     }
 
-    const category = await MainCategory.findByIdAndUpdate(
-      req.params.id,
-      patch,
-      { new: true, runValidators: true },
-    );
-    if (!category)
-      return res
-        .status(404)
-        .json({ success: false, message: "Category not found" });
-
+    await category.update(patch);
     res.json({ success: true, data: category });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -98,11 +94,13 @@ exports.update = async (req, res) => {
 // ── DELETE ────────────────────────────────────────────────────────────────────
 exports.remove = async (req, res) => {
   try {
-    const category = await MainCategory.findByIdAndDelete(req.params.id);
+    const category = await MainCategory.findByPk(req.params.id);
     if (!category)
       return res
         .status(404)
         .json({ success: false, message: "Category not found" });
+
+    await category.destroy();
     res.json({ success: true, message: "Category deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

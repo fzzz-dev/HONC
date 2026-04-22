@@ -1,15 +1,19 @@
 const InventoryHead = require("../model/inventoryHead");
 const MainCategory = require("../model/mainCategory");
+const { Op } = require("sequelize");
 
 // GET /api/inventory-heads
 exports.getAll = async (req, res) => {
   try {
     const { search = "", active } = req.query;
-    const filter = {};
-    if (search) filter.headName = { $regex: search, $options: "i" };
-    if (active !== undefined) filter.active = active === "true";
+    const where = {};
+    if (search) where.headName = { [Op.like]: `%${search}%` };
+    if (active !== undefined) where.active = active === "true";
 
-    const heads = await InventoryHead.find(filter).sort({ createdAt: -1 });
+    const heads = await InventoryHead.findAll({
+      where,
+      order: [["createdAt", "DESC"]],
+    });
     res.json({ success: true, data: heads });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -19,7 +23,7 @@ exports.getAll = async (req, res) => {
 // GET /api/inventory-heads/:id
 exports.getOne = async (req, res) => {
   try {
-    const head = await InventoryHead.findById(req.params.id);
+    const head = await InventoryHead.findByPk(req.params.id);
     if (!head)
       return res.status(404).json({ success: false, message: "Not found" });
     res.json({ success: true, data: head });
@@ -34,7 +38,9 @@ exports.create = async (req, res) => {
     const { headName, active } = req.body;
 
     const exists = await InventoryHead.findOne({
-      headName: { $regex: `^${headName.trim()}$`, $options: "i" },
+      where: {
+        headName: headName.trim(),
+      },
     });
     if (exists) {
       return res
@@ -57,9 +63,15 @@ exports.update = async (req, res) => {
   try {
     const { headName, active } = req.body;
 
+    const head = await InventoryHead.findByPk(req.params.id);
+    if (!head)
+      return res.status(404).json({ success: false, message: "Not found" });
+
     const duplicate = await InventoryHead.findOne({
-      headName: { $regex: `^${headName.trim()}$`, $options: "i" },
-      _id: { $ne: req.params.id },
+      where: {
+        headName: headName.trim(),
+        id: { [Op.ne]: req.params.id },
+      },
     });
     if (duplicate) {
       return res
@@ -67,18 +79,12 @@ exports.update = async (req, res) => {
         .json({ success: false, message: "Head name already exists" });
     }
 
-    const head = await InventoryHead.findByIdAndUpdate(
-      req.params.id,
-      { headName: headName.trim(), active },
-      { new: true, runValidators: true },
-    );
-    if (!head)
-      return res.status(404).json({ success: false, message: "Not found" });
+    await head.update({ headName: headName.trim(), active });
 
     // Cascade update headName in MainCategory
-    await MainCategory.updateMany(
-      { headId: head._id },
+    await MainCategory.update(
       { headName: head.headName },
+      { where: { headId: head.id } }
     );
 
     res.json({ success: true, data: head });
@@ -90,12 +96,12 @@ exports.update = async (req, res) => {
 // DELETE /api/inventory-heads/:id
 exports.remove = async (req, res) => {
   try {
-    const head = await InventoryHead.findById(req.params.id);
+    const head = await InventoryHead.findByPk(req.params.id);
     if (!head)
       return res.status(404).json({ success: false, message: "Not found" });
 
     // Prevent delete if categories reference this head
-    const linkedCount = await MainCategory.countDocuments({ headId: head._id });
+    const linkedCount = await MainCategory.count({ where: { headId: head.id } });
     if (linkedCount > 0) {
       return res.status(400).json({
         success: false,
@@ -103,7 +109,7 @@ exports.remove = async (req, res) => {
       });
     }
 
-    await head.deleteOne();
+    await head.destroy();
     res.json({ success: true, message: "Deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

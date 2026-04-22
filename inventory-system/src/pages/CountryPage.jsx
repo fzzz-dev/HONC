@@ -32,7 +32,7 @@ export default function CountryPage() {
   }
   function openEdit(row) {
     setForm({ name: row.name, code: row.code, active: row.active });
-    setModal({ mode: "edit", id: row._id });
+    setModal({ mode: "edit", id: row.id || row._id });
   }
 
   function handleSave() {
@@ -94,7 +94,7 @@ export default function CountryPage() {
                   </tr>
                 )}
                 {filtered.map((row, i) => (
-                  <tr key={row._id}>
+                  <tr key={row.id || row._id}>
                     <td className="inv-idx">
                       {String(i + 1).padStart(2, "0")}
                     </td>
@@ -131,7 +131,7 @@ export default function CountryPage() {
                         </button>
                         <button
                           className="inv-btn-icon inv-btn-danger"
-                          onClick={() => setDeleteConfirm(row._id)}
+                          onClick={() => setDeleteConfirm(row.id || row._id)}
                         >
                           {" "}
                           <svg

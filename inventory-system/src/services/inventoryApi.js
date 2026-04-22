@@ -1,17 +1,36 @@
 // src/services/inventoryApi.js
-const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-const BASE_URL = BASE;
-const API_BASE = "/api";
+const BASE = import.meta.env.VITE_API_URL || "/api";
+const API_BASE = BASE;
+
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  const data = await res.json();
-  if (!res.ok || !data.success) {
-    throw new Error(data.message || "Request failed");
+  let lastError;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const res = await fetch(`${BASE}${path}`, {
+        headers: { "Content-Type": "application/json" },
+        ...options,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Request failed");
+      }
+      return data.data;
+    } catch (error) {
+      lastError = error;
+      const isNetworkError = error instanceof TypeError;
+      if (!isNetworkError || attempt === 2) break;
+      await delay(500 * (attempt + 1));
+    }
   }
-  return data.data;
+
+  if (lastError instanceof TypeError) {
+    throw new Error(
+      "Backend is not reachable yet. Please wait a moment and try again.",
+    );
+  }
+
+  throw lastError;
 }
 
 // ── Inventory Heads ──────────────────────────────────────────────────────────
@@ -81,6 +100,17 @@ export const departmentApi = {
   getAll: (p = {}) => request(`/departments${qs(p)}`),
 };
 
+export const storeApi = {
+  getAll: (p = {}) => request(`/stores${qs(p)}`),
+};
+
+export const grnApi = {
+  getAll: (p = {}) => request(`/grns${qs(p)}`),
+  create: (body) => request("/grns", { method: "POST", body: j(body) }),
+  update: (id, b) => request(`/grns/${id}`, { method: "PUT", body: j(b) }),
+  remove: (id) => request(`/grns/${id}`, { method: "DELETE" }),
+};
+
 // ── Suppliers ────────────────────────────────────────────────────────────────
 export const supplierApi = {
   getAll: (p = {}) => request(`/suppliers${qs(p)}`),
@@ -109,6 +139,9 @@ function qs(params = {}) {
 }
 function j(body) {
   return JSON.stringify(body);
+}
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 export const purchaseOrderApi = {
   // Get next PO number
@@ -185,4 +218,13 @@ export const purchaseOrderApi = {
     }
     return res.json();
   },
+};
+
+export const consumptionIssueApi = {
+  getAll: (p = {}) => request(`/consumption-issues${qs(p)}`),
+  create: (body) =>
+    request("/consumption-issues", { method: "POST", body: j(body) }),
+  update: (id, b) =>
+    request(`/consumption-issues/${id}`, { method: "PUT", body: j(b) }),
+  remove: (id) => request(`/consumption-issues/${id}`, { method: "DELETE" }),
 };

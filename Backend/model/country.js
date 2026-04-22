@@ -1,29 +1,36 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
-const countrySchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: [true, 'Country name is required'],
-      trim: true,
-    },
-    code: {
-      type: String,
-      trim: true,
-      uppercase: true,
-    },
-    active: {
-      type: Boolean,
-      default: true,
+const Country = sequelize.define("Country", {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true,
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: "Country name is required" },
     },
   },
-  {
-    timestamps: true,
-  }
-);
+  code: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    set(val) {
+      if (val) this.setDataValue("code", val.toUpperCase());
+    },
+  },
+  active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+}, {
+  timestamps: true,
+  indexes: [
+    { fields: ["name"] },
+    { fields: ["active"] },
+  ],
+});
 
-// Index for faster searches
-countrySchema.index({ name: 1 });
-countrySchema.index({ active: 1 });
-
-module.exports = mongoose.model('Country', countrySchema);
+module.exports = Country;

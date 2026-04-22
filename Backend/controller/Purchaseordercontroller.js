@@ -1,8 +1,7 @@
-// controllers/purchaseOrderController.js
-const mongoose = require("mongoose");
 const PurchaseOrder = require("../model/purchaseOrder");
 const PurchaseIndent = require("../model/purchaseIndent");
-const Supplier = require("../model/suPplier");
+const Supplier = require("../model/supplier");
+const { Op } = require("sequelize");
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -10,11 +9,12 @@ const Supplier = require("../model/suPplier");
 async function generatePoNo() {
   const year = new Date().getFullYear();
   const prefix = `PO-${year}-`;
-  const last = await PurchaseOrder.findOne(
-    { poNo: { $regex: `^${prefix}` } },
-    { poNo: 1 },
-    { sort: { poNo: -1 } },
-  ).lean();
+  const last = await PurchaseOrder.findOne({
+    where: {
+      poNo: { [Op.like]: `${prefix}%` }
+    },
+    order: [["poNo", "DESC"]]
+  });
 
   let seq = 1;
   if (last) {
@@ -24,9 +24,7 @@ async function generatePoNo() {
   return `${prefix}${String(seq).padStart(3, "0")}`;
 }
 
-/** Recalculate computed fields for a single detail row.
- *  gstType: "local" → sgst + cgst; "other" → igst only
- */
+/** Recalculate computed fields for a single detail row. */
 function calcDetail(d, gstEnabled, gstType) {
   const baseAmt = (d.poQty || 0) * (d.poRate || 0);
 
@@ -44,9 +42,7 @@ function calcDetail(d, gstEnabled, gstType) {
   const netAmt = baseAmt - discPrice;
   const gst = gstEnabled ? netAmt * ((d.gstPct || 0) / 100) : 0;
 
-  let sgst = 0,
-    cgst = 0,
-    igst = 0;
+  let sgst = 0, cgst = 0, igst = 0;
   if (gstEnabled) {
     if (gstType === "other") {
       igst = gst;
@@ -58,6 +54,7 @@ function calcDetail(d, gstEnabled, gstType) {
 
   return {
     ...d,
+    id: d.id || d._id || Date.now() + Math.random(),
     discPct: +discPct.toFixed(4),
     discPrice: +discPrice.toFixed(2),
     poAmount: +netAmt.toFixed(2),
@@ -80,14 +77,12 @@ exports.getNextNumber = async (req, res) => {
 };
 
 // ─── GET /api/purchase-orders/indents ────────────────────────────────────────
-// Returns all Open purchase indents (with alPoQty/balQty) for the PO form.
-// NOTE: we always return ALL Open indents regardless of balQty — the frontend
-//       can show remaining balance but must not hide indents that are "full".
 exports.getIndentsForPO = async (req, res) => {
   try {
-    const indents = await PurchaseIndent.find({ status: "Open" })
-      .sort({ indentNo: 1 })
-      .lean();
+    const indents = await PurchaseIndent.findAll({
+      where: { status: "Open" },
+      order: [["indentNo", "ASC"]],
+    });
     res.json(indents);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -95,10 +90,11 @@ exports.getIndentsForPO = async (req, res) => {
 };
 
 // ─── GET /api/purchase-orders/suppliers ──────────────────────────────────────
-// Returns all active suppliers for the PO form dropdown
 exports.getSuppliersForPO = async (req, res) => {
   try {
-    const suppliers = await Supplier.find({}).sort({ supplierName: 1 }).lean();
+    const suppliers = await Supplier.findAll({
+      order: [["supplierName", "ASC"]],
+    });
     res.json(suppliers);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -108,7 +104,9 @@ exports.getSuppliersForPO = async (req, res) => {
 // ─── GET /api/purchase-orders ────────────────────────────────────────────────
 exports.getAll = async (req, res) => {
   try {
-    const pos = await PurchaseOrder.find({}).sort({ createdAt: -1 }).lean();
+    const pos = await PurchaseOrder.findAll({
+      order: [["createdAt", "DESC"]],
+    });
     res.json(pos);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -118,7 +116,7 @@ exports.getAll = async (req, res) => {
 // ─── GET /api/purchase-orders/:id ────────────────────────────────────────────
 exports.getOne = async (req, res) => {
   try {
-    const po = await PurchaseOrder.findById(req.params.id).lean();
+    const po = await PurchaseOrder.findByPk(req.params.id);
     if (!po) return res.status(404).json({ message: "PO not found" });
     res.json(po);
   } catch (err) {
@@ -130,25 +128,15 @@ exports.getOne = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const {
-      poNo,
-      date,
-      supplierId,
-      supplierName, // This will be overridden from DB
-      gstEnabled = true,
-      gstType = "local",
-      createdBy,
-      createdOn,
-      status,
-      remarks,
-      details = [],
+      poNo, date, supplierId, supplierName, gstEnabled = true, gstType = "local",
+      createdBy, createdOn, status, remarks, details = [],
     } = req.body;
 
     if (!poNo) return res.status(400).json({ message: "poNo is required" });
 
-    // Fetch supplier name from database
     let finalSupplierName = supplierName;
     if (supplierId) {
-      const supplier = await Supplier.findById(supplierId).lean();
+      const supplier = await Supplier.findByPk(supplierId);
       if (supplier) {
         finalSupplierName = supplier.supplierName;
       } else {
@@ -156,29 +144,18 @@ exports.create = async (req, res) => {
       }
     }
 
-    // Recalculate every detail row
-    const computedDetails = details.map((d) =>
-      calcDetail(d, gstEnabled, gstType),
-    );
+    const computedDetails = details.map((d) => calcDetail(d, gstEnabled, gstType));
 
-    const po = new PurchaseOrder({
-      poNo,
-      date,
-      supplierId: supplierId || null,
+    const po = await PurchaseOrder.create({
+      poNo, date, supplierId: supplierId || null,
       supplierName: finalSupplierName,
-      gstEnabled,
-      gstType,
-      createdBy,
-      createdOn,
-      status,
-      remarks,
+      gstEnabled, gstType, createdBy, createdOn, status, remarks,
       details: computedDetails,
     });
 
-    await po.save(); // post-save hook recalculates indent balances
     res.status(201).json(po);
   } catch (err) {
-    if (err.code === 11000)
+    if (err.name === 'SequelizeUniqueConstraintError')
       return res.status(409).json({ message: "PO number already exists" });
     res.status(500).json({ message: err.message });
   }
@@ -187,56 +164,32 @@ exports.create = async (req, res) => {
 // ─── PUT /api/purchase-orders/:id ────────────────────────────────────────────
 exports.update = async (req, res) => {
   try {
+    const po = await PurchaseOrder.findByPk(req.params.id);
+    if (!po) return res.status(404).json({ message: "PO not found" });
+
     const {
-      poNo,
-      date,
-      supplierId,
-      supplierName, // This will be overridden from DB
-      gstEnabled = true,
-      gstType = "local",
-      createdBy,
-      createdOn,
-      status,
-      remarks,
-      details = [],
+      poNo, date, supplierId, supplierName, gstEnabled = true, gstType = "local",
+      createdBy, createdOn, status, remarks, details = [],
     } = req.body;
 
-    // Fetch supplier name from database
     let finalSupplierName = supplierName;
     if (supplierId) {
-      const supplier = await Supplier.findById(supplierId).lean();
+      const supplier = await Supplier.findByPk(supplierId);
       if (supplier) {
         finalSupplierName = supplier.supplierName;
-      } else {
-        return res.status(404).json({ message: "Supplier not found" });
       }
     }
 
-    const computedDetails = details.map((d) =>
-      calcDetail(d, gstEnabled, gstType),
-    );
+    const computedDetails = details.map((d) => calcDetail(d, gstEnabled, gstType));
 
-    const updated = await PurchaseOrder.findByIdAndUpdate(
-      req.params.id,
-      {
-        poNo,
-        date,
-        supplierId: supplierId || null,
-        supplierName: finalSupplierName,
-        gstEnabled,
-        gstType,
-        createdBy,
-        createdOn,
-        status,
-        remarks,
-        details: computedDetails,
-      },
-      { new: true, runValidators: true },
-    );
+    await po.update({
+      poNo, date, supplierId: supplierId || null,
+      supplierName: finalSupplierName,
+      gstEnabled, gstType, createdBy, createdOn, status, remarks,
+      details: computedDetails,
+    });
 
-    if (!updated) return res.status(404).json({ message: "PO not found" });
-    // post findOneAndUpdate hook fires recalculate
-    res.json(updated);
+    res.json(po);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -245,9 +198,9 @@ exports.update = async (req, res) => {
 // ─── DELETE /api/purchase-orders/:id ─────────────────────────────────────────
 exports.remove = async (req, res) => {
   try {
-    const deleted = await PurchaseOrder.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ message: "PO not found" });
-    // post findOneAndDelete hook fires recalculate
+    const po = await PurchaseOrder.findByPk(req.params.id);
+    if (!po) return res.status(404).json({ message: "PO not found" });
+    await po.destroy();
     res.json({ message: "Deleted", id: req.params.id });
   } catch (err) {
     res.status(500).json({ message: err.message });

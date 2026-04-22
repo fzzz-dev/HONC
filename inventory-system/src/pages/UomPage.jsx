@@ -22,7 +22,8 @@ export default function UomPage() {
       setLoading(true);
       setError(null);
       const data = await uomApi.getAll();
-      setUoms(data.map((u) => ({ ...u, id: u._id })));
+      setUoms(data.map((u) => ({ ...u, id: u.id || u._id })));
+
     } catch (err) {
       setError(err.message);
     } finally {

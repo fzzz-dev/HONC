@@ -1,14 +1,18 @@
 const Department = require("../model/Department");
+const { Op } = require("sequelize");
 
 // GET /api/departments
 exports.getAll = async (req, res) => {
   try {
     const { search = "", active } = req.query;
-    const filter = {};
-    if (search) filter.name = { $regex: search, $options: "i" };
-    if (active !== undefined) filter.active = active === "true";
+    const where = {};
+    if (search) where.name = { [Op.like]: `%${search}%` };
+    if (active !== undefined) where.active = active === "true";
 
-    const departments = await Department.find(filter).sort({ createdAt: -1 });
+    const departments = await Department.findAll({
+      where,
+      order: [["createdAt", "DESC"]],
+    });
     res.json({ success: true, data: departments });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -18,7 +22,7 @@ exports.getAll = async (req, res) => {
 // GET /api/departments/:id
 exports.getOne = async (req, res) => {
   try {
-    const department = await Department.findById(req.params.id);
+    const department = await Department.findByPk(req.params.id);
     if (!department)
       return res.status(404).json({ success: false, message: "Not found" });
     res.json({ success: true, data: department });
@@ -33,7 +37,7 @@ exports.create = async (req, res) => {
     const { name, code, active } = req.body;
 
     const exists = await Department.findOne({
-      name: { $regex: `^${name.trim()}$`, $options: "i" },
+      where: { name: name.trim() },
     });
     if (exists) {
       return res
@@ -57,9 +61,15 @@ exports.update = async (req, res) => {
   try {
     const { name, code, active } = req.body;
 
+    const department = await Department.findByPk(req.params.id);
+    if (!department)
+      return res.status(404).json({ success: false, message: "Not found" });
+
     const duplicate = await Department.findOne({
-      name: { $regex: `^${name.trim()}$`, $options: "i" },
-      _id: { $ne: req.params.id },
+      where: {
+        name: name.trim(),
+        id: { [Op.ne]: req.params.id },
+      },
     });
     if (duplicate) {
       return res
@@ -67,14 +77,7 @@ exports.update = async (req, res) => {
         .json({ success: false, message: "Department name already exists" });
     }
 
-    const department = await Department.findByIdAndUpdate(
-      req.params.id,
-      { name: name.trim(), code: code?.trim() || "", active },
-      { new: true, runValidators: true }
-    );
-    if (!department)
-      return res.status(404).json({ success: false, message: "Not found" });
-
+    await department.update({ name: name.trim(), code: code?.trim() || "", active });
     res.json({ success: true, data: department });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -84,10 +87,10 @@ exports.update = async (req, res) => {
 // DELETE /api/departments/:id
 exports.remove = async (req, res) => {
   try {
-    const department = await Department.findById(req.params.id);
+    const department = await Department.findByPk(req.params.id);
     if (!department)
       return res.status(404).json({ success: false, message: "Not found" });
-    await department.deleteOne();
+    await department.destroy();
     res.json({ success: true, message: "Deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

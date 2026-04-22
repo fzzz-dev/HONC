@@ -111,7 +111,10 @@ const processSlice = createSlice({
       })
       .addCase(updateProcess.fulfilled, (state, action) => {
         state.actionLoading = false;
-        const idx = state.items.findIndex((p) => p._id === action.payload._id);
+        const updatedId = action.payload.id || action.payload._id;
+        const idx = state.items.findIndex(
+          (p) => (p.id || p._id) === updatedId,
+        );
         if (idx !== -1) state.items[idx] = action.payload;
       })
       .addCase(updateProcess.rejected, (state, action) => {
@@ -127,7 +130,9 @@ const processSlice = createSlice({
       })
       .addCase(deleteProcess.fulfilled, (state, action) => {
         state.actionLoading = false;
-        state.items = state.items.filter((p) => p._id !== action.payload);
+        state.items = state.items.filter(
+          (p) => (p.id || p._id) !== action.payload,
+        );
       })
       .addCase(deleteProcess.rejected, (state, action) => {
         state.actionLoading = false;

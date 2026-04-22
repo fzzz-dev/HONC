@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const itemController = require("../controller/itemController");
+const itemController = require("../controller/Itemcontroller");
+
 
 const { upload } = itemController;
 

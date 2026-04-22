@@ -28,7 +28,8 @@ export default function MainCategoryPage() {
   const fetchHeads = useCallback(async () => {
     try {
       const data = await inventoryHeadApi.getAll({ active: true });
-      setHeads(data.map((h) => ({ ...h, id: h._id })));
+      setHeads(data.map((h) => ({ ...h, id: h.id || h._id })));
+
     } catch (err) {
       console.error("Failed to load heads:", err.message);
     }
@@ -43,7 +44,8 @@ export default function MainCategoryPage() {
       if (search) params.search = search;
       if (filterHead) params.headId = filterHead;
       const data = await mainCategoryApi.getAll(params);
-      setCategories(data.map((c) => ({ ...c, id: c._id })));
+      setCategories(data.map((c) => ({ ...c, id: c.id || c._id })));
+
     } catch (err) {
       setError(err.message);
     } finally {

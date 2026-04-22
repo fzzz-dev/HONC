@@ -1,32 +1,44 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
-const citySchema = new mongoose.Schema(
-  {
-    stateId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "State",
-      required: [true, "State is required"],
+const City = sequelize.define("City", {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true,
+  },
+  stateId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'States',
+      key: 'id',
     },
-    stateName: {
-      type: String,
-      required: true,
-    },
-    name: {
-      type: String,
-      required: [true, "City name is required"],
-      trim: true,
-    },
-    active: {
-      type: Boolean,
-      default: true,
+    validate: {
+      notNull: { msg: "State is required" },
     },
   },
-  {
-    timestamps: true,
+  stateName: {
+    type: DataTypes.STRING,
+    allowNull: false,
   },
-);
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: "City name is required" },
+    },
+  },
+  active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+}, {
+  timestamps: true,
+  indexes: [
+    { fields: ["stateId", "name"] },
+    { fields: ["active"] },
+  ],
+});
 
-citySchema.index({ stateId: 1, name: 1 });
-citySchema.index({ active: 1 });
-
-module.exports = mongoose.model("City", citySchema);
+module.exports = City;

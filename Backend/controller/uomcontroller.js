@@ -1,14 +1,18 @@
-const Uom = require("../model/Uom");
+const Uom = require("../model/uom");
+const { Op } = require("sequelize");
 
 // GET /api/uoms
 exports.getAll = async (req, res) => {
   try {
     const { search = "", active } = req.query;
-    const filter = {};
-    if (search) filter.name = { $regex: search, $options: "i" };
-    if (active !== undefined) filter.active = active === "true";
+    const where = {};
+    if (search) where.name = { [Op.like]: `%${search}%` };
+    if (active !== undefined) where.active = active === "true";
 
-    const uoms = await Uom.find(filter).sort({ createdAt: -1 });
+    const uoms = await Uom.findAll({
+      where,
+      order: [["createdAt", "DESC"]],
+    });
     res.json({ success: true, data: uoms });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -18,7 +22,7 @@ exports.getAll = async (req, res) => {
 // GET /api/uoms/:id
 exports.getOne = async (req, res) => {
   try {
-    const uom = await Uom.findById(req.params.id);
+    const uom = await Uom.findByPk(req.params.id);
     if (!uom)
       return res.status(404).json({ success: false, message: "Not found" });
     res.json({ success: true, data: uom });
@@ -33,7 +37,7 @@ exports.create = async (req, res) => {
     const { name, description, active } = req.body;
 
     const exists = await Uom.findOne({
-      name: { $regex: `^${name.trim()}$`, $options: "i" },
+      where: { name: name.trim() },
     });
     if (exists) {
       return res
@@ -57,9 +61,15 @@ exports.update = async (req, res) => {
   try {
     const { name, description, active } = req.body;
 
+    const uom = await Uom.findByPk(req.params.id);
+    if (!uom)
+      return res.status(404).json({ success: false, message: "Not found" });
+
     const duplicate = await Uom.findOne({
-      name: { $regex: `^${name.trim()}$`, $options: "i" },
-      _id: { $ne: req.params.id },
+      where: {
+        name: name.trim(),
+        id: { [Op.ne]: req.params.id },
+      },
     });
     if (duplicate) {
       return res
@@ -67,14 +77,7 @@ exports.update = async (req, res) => {
         .json({ success: false, message: "UOM name already exists" });
     }
 
-    const uom = await Uom.findByIdAndUpdate(
-      req.params.id,
-      { name: name.trim(), description: description?.trim() || "", active },
-      { new: true, runValidators: true },
-    );
-    if (!uom)
-      return res.status(404).json({ success: false, message: "Not found" });
-
+    await uom.update({ name: name.trim(), description: description?.trim() || "", active });
     res.json({ success: true, data: uom });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -84,10 +87,10 @@ exports.update = async (req, res) => {
 // DELETE /api/uoms/:id
 exports.remove = async (req, res) => {
   try {
-    const uom = await Uom.findById(req.params.id);
+    const uom = await Uom.findByPk(req.params.id);
     if (!uom)
       return res.status(404).json({ success: false, message: "Not found" });
-    await uom.deleteOne();
+    await uom.destroy();
     res.json({ success: true, message: "Deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

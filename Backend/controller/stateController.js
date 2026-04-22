@@ -1,11 +1,14 @@
 const State = require("../model/state");
+const Country = require("../model/country");
+const { Op } = require("sequelize");
 
-// GET ALL (with country populated)
+// GET ALL (with country joined)
 exports.getStates = async (req, res) => {
   try {
-    const states = await State.find()
-      .populate("country", "name")
-      .sort({ createdAt: -1 });
+    const states = await State.findAll({
+      include: [{ model: Country, as: "country", attributes: ["id", "name"] }],
+      order: [["createdAt", "DESC"]],
+    });
 
     res.json({
       success: true,
@@ -22,10 +25,11 @@ exports.getStates = async (req, res) => {
 // CREATE
 exports.createState = async (req, res) => {
   try {
-    const { name, country } = req.body;
+    const { name, countryId } = req.body;
 
-    // 🔥 duplicate check inside same country
-    const exists = await State.findOne({ name, country });
+    const exists = await State.findOne({
+      where: { name, countryId }
+    });
 
     if (exists) {
       return res.status(400).json({
@@ -35,8 +39,9 @@ exports.createState = async (req, res) => {
     }
 
     const state = await State.create(req.body);
-
-    const populated = await state.populate("country", "name");
+    const populated = await State.findByPk(state.id, {
+      include: [{ model: Country, as: "country", attributes: ["id", "name"] }]
+    });
 
     res.status(201).json({
       success: true,
@@ -53,12 +58,7 @@ exports.createState = async (req, res) => {
 // UPDATE
 exports.updateState = async (req, res) => {
   try {
-    const state = await State.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    ).populate("country", "name");
-
+    const state = await State.findByPk(req.params.id);
     if (!state) {
       return res.status(404).json({
         success: false,
@@ -66,9 +66,14 @@ exports.updateState = async (req, res) => {
       });
     }
 
+    await state.update(req.body);
+    const populated = await State.findByPk(state.id, {
+      include: [{ model: Country, as: "country", attributes: ["id", "name"] }]
+    });
+
     res.json({
       success: true,
-      data: state,
+      data: populated,
     });
   } catch (error) {
     res.status(400).json({
@@ -81,8 +86,9 @@ exports.updateState = async (req, res) => {
 // DELETE
 exports.deleteState = async (req, res) => {
   try {
-    await State.findByIdAndDelete(req.params.id);
-
+    const state = await State.findByPk(req.params.id);
+    if (!state) return res.status(404).json({ success: false, message: "Not found" });
+    await state.destroy();
     res.json({
       success: true,
       message: "Deleted successfully",

@@ -85,13 +85,13 @@ const stateSlice = createSlice({
     // update
     builder.addCase(updateState.fulfilled, (state, action) => {
       state.data = state.data.map((s) =>
-        s._id === action.payload._id ? action.payload : s,
+        (s.id || s._id) === (action.payload.id || action.payload._id) ? action.payload : s,
       );
     });
 
     // delete
     builder.addCase(deleteState.fulfilled, (state, action) => {
-      state.data = state.data.filter((s) => s._id !== action.payload);
+      state.data = state.data.filter((s) => (s.id || s._id) !== action.payload);
     });
   },
 });

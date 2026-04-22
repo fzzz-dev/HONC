@@ -113,7 +113,7 @@ const citySlice = createSlice({
       })
       .addCase(updateCity.fulfilled, (state, action) => {
         state.actionLoading = false;
-        const idx = state.items.findIndex((c) => c._id === action.payload._id);
+        const idx = state.items.findIndex((c) => (c.id || c._id) === (action.payload.id || action.payload._id));
         if (idx !== -1) state.items[idx] = action.payload;
       })
       .addCase(updateCity.rejected, (state, action) => {
@@ -129,7 +129,7 @@ const citySlice = createSlice({
       })
       .addCase(deleteCity.fulfilled, (state, action) => {
         state.actionLoading = false;
-        state.items = state.items.filter((c) => c._id !== action.payload);
+        state.items = state.items.filter((c) => (c.id || c._id) !== action.payload);
         state.total -= 1;
       })
       .addCase(deleteCity.rejected, (state, action) => {

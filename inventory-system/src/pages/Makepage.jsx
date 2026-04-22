@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import Modal from "../components/Modal";
 import { Field, Input, Toggle } from "../components/FormFields";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import { makeApi } from "../services/inventoryApi";
 
 const EMPTY = { name: "", description: "", active: true };
 
@@ -25,10 +24,8 @@ export default function MakePage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/makes`);
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      setMakes(data.data);
+      const data = await makeApi.getAll();
+      setMakes(data);
     } catch (err) {
       setError(err.message || "Failed to load makes");
     } finally {
@@ -52,7 +49,7 @@ export default function MakePage() {
       description: row.description || "",
       active: row.active,
     });
-    setModal({ mode: "edit", id: row._id });
+    setModal({ mode: "edit", id: row.id || row._id });
   }
 
   // ── Save (Add / Edit) ──────────────────────────────────────────────────────
@@ -61,22 +58,20 @@ export default function MakePage() {
     setSaving(true);
     try {
       const isAdd = modal.mode === "add";
-      const url = isAdd ? `${API_BASE}/makes` : `${API_BASE}/makes/${modal.id}`;
-      const method = isAdd ? "POST" : "PUT";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
+      const payload = {
+        name: form.name.trim(),
+        description: form.description?.trim() || "",
+        active: form.active,
+      };
+      const saved = isAdd
+        ? await makeApi.create(payload)
+        : await makeApi.update(modal.id, payload);
 
       if (isAdd) {
-        setMakes((prev) => [...prev, data.data]);
+        setMakes((prev) => [...prev, saved]);
       } else {
         setMakes((prev) =>
-          prev.map((x) => (x._id === modal.id ? data.data : x)),
+          prev.map((x) => ((x.id || x._id) === modal.id ? saved : x)),
         );
       }
       setModal(null);
@@ -90,10 +85,8 @@ export default function MakePage() {
   // ── Delete ─────────────────────────────────────────────────────────────────
   async function handleDelete(id) {
     try {
-      const res = await fetch(`${API_BASE}/makes/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      setMakes((prev) => prev.filter((x) => x._id !== id));
+      await makeApi.remove(id);
+      setMakes((prev) => prev.filter((x) => (x.id || x._id) !== id));
       setDeleteConfirm(null);
     } catch (err) {
       alert(err.message || "Delete failed");
@@ -165,7 +158,7 @@ export default function MakePage() {
                   </tr>
                 ) : (
                   filtered.map((row, i) => (
-                    <tr key={row._id}>
+                    <tr key={row.id || row._id}>
                       <td className="inv-idx">
                         {String(i + 1).padStart(2, "0")}
                       </td>
@@ -206,7 +199,7 @@ export default function MakePage() {
                           <button
                             className="inv-btn-icon inv-btn-danger"
                             title="Delete"
-                            onClick={() => setDeleteConfirm(row._id)}
+                            onClick={() => setDeleteConfirm(row.id || row._id)}
                           >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"

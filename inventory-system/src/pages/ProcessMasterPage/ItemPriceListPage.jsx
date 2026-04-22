@@ -40,17 +40,18 @@ function generatePriceListNo(existing) {
   return `${prefix}${String(next).padStart(3, "0")}`;
 }
 
-export default function ItemPriceListPage({
-  suppliers = [],
-  heads = [],
-  items = [],
-}) {
+export default function ItemPriceListPage() {
   const today = new Date().toISOString().split("T")[0];
   const [view, setView] = useState("list");
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [priceLists, setPriceLists] = useState([]);
+
+  // Lookup data
+  const [heads, setHeads] = useState([]);
+  const [items, setItems] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
 
   const [header, setHeader] = useState({
     listNo: "",
@@ -60,10 +61,27 @@ export default function ItemPriceListPage({
   });
   const [details, setDetails] = useState([emptyDetail()]);
 
-  // Load price lists on component mount
+  // Load data on component mount
   useEffect(() => {
+    loadLookups();
     loadPriceLists();
   }, []);
+
+  async function loadLookups() {
+    try {
+      const { inventoryHeadApi, itemApi, supplierApi } = await import("../../services/inventoryApi");
+      const [headsData, itemsData, suppsData] = await Promise.all([
+        inventoryHeadApi.getAll(),
+        itemApi.getAll(),
+        supplierApi.getAll(),
+      ]);
+      setHeads(headsData);
+      setItems(itemsData);
+      setSuppliers(suppsData);
+    } catch (err) {
+      console.error("Failed to load lookups", err);
+    }
+  }
 
   /**
    * Load all price lists from API

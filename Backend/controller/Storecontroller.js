@@ -1,14 +1,18 @@
 const Store = require("../model/Store");
+const { Op } = require("sequelize");
 
 // GET /api/stores
 exports.getAll = async (req, res) => {
   try {
     const { search = "", active } = req.query;
-    const filter = {};
-    if (search) filter.name = { $regex: search, $options: "i" };
-    if (active !== undefined) filter.active = active === "true";
+    const where = {};
+    if (search) where.name = { [Op.like]: `%${search}%` };
+    if (active !== undefined) where.active = active === "true";
 
-    const stores = await Store.find(filter).sort({ createdAt: -1 });
+    const stores = await Store.findAll({
+      where,
+      order: [["createdAt", "DESC"]],
+    });
     res.json({ success: true, data: stores });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -18,7 +22,7 @@ exports.getAll = async (req, res) => {
 // GET /api/stores/:id
 exports.getOne = async (req, res) => {
   try {
-    const store = await Store.findById(req.params.id);
+    const store = await Store.findByPk(req.params.id);
     if (!store)
       return res.status(404).json({ success: false, message: "Not found" });
     res.json({ success: true, data: store });
@@ -33,7 +37,7 @@ exports.create = async (req, res) => {
     const { name, location, active } = req.body;
 
     const exists = await Store.findOne({
-      name: { $regex: `^${name.trim()}$`, $options: "i" },
+      where: { name: name.trim() },
     });
     if (exists) {
       return res
@@ -57,9 +61,15 @@ exports.update = async (req, res) => {
   try {
     const { name, location, active } = req.body;
 
+    const store = await Store.findByPk(req.params.id);
+    if (!store)
+      return res.status(404).json({ success: false, message: "Not found" });
+
     const duplicate = await Store.findOne({
-      name: { $regex: `^${name.trim()}$`, $options: "i" },
-      _id: { $ne: req.params.id },
+      where: {
+        name: name.trim(),
+        id: { [Op.ne]: req.params.id },
+      },
     });
     if (duplicate) {
       return res
@@ -67,14 +77,7 @@ exports.update = async (req, res) => {
         .json({ success: false, message: "Store name already exists" });
     }
 
-    const store = await Store.findByIdAndUpdate(
-      req.params.id,
-      { name: name.trim(), location: location?.trim() || "", active },
-      { new: true, runValidators: true }
-    );
-    if (!store)
-      return res.status(404).json({ success: false, message: "Not found" });
-
+    await store.update({ name: name.trim(), location: location?.trim() || "", active });
     res.json({ success: true, data: store });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -84,10 +87,10 @@ exports.update = async (req, res) => {
 // DELETE /api/stores/:id
 exports.remove = async (req, res) => {
   try {
-    const store = await Store.findById(req.params.id);
+    const store = await Store.findByPk(req.params.id);
     if (!store)
       return res.status(404).json({ success: false, message: "Not found" });
-    await store.deleteOne();
+    await store.destroy();
     res.json({ success: true, message: "Deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

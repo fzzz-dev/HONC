@@ -8,7 +8,8 @@ const {
   create,
   update,
   remove,
-} = require("../controller/purchaseIndentController");
+} = require("../controller/purchaseindentcontroller");
+
 
 // ── IMPORTANT: /next-number BEFORE /:id ─────────────────────────────────────
 router.get("/next-number", getNextNumber);

@@ -16,6 +16,7 @@ import {
   updateState,
   deleteState,
 } from "../slices/stateSlice";
+import { fetchCountries } from "../slices/countrySlice";
 
 export default function StatePage() {
   const dispatch = useDispatch();
@@ -29,13 +30,14 @@ export default function StatePage() {
     name: "",
     code: "",
     active: true,
-    country: "",
+    countryId: "",
   });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  // 🔥 fetch states
+  // 🔥 fetch data
   useEffect(() => {
     dispatch(fetchStates());
+    dispatch(fetchCountries());
   }, [dispatch]);
 
   // 🔍 filter
@@ -45,7 +47,7 @@ export default function StatePage() {
 
   // 🌍 country dropdown
   const countryOptions = countries.map((c) => ({
-    value: c._id,
+    value: c.id || c._id,
     label: c.name,
   }));
 
@@ -54,7 +56,7 @@ export default function StatePage() {
       name: "",
       code: "",
       active: true,
-      country: "",
+      countryId: "",
     });
     setModal({ mode: "add" });
   }
@@ -64,15 +66,15 @@ export default function StatePage() {
       name: row.name,
       code: row.code,
       active: row.active,
-      country: row.country?._id, // 🔥 important
+      countryId: row.countryId || row.country?.id, // 🔥 important
     });
 
-    setModal({ mode: "edit", id: row._id });
+    setModal({ mode: "edit", id: row.id });
   }
 
   function handleSave() {
     if (!form.name.trim()) return alert("State Name required");
-    if (!form.country) return alert("Country required");
+    if (!form.countryId) return alert("Country required");
 
     if (modal.mode === "add") {
       dispatch(addState(form));
@@ -135,7 +137,7 @@ export default function StatePage() {
                 )}
 
                 {filtered.map((row, i) => (
-                  <tr key={row._id}>
+                  <tr key={row.id || row._id}>
                     <td className="inv-idx">
                       {String(i + 1).padStart(2, "0")}
                     </td>
@@ -167,7 +169,7 @@ export default function StatePage() {
 
                         <button
                           className="inv-btn-icon inv-btn-danger"
-                          onClick={() => setDeleteConfirm(row._id)}
+                          onClick={() => setDeleteConfirm(row.id || row._id)}
                         >
                           🗑
                         </button>
@@ -190,8 +192,8 @@ export default function StatePage() {
         >
           <Field label="Country" required>
             <Select
-              value={form.country}
-              onChange={(val) => setForm((f) => ({ ...f, country: val }))}
+              value={form.countryId}
+              onChange={(val) => setForm((f) => ({ ...f, countryId: val }))}
               options={countryOptions}
               placeholder="Select country..."
             />
