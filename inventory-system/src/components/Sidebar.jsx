@@ -31,29 +31,30 @@ const Icons = {
   Shield: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>,
 };
 
+const TRANSACTIONS = [
+  { path: "/purchase-indent", label: "Purchase Indent", icon: Icons.Indent },
+  { path: "/item-price-list", label: "Item Price List", icon: Icons.Price },
+  { path: "/purchase-order", label: "Purchase Order", icon: Icons.Order },
+  { path: "/purchase-grn", label: "Purchase GRN", icon: Icons.GRN },
+  { path: "/consumption-issue", label: "Consumption Issue", icon: Icons.Issue },
+];
+
 const MASTERS = [
-  { path: "/inv-head", label: "Inventory head", icon: Icons.InventoryHead },
-  { path: "/main-cat", label: "Main category", icon: Icons.Category },
+  { path: "/inv-head", label: "Inventory Head", icon: Icons.InventoryHead },
+  { path: "/main-cat", label: "Main Category", icon: Icons.Category },
   { path: "/item", label: "Item", icon: Icons.Item },
   { path: "/supplier", label: "Supplier", icon: Icons.Supplier },
   { path: "/uom", label: "UOM", icon: Icons.Uom },
   { path: "/make", label: "Make", icon: Icons.Make },
-  { path: "/spec", label: "Spec name", icon: Icons.Spec },
+  { path: "/spec", label: "Spec Name", icon: Icons.Spec },
   { path: "/country", label: "Country", icon: Icons.Globe },
   { path: "/state", label: "State", icon: Icons.Map },
   { path: "/city", label: "City", icon: Icons.Map },
-  { path: "/store", label: "Store master", icon: Icons.Store },
-  { path: "/department", label: "Department master", icon: Icons.Dept },
-  { path: "/process", label: "Process master", icon: Icons.Process },
+  { path: "/store", label: "Store Master", icon: Icons.Store },
+  { path: "/department", label: "Department Master", icon: Icons.Dept },
+  { path: "/process", label: "Process Master", icon: Icons.Process },
 ];
 
-const TRANSACTIONS = [
-  { path: "/purchase-indent", label: "Purchase indent", icon: Icons.Indent },
-  { path: "/item-price-list", label: "Item price list", icon: Icons.Price },
-  { path: "/purchase-order", label: "Purchase order", icon: Icons.Order },
-  { path: "/purchase-grn", label: "Purchase GRN", icon: Icons.GRN },
-  { path: "/consumption-issue", label: "Consumption issue", icon: Icons.Issue },
-];
 
 const ADMIN = [
   { path: "/admin/users", label: "User Management", icon: Icons.Admin },
@@ -131,14 +132,14 @@ export default function Sidebar() {
         {filteredAdmin.length > 0 && (
           <NavGroup label="Admin" items={filteredAdmin} navigate={navigate} pathname={pathname} onHover={handleMouseEnter} onLeave={() => setHoveredLabel(null)} />
         )}
+        {filteredTransactions.length > 0 && (
+          <NavGroup label="Transactions" items={filteredTransactions} navigate={navigate} pathname={pathname} onHover={handleMouseEnter} onLeave={() => setHoveredLabel(null)} />
+        )}
         {filteredMasters.length > 0 && (
           <NavGroup label="Masters" items={filteredMasters} navigate={navigate} pathname={pathname} onHover={handleMouseEnter} onLeave={() => setHoveredLabel(null)} />
         )}
-        {filteredTransactions.length > 0 && (
-          <NavGroup label="Trans" items={filteredTransactions} navigate={navigate} pathname={pathname} onHover={handleMouseEnter} onLeave={() => setHoveredLabel(null)} />
-        )}
       </div>
-      
+
       {/* ... footer ... */}
 
 
@@ -148,10 +149,10 @@ export default function Sidebar() {
             {user?.username?.charAt(0).toUpperCase()}
           </div>
         </div>
-        
-        <button 
+
+        <button
           onClick={() => { logout(); navigate('/login'); }}
-          className="inv-nav-item" 
+          className="inv-nav-item"
           onMouseEnter={(e) => handleMouseEnter(e, "Logout")}
           onMouseLeave={() => setHoveredLabel(null)}
           style={{ color: '#ef4444' }}
