@@ -76,6 +76,7 @@ async function ensureBackendRunning() {
       {
         cwd: BACKEND_DIR,
         stdio: "inherit",
+        shell: true,
         env: {
           ...process.env,
           PORT: String(BACKEND_PORT),

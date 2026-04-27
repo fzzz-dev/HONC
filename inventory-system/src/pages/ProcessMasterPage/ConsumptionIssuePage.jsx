@@ -54,19 +54,18 @@ export default function ConsumptionIssuePage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [issData, deptData, storeData, itemData, grnData] = await Promise.all([
+      const [issData, deptData, storeData, itemData, grnRes] = await Promise.all([
         consumptionIssueApi.getAll(),
         departmentApi.getAll(),
         storeApi.getAll(),
         itemApi.getAll(),
-        // Assuming grnApi.getAll() exists or similar
-        fetch("/api/grns").then(r => r.json()).then(r => r.data || []),
+        grnApi.getAll(),
       ]);
-      setIssues(issData || []);
-      setDepartments(deptData || []);
-      setStores(storeData || []);
-      setItems(itemData || []);
-      setGrns(grnData || []);
+      setIssues(issData?.data || issData || []);
+      setDepartments(deptData?.data || deptData || []);
+      setStores(storeData?.data || storeData || []);
+      setItems(itemData?.data || itemData || []);
+      setGrns(grnRes?.data || grnRes || []);
     } catch (err) {
       console.error("Failed to load consumption data", err);
     } finally {
@@ -208,8 +207,12 @@ export default function ConsumptionIssuePage() {
                     </tr>
                   )}
                   {issues.map((rec, i) => {
-                    const qty = (rec.details || []).reduce((s, d) => s + Number(d.issueQty || 0), 0);
-                    const amt = (rec.details || []).reduce((s, d) => s + Number(d.amount || 0), 0);
+                    let safeDetails = Array.isArray(rec.details) ? rec.details : [];
+                    if (!Array.isArray(rec.details) && typeof rec.details === 'string') {
+                      try { safeDetails = JSON.parse(rec.details); } catch(e) {}
+                    }
+                    const qty = safeDetails.reduce((s, d) => s + Number(d.issueQty || 0), 0);
+                    const amt = safeDetails.reduce((s, d) => s + Number(d.amount || 0), 0);
                     return (
                       <tr key={rec.id}>
                         <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
@@ -217,7 +220,7 @@ export default function ConsumptionIssuePage() {
                         <td>{rec.date}</td>
                         <td>{rec.departmentName}</td>
                         <td>{rec.storeName}</td>
-                        <td className="inv-muted-sm">{rec.details?.length || 0} items</td>
+                        <td className="inv-muted-sm">{safeDetails.length} items</td>
                         <td>{fmt(qty)}</td>
                         <td>₹{fmt(amt)}</td>
                         <td>

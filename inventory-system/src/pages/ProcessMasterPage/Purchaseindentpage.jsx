@@ -24,8 +24,18 @@ const sid = (v) => {
 };
 
 // Always returns a guaranteed array from indent.details (handles null / object / non-array)
-const safeDetails = (details) =>
-  Array.isArray(details) ? details : [];
+const safeDetails = (details) => {
+  if (Array.isArray(details)) return details;
+  if (typeof details === "string") {
+    try {
+      const parsed = JSON.parse(details);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  return [];
+};
 
 const emptyDetail = () => ({
   _rowId: Date.now() + Math.random(), // local key only, not sent to API
@@ -214,7 +224,10 @@ export default function PurchaseIndentPage() {
     setFormError(null);
     setSaving(true);
 
-    const cleanDetails = details.map(({ _rowId, ...rest }) => rest);
+    const cleanDetails = details.map(({ _rowId, ...rest }) => ({
+      ...rest,
+      id: rest.id || `dtl-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
+    }));
     const payload = { ...header, details: cleanDetails };
 
     try {

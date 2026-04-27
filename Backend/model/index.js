@@ -18,6 +18,9 @@ const PurchaseIndent = require("./purchaseIndent");
 const PurchaseOrder = require("./purchaseOrder");
 const PurchaseGRN = require("./purchaseGRN");
 const ConsumptionIssue = require("./consumptionIssue");
+const User = require("./User");
+const Role = require("./Role");
+const Permission = require("./Permission");
 
 // Associations
 State.belongsTo(Country, { foreignKey: "countryId", as: "country" });
@@ -39,5 +42,5 @@ module.exports = {
   sequelize,
   Country, State, City, InventoryHead, Item, Department, Store, Process,
   Uom, Make, Spec, SupplierType, Supplier, MainCategory, ItemPriceList,
-  PurchaseIndent, PurchaseOrder, PurchaseGRN, ConsumptionIssue
+  PurchaseIndent, PurchaseOrder, PurchaseGRN, ConsumptionIssue, User, Role, Permission
 };

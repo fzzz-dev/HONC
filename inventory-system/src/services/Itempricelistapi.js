@@ -1,5 +1,5 @@
 // API base URL - adjust this to your backend URL
-const API_BASE_URL ="http://localhost:5000";
+const API_BASE_URL = "/api";
 
 /**
  * Item Price List API Service
@@ -44,7 +44,7 @@ class ItemPriceListAPI {
    * CREATE - Create new price list
    */
   static async create(data) {
-    return this.request("/api/item-price-lists", {
+    return this.request("/item-price-lists", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -55,15 +55,16 @@ class ItemPriceListAPI {
    */
   static async getAll(params = {}) {
     const queryString = new URLSearchParams(params).toString();
-    const endpoint = `/api/item-price-lists${queryString ? `?${queryString}` : ""}`;
-    return this.request(endpoint, { method: "GET" });
+    const endpoint = `/item-price-lists${queryString ? `?${queryString}` : ""}`;
+    const res = await this.request(endpoint, { method: "GET" });
+    return res.data || res || [];
   }
 
   /**
    * GET BY ID - Fetch single price list
    */
   static async getById(id) {
-    return this.request(`/api/item-price-lists/${id}`, {
+    return this.request(`/item-price-lists/${id}`, {
       method: "GET",
     });
   }
@@ -72,7 +73,7 @@ class ItemPriceListAPI {
    * UPDATE - Update existing price list
    */
   static async update(id, data) {
-    return this.request(`/api/item-price-lists/${id}`, {
+    return this.request(`/item-price-lists/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -82,7 +83,7 @@ class ItemPriceListAPI {
    * DELETE - Soft delete price list
    */
   static async delete(id) {
-    return this.request(`/api/item-price-lists/${id}`, {
+    return this.request(`/item-price-lists/${id}`, {
       method: "DELETE",
     });
   }
@@ -92,7 +93,7 @@ class ItemPriceListAPI {
    */
   static async search(params = {}) {
     const queryString = new URLSearchParams(params).toString();
-    return this.request(`/api/item-price-lists/search?${queryString}`, {
+    return this.request(`/item-price-lists/search?${queryString}`, {
       method: "GET",
     });
   }
@@ -101,7 +102,7 @@ class ItemPriceListAPI {
    * GET EXPIRED - Fetch expired price lists
    */
   static async getExpired() {
-    return this.request("/api/item-price-lists/expired", {
+    return this.request("/item-price-lists/expired", {
       method: "GET",
     });
   }
@@ -110,7 +111,7 @@ class ItemPriceListAPI {
    * GET BY SUPPLIER - Fetch price lists for specific supplier
    */
   static async getBySupplier(supplierId) {
-    return this.request(`/api/item-price-lists/supplier/${supplierId}`, {
+    return this.request(`/item-price-lists/supplier/${supplierId}`, {
       method: "GET",
     });
   }
@@ -119,7 +120,7 @@ class ItemPriceListAPI {
    * GET ITEM PRICES - Compare prices across suppliers for an item
    */
   static async getItemPrices(itemId) {
-    return this.request(`/api/item-price-lists/item/${itemId}`, {
+    return this.request(`/item-price-lists/item/${itemId}`, {
       method: "GET",
     });
   }
@@ -128,7 +129,7 @@ class ItemPriceListAPI {
    * BULK UPDATE STATUS
    */
   static async bulkUpdateStatus(data) {
-    return this.request("/api/item-price-lists/bulk/status", {
+    return this.request("/item-price-lists/bulk/status", {
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -138,7 +139,7 @@ class ItemPriceListAPI {
    * EXPORT - Export price list
    */
   static async export(id, format = "json") {
-    return this.request(`/api/item-price-lists/export/${id}?format=${format}`, {
+    return this.request(`/item-price-lists/export/${id}?format=${format}`, {
       method: "GET",
     });
   }

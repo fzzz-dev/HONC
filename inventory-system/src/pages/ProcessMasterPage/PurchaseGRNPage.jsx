@@ -240,7 +240,11 @@ export default function PurchaseGRNPage() {
                     <tr><td colSpan={8} className="inv-empty">No records found</td></tr>
                   )}
                   {grns.map((rec, i) => {
-                    const amt = (rec.details || []).reduce((s, d) => s + Number(d.totalAmount || 0), 0);
+                    let safeDetails = Array.isArray(rec.details) ? rec.details : [];
+                    if (!Array.isArray(rec.details) && typeof rec.details === 'string') {
+                      try { safeDetails = JSON.parse(rec.details); } catch(e) {}
+                    }
+                    const amt = safeDetails.reduce((s, d) => s + Number(d.totalAmount || 0), 0);
                     return (
                       <tr key={rec.id}>
                         <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
@@ -248,7 +252,7 @@ export default function PurchaseGRNPage() {
                         <td>{rec.date}</td>
                         <td>{rec.supplierName}</td>
                         <td>{rec.storeName}</td>
-                        <td className="inv-muted-sm">{rec.details?.length || 0} items</td>
+                        <td className="inv-muted-sm">{safeDetails.length} items</td>
                         <td>₹{fmt(amt)}</td>
                         <td>
                           <div className="inv-actions">

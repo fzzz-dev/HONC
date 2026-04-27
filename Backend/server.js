@@ -30,17 +30,40 @@ async function ensureDatabaseExists() {
   await connection.end();
 }
 
+const seedData = async () => {
+  const { User, Role } = require("./model");
+  
+  // Seed Roles
+  const roles = ["admin", "user", "manager"];
+  for (const roleName of roles) {
+    const exists = await Role.findOne({ where: { name: roleName } });
+    if (!exists) {
+      await Role.create({ name: roleName });
+    }
+  }
+
+  const adminExists = await User.findOne({ where: { username: "admin" } });
+  if (!adminExists) {
+    await User.create({
+      username: "admin",
+      password: "admin",
+      role: "admin",
+      name: "System Administrator",
+    });
+    console.log("Default admin user created");
+  }
+};
+
 // SQL Connection and Sync
 ensureDatabaseExists()
   .then(() => sequelize.authenticate())
   .then(async () => {
     console.log("SQL Database Connected");
-    // Avoid repeated ALTER operations on startup because they keep adding
-    // duplicate indexes to MySQL tables such as PurchaseIndents.
     return sequelize.sync();
   })
-  .then(() => {
+  .then(async () => {
     console.log("Database Synced");
+    await seedData();
   })
   .catch((err) => {
     console.error("Database Connection/Sync Error:", err);
@@ -64,6 +87,10 @@ app.use("/api/purchase-orders", require("./routes/purchaseOrderRoutes"));
 app.use("/api/item-price-lists", require("./routes/itemPriceListRoutes"));
 app.use("/api/grns", require("./routes/Grnroutes"));
 app.use("/api/consumption-issues", require("./routes/consumptionIssueRoutes"));
+app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/users", require("./routes/userRoutes"));
+app.use("/api/roles", require("./routes/roleRoutes"));
+app.use("/api/permissions", require("./routes/permissionRoutes"));
 
 // Health check
 app.get("/health", (req, res) => {

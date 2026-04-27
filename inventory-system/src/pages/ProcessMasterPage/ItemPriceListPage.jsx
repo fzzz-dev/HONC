@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import ItemPriceListAPI from "../../services/Itempricelistapi";
+import { inventoryHeadApi, itemApi, supplierApi } from "../../services/inventoryApi";
 
 let _id = 700;
 const nextId = () => ++_id;
@@ -69,7 +70,6 @@ export default function ItemPriceListPage() {
 
   async function loadLookups() {
     try {
-      const { inventoryHeadApi, itemApi, supplierApi } = await import("../../services/inventoryApi");
       const [headsData, itemsData, suppsData] = await Promise.all([
         inventoryHeadApi.getAll(),
         itemApi.getAll(),
@@ -309,8 +309,8 @@ export default function ItemPriceListPage() {
                         <td>{rec.supplierName}</td>
                         <td>{rec.date}</td>
                         <td className="inv-muted-sm">
-                          {rec.details?.length || 0} item
-                          {rec.details?.length !== 1 ? "s" : ""}
+                          {Array.isArray(rec.details) ? rec.details.length : 0} item
+                          {(Array.isArray(rec.details) ? rec.details.length : 0) !== 1 ? "s" : ""}
                         </td>
                         <td>
                           <div className="inv-actions">

@@ -18,7 +18,18 @@ const sid = (v) => {
 };
 
 // Always returns a guaranteed array (handles null / object / non-array)
-const safeDetails = (details) => (Array.isArray(details) ? details : []);
+const safeDetails = (details) => {
+  if (Array.isArray(details)) return details;
+  if (typeof details === "string") {
+    try {
+      const parsed = JSON.parse(details);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  return [];
+};
 
 // ─── empty row factory ────────────────────────────────────────────────────────
 const emptyDetail = () => ({
@@ -202,7 +213,7 @@ export default function PurchaseOrderPage() {
     );
     setGstEnabled(po.gstEnabled !== false);
     setGstType(po.gstType || "local");
-    setEditId(sid(po._id));
+    setEditId(sid(po));
     setView("form");
   }
 
@@ -227,23 +238,12 @@ export default function PurchaseOrderPage() {
       };
 
       if (field === "indentDetailId") {
-        let found = null;
-        let foundIndent = null;
-        for (const indent of indents) {
-          const detail = safeDetails(indent.details).find(
-            (d) => sid(d._id) === val,
-          );
-          if (detail) {
-            found = detail;
-            foundIndent = indent;
-            break;
-          }
-        }
-        if (found && foundIndent) {
+        const found = indentDetailOptions.find((o) => o.detailId === val);
+        if (found) {
           row.indentDetailId = val;
-          row.indentId = sid(foundIndent._id);
-          row.indentNo = foundIndent.indentNo;
-          row.itemId = sid(found.itemId);
+          row.indentId = found.indentId;
+          row.indentNo = found.indentNo;
+          row.itemId = found.itemId; // Note: if itemId is available in indent detail
           row.itemName = found.itemName;
           row.uom = found.uom;
           row.indentQty = found.indentQty || 0;
@@ -289,7 +289,7 @@ export default function PurchaseOrderPage() {
     try {
       if (editId) {
         const updated = await purchaseOrderApi.update(editId, payload);
-        setPos((p) => p.map((x) => (sid(x._id) === editId ? updated : x)));
+        setPos((p) => p.map((x) => (sid(x) === editId ? updated : x)));
       } else {
         const created = await purchaseOrderApi.create(payload);
         setPos((p) => [created, ...p]);
@@ -307,7 +307,7 @@ export default function PurchaseOrderPage() {
     if (!window.confirm("Delete this purchase order?")) return;
     try {
       await purchaseOrderApi.remove(id);
-      setPos((p) => p.filter((x) => sid(x._id) !== id));
+      setPos((p) => p.filter((x) => sid(x) !== id));
       await loadIndents();
     } catch (err) {
       alert(err.message || "Delete failed");
@@ -343,12 +343,14 @@ export default function PurchaseOrderPage() {
   // Build flat list of all indent detail rows for the dropdown
   const indentDetailOptions = [];
   for (const indent of indents) {
-    for (const d of safeDetails(indent.details)) {
-      const detailId = sid(d._id);
+    const detailsArray = safeDetails(indent.details);
+    detailsArray.forEach((d, dIdx) => {
+      // Fallback ID if missing
+      const detailId = sid(d) || `idx-${sid(indent)}-${dIdx}`;
       if (detailId) {
         indentDetailOptions.push({
           detailId,
-          indentId: sid(indent._id),
+          indentId: sid(indent),
           indentNo: indent.indentNo,
           itemName: d.itemName || "—",
           uom: d.uom || "",
@@ -357,7 +359,7 @@ export default function PurchaseOrderPage() {
           balQty: d.balQty ?? d.indentQty ?? 0,
         });
       }
-    }
+    });
   }
 
   const selectStyle = {
@@ -447,7 +449,7 @@ export default function PurchaseOrderPage() {
                         0,
                       );
                       return (
-                        <tr key={sid(po._id)}>
+                        <tr key={sid(po)}>
                           <td className="inv-idx">
                             {String(i + 1).padStart(2, "0")}
                           </td>
@@ -503,7 +505,7 @@ export default function PurchaseOrderPage() {
                               </button>
                               <button
                                 className="inv-btn-icon inv-btn-danger"
-                                onClick={() => handleDelete(sid(po._id))}
+                                onClick={() => handleDelete(sid(po))}
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <polyline points="3 6 5 6 21 6" />
@@ -701,7 +703,7 @@ export default function PurchaseOrderPage() {
                 className="inv-input"
                 value={header.supplierId}
                 onChange={(e) => {
-                  const s = suppliers.find((x) => sid(x._id) === e.target.value);
+                  const s = suppliers.find((x) => sid(x) === e.target.value);
                   setHeader((h) => ({
                     ...h,
                     supplierId: e.target.value,
@@ -714,7 +716,7 @@ export default function PurchaseOrderPage() {
                   {loadingSuppliers ? "Loading suppliers..." : "Select supplier"}
                 </option>
                 {suppliers.map((s) => (
-                  <option key={sid(s._id)} value={sid(s._id)}>
+                  <option key={sid(s)} value={sid(s)}>
                     {s.supplierName}
                   </option>
                 ))}
@@ -1080,7 +1082,7 @@ export default function PurchaseOrderPage() {
                     Total
                   </td>
                   <td style={{ textAlign: "right", fontFamily: "DM Mono", fontSize: 11, color: "#dc2626" }}>
-                    −₹{fmt(totals.discPrice)}
+                    {totals.discPrice > 0 ? "−" : ""}₹{fmt(totals.discPrice)}
                   </td>
                   <td style={{ textAlign: "right", fontFamily: "DM Mono" }}>
                     {fmt(totals.poAmount)}
