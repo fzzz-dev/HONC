@@ -1,8 +1,7 @@
-// pages/PurchaseOrderPage.jsx
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { purchaseOrderApi, paymentTermsApi, supplierApi } from "../../services/inventoryApi";
 import Modal from "../../components/Modal";
-import SupplierCreateModal from "../../components/SupplierCreateModal";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n) =>
@@ -501,6 +500,8 @@ function buildDetailFromIndentOption(opt, gstEnabled, gstType) {
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function PurchaseOrderPage() {
+  const navigate = useNavigate();
+
   const [pos, setPos] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState(null);
@@ -512,9 +513,6 @@ export default function PurchaseOrderPage() {
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [pendingSelected, setPendingSelected] = useState(() => new Set());
   const [paymentTermsList, setPaymentTermsList] = useState([]);
-
-  // New Supplier state
-  const [newSupplierModalOpen, setNewSupplierModalOpen] = useState(false);
 
   const [view, setView] = useState("form");
   const [editId, setEditId] = useState(null);
@@ -1015,22 +1013,6 @@ export default function PurchaseOrderPage() {
   // ════════════════════════════════════════════════════════════════════════════
   return (
     <div className="inv-page">
-      {newSupplierModalOpen && (
-        <div className="inv-modal-overlay">
-          <div className="inv-modal">
-            <div className="inv-modal-header">New Supplier</div>
-            <div className="inv-modal-body">
-              <input className="inv-input" placeholder="Supplier Name" value={newSupplierForm.supplierName} onChange={e => setNewSupplierForm(f => ({ ...f, supplierName: e.target.value }))} style={{ marginBottom: 8 }} />
-              <input className="inv-input" placeholder="Category (e.g. Services, Goods)" value={newSupplierForm.type} onChange={e => setNewSupplierForm(f => ({ ...f, type: e.target.value }))} style={{ marginBottom: 8 }} />
-              <input className="inv-input" placeholder="Short Code (e.g. VEND01)" value={newSupplierForm.shortCode} onChange={e => setNewSupplierForm(f => ({ ...f, shortCode: e.target.value }))} />
-            </div>
-            <div className="inv-modal-footer">
-              <button className="inv-btn-secondary" onClick={() => setNewSupplierModalOpen(false)}>Cancel</button>
-              <button className="inv-btn-primary" onClick={handleCreateSupplier} disabled={savingSupplier}>{savingSupplier ? "Saving..." : "Save"}</button>
-            </div>
-          </div>
-        </div>
-      )}
       <div className="inv-page-header">
         <div>
           <h1 className="inv-page-title">
@@ -1221,7 +1203,7 @@ export default function PurchaseOrderPage() {
                     </span>
                     <button
                   type="button"
-                  onClick={() => setNewSupplierModalOpen(true)}
+                  onClick={() => navigate('/supplier')}
                   style={{ fontSize: 10, color: "#6366f1", border: "none", background: "none", cursor: "pointer", padding: 0 }}
                 >
                   + New Supplier
@@ -1896,16 +1878,7 @@ export default function PurchaseOrderPage() {
         </Modal>
       )}
 
-      {newSupplierModalOpen && (
-        <SupplierCreateModal
-          onClose={() => setNewSupplierModalOpen(false)}
-          onCreated={async (created) => {
-            await loadSuppliers();
-            setHeader((h) => ({ ...h, supplierId: sid(created), supplierName: created.supplierName }));
-            setNewSupplierModalOpen(false);
-          }}
-        />
-      )}
+
     </div>
   );
 }

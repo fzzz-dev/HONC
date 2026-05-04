@@ -83,13 +83,11 @@ function normalizeMovementType(value) {
   return value;
 }
 
-/** Item Name + Spec + Make; Spec and Make only if both are non-empty. */
 function computeItemDescription(itemName, spec, make) {
   const n = String(itemName || "").trim();
   const s = String(spec || "").trim();
   const m = String(make || "").trim();
-  if (s && m) return `${n} ${s} ${m}`.replace(/\s+/g, " ").trim();
-  return n;
+  return [n, s, m].filter(Boolean).join(" ");
 }
 
 async function assertUniqueItemDescription(description, excludeId) {
@@ -260,7 +258,6 @@ function normalizePayload(body) {
   [
     "head",
     "group",
-    "subCategory",
     "itemName",
     "uom",
     "make",
@@ -464,8 +461,6 @@ exports.downloadTemplate = async (req, res) => {
       "headId",
       "head",
       "group",
-      "category",
-      "subCategory",
       "itemName",
       "uom",
       "make",
@@ -486,8 +481,6 @@ exports.downloadTemplate = async (req, res) => {
       headId: 1,
       head: "Raw Material",
       group: "Steel",
-      category: "",
-      subCategory: "Flat",
       itemName: "MS Flat Bar 50x6",
       uom: "KG",
       make: "TATA",
@@ -570,7 +563,6 @@ exports.bulkUpload = async (req, res) => {
 
       const groupFromFile = rowField(row, [
         "group",
-        "category",
         "groupName",
         "mainCategory",
       ]);
@@ -579,7 +571,6 @@ exports.bulkUpload = async (req, res) => {
         headId: rowField(row, ["headId"]),
         head: rowField(row, HEAD_NAME_ALIASES),
         group: groupFromFile,
-        subCategory: rowField(row, ["subCategory", "sub_category", "SubCategory"]),
         itemName: rowField(row, ["itemName", "item", "Item Name", "Item"]),
         uom: rowField(row, ["uom", "UOM", "unit"]),
         make: rowField(row, ["make", "Make", "brand"]),

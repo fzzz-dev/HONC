@@ -63,6 +63,7 @@ export default function ItemPage() {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [bulkUploadResult, setBulkUploadResult] = useState(null);
   const fileRef = useRef();
   const bulkFileRef = useRef();
 
@@ -330,18 +331,7 @@ export default function ItemPage() {
     try {
       const result = await itemApi.bulkUpload(file);
       await loadAll();
-      const msg = [
-        `Inserted: ${result.insertedCount || 0}`,
-        `Failed: ${result.failedCount || 0}`,
-      ];
-      if (result.errors?.length) {
-        const firstFew = result.errors
-          .slice(0, 5)
-          .map((er) => `Row ${er.row}: ${er.message}`)
-          .join("\n");
-        msg.push(`Errors:\n${firstFew}`);
-      }
-      alert(msg.join("\n"));
+      setBulkUploadResult(result);
     } catch (err) {
       alert(err.message || "Bulk upload failed");
     }
@@ -802,6 +792,33 @@ export default function ItemPage() {
             Are you sure you want to delete this item? This action cannot be
             undone.
           </p>
+        </Modal>
+      )}
+
+      {/* Bulk Upload Summary Modal */}
+      {bulkUploadResult && (
+        <Modal
+          title="Bulk Upload Summary"
+          onClose={() => setBulkUploadResult(null)}
+          onSave={() => setBulkUploadResult(null)}
+          saveLabel="Close"
+        >
+          <div style={{ marginBottom: 16 }}>
+            <p style={{ margin: "0 0 8px" }}><strong>Inserted:</strong> {bulkUploadResult.insertedCount}</p>
+            <p style={{ margin: "0 0 8px" }}><strong>Failed:</strong> {bulkUploadResult.failedCount}</p>
+          </div>
+          {bulkUploadResult.errors?.length > 0 && (
+            <div>
+              <div className="inv-section-label" style={{ color: "#dc2626", marginBottom: 8, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Errors</div>
+              <div style={{ maxHeight: 250, overflowY: "auto", background: "#fef2f2", padding: 12, borderRadius: 6, border: "1px solid #fca5a5", fontSize: 13, color: "#991b1b" }}>
+                {bulkUploadResult.errors.map((e, idx) => (
+                  <div key={idx} style={{ marginBottom: 4 }}>
+                    <strong>Row {e.row}:</strong> {e.message}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Modal>
       )}
     </div>

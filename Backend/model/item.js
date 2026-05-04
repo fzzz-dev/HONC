@@ -23,10 +23,7 @@ const Item = sequelize.define("Item", {
     type: DataTypes.STRING,
     defaultValue: "",
   },
-  subCategory: {
-    type: DataTypes.STRING,
-    defaultValue: "",
-  },
+
   itemName: {
     type: DataTypes.STRING,
     allowNull: false,
@@ -50,6 +47,11 @@ const Item = sequelize.define("Item", {
     type: DataTypes.ENUM("moving", "non-moving"),
     allowNull: false,
     defaultValue: "moving",
+  },
+  gstType: {
+    type: DataTypes.ENUM("local", "other"),
+    allowNull: false,
+    defaultValue: "local",
   },
   itemDescription: {
     type: DataTypes.STRING(1024),
