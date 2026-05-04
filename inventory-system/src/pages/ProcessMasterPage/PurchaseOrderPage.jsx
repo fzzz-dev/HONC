@@ -1892,6 +1892,9 @@ export default function PurchaseOrderPage() {
               </tbody>
             </table>
           </div>
+        </Modal>
+      )}
+
       {saveSuccessModal && (
         <Modal
           title="Success"
@@ -1906,25 +1909,6 @@ export default function PurchaseOrderPage() {
             <div style={{ fontSize: "48px", color: "#10b981", marginBottom: "16px" }}>✓</div>
             <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#1e293b", marginBottom: "8px" }}>Saved Successfully!</h3>
             <p style={{ color: "#64748b" }}>The Purchase Order has been recorded.</p>
-          </div>
-        </Modal>
-      )}
-
-
-      {saveSuccessModal && (
-        <Modal
-          title="Success"
-          onClose={() => setSaveSuccessModal(false)}
-          onSave={() => {
-            setSaveSuccessModal(false);
-            setView("list");
-          }}
-          saveLabel="Go to List"
-        >
-          <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: "48px", color: "#10b981", marginBottom: "16px" }}>✓</div>
-            <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#1e293b", marginBottom: "8px" }}>Saved Successfully!</h3>
-            <p style={{ color: "#64748b" }}>The Purchase Indent has been recorded.</p>
           </div>
         </Modal>
       )}
