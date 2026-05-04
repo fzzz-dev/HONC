@@ -1,13 +1,20 @@
 // pages/PurchaseOrderPage.jsx
 import { useState, useEffect } from "react";
-import { purchaseOrderApi, paymentTermsApi } from "../../services/inventoryApi";
+import { purchaseOrderApi, paymentTermsApi, supplierApi } from "../../services/inventoryApi";
 import Modal from "../../components/Modal";
+import SupplierCreateModal from "../../components/SupplierCreateModal";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n) =>
   Number(n || 0).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  });
+
+const fmtQty = (n) =>
+  Number(n || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   });
 
 const today = () => new Date().toISOString().split("T")[0];
@@ -310,7 +317,10 @@ export default function PurchaseOrderPage() {
   const [pendingSelected, setPendingSelected] = useState(() => new Set());
   const [paymentTermsList, setPaymentTermsList] = useState([]);
 
-  const [view, setView] = useState("list");
+  // New Supplier state
+  const [newSupplierModalOpen, setNewSupplierModalOpen] = useState(false);
+
+  const [view, setView] = useState("form");
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
@@ -325,6 +335,7 @@ export default function PurchaseOrderPage() {
     loadPos();
     loadIndents();
     loadSuppliers();
+    openNew();
     (async () => {
       try {
         const pt = await paymentTermsApi.getAll();
@@ -520,7 +531,7 @@ export default function PurchaseOrderPage() {
     setSaving(true);
 
     const cleanDetails = details.map(({ _rowId, ...rest }) => rest);
-    const payload = { ...header, gstEnabled, gstType, details: cleanDetails };
+    const payload = { ...header, gstEnabled, gstType, details: cleanDetails, createdOn: header.createdOn || today() };
 
     try {
       if (editId) {
@@ -529,9 +540,11 @@ export default function PurchaseOrderPage() {
       } else {
         const created = await purchaseOrderApi.create(payload);
         setPos((p) => [created, ...p]);
+        setEditId(sid(created));
+        setHeader((h) => ({ ...h, poNo: created.poNo }));
       }
       await loadIndents();
-      setView("list");
+      alert("Purchase Order has been saved successfully!");
     } catch (err) {
       setFormError(err.message || "Save failed");
     } finally {
@@ -550,6 +563,7 @@ export default function PurchaseOrderPage() {
     }
   }
 
+
   const totals = details.reduce(
     (acc, r) => ({
       grossAmount: acc.grossAmount + (r.poQty || 0) * (r.poRate || 0),
@@ -560,6 +574,7 @@ export default function PurchaseOrderPage() {
       igst: acc.igst + (r.igst || 0),
       totGst: acc.totGst + (r.totGst || 0),
       totalAmount: acc.totalAmount + (r.totalAmount || 0),
+      poQty: acc.poQty + (Number(r.poQty) || 0),
     }),
     {
       grossAmount: 0,
@@ -570,8 +585,13 @@ export default function PurchaseOrderPage() {
       igst: 0,
       totGst: 0,
       totalAmount: 0,
+      poQty: 0,
     },
   );
+
+  const rawTotalAmount = totals.totalAmount;
+  const grandTotal = Math.round(rawTotalAmount);
+  const roundOff = grandTotal - rawTotalAmount;
 
   const effectiveDiscPct =
     totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
@@ -793,6 +813,22 @@ export default function PurchaseOrderPage() {
   // ════════════════════════════════════════════════════════════════════════════
   return (
     <div className="inv-page">
+      {newSupplierModalOpen && (
+        <div className="inv-modal-overlay">
+          <div className="inv-modal">
+            <div className="inv-modal-header">New Supplier</div>
+            <div className="inv-modal-body">
+              <input className="inv-input" placeholder="Supplier Name" value={newSupplierForm.supplierName} onChange={e => setNewSupplierForm(f => ({ ...f, supplierName: e.target.value }))} style={{ marginBottom: 8 }} />
+              <input className="inv-input" placeholder="Category (e.g. Services, Goods)" value={newSupplierForm.type} onChange={e => setNewSupplierForm(f => ({ ...f, type: e.target.value }))} style={{ marginBottom: 8 }} />
+              <input className="inv-input" placeholder="Short Code (e.g. VEND01)" value={newSupplierForm.shortCode} onChange={e => setNewSupplierForm(f => ({ ...f, shortCode: e.target.value }))} />
+            </div>
+            <div className="inv-modal-footer">
+              <button className="inv-btn-secondary" onClick={() => setNewSupplierModalOpen(false)}>Cancel</button>
+              <button className="inv-btn-primary" onClick={handleCreateSupplier} disabled={savingSupplier}>{savingSupplier ? "Saving..." : "Save"}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="inv-page-header">
         <div>
           <h1 className="inv-page-title">
@@ -811,7 +847,7 @@ export default function PurchaseOrderPage() {
             {saving ? "Saving…" : "Save PO"}
           </button>
           <button className="inv-btn-secondary" type="button" onClick={() => setView("list")}>
-            ← Back
+            View PO
           </button>
           <button
             type="button"
@@ -913,180 +949,264 @@ export default function PurchaseOrderPage() {
         </div>
       )}
 
-      {/* ── Header card ── */}
-      <div className="inv-card">
-        <div className="inv-card-body">
-          <div className="inv-section-label">Header</div>
-          <div className="inv-form-row cols-4">
-            <div className="inv-field">
-              <label className="inv-label">
-                PO No
-                <span
-                  style={{
-                    marginLeft: 6,
-                    fontSize: 10,
-                    fontWeight: 500,
-                    color: "#6366f1",
-                    background: "#eef2ff",
-                    border: "1px solid #c7d2fe",
-                    borderRadius: 4,
-                    padding: "1px 6px",
-                    letterSpacing: "0.03em",
-                  }}
+      <div style={{ display: "flex", gap: "20px", alignItems: "flex-start", flexWrap: "wrap" }}>
+        {/* ── LEFT PANEL: Header & Summary ── */}
+        <div style={{ flex: "1 1 300px", maxWidth: "350px", display: "flex", flexDirection: "column", gap: "20px" }}>
+          
+          {/* ── Header card ── */}
+          <div className="inv-card">
+            <div className="inv-card-body">
+              <div className="inv-section-label">Header</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div className="inv-field">
+                  <label className="inv-label">
+                    PO No
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        fontSize: 10,
+                        fontWeight: 500,
+                        color: "#6366f1",
+                        background: "#eef2ff",
+                        border: "1px solid #c7d2fe",
+                        borderRadius: 4,
+                        padding: "1px 6px",
+                        letterSpacing: "0.03em",
+                      }}
+                    >
+                      Auto
+                    </span>
+                  </label>
+                  <input
+                    className="inv-input"
+                    value={header.poNo}
+                    readOnly={!editId}
+                    onChange={(e) =>
+                      setHeader((h) => ({ ...h, poNo: e.target.value }))
+                    }
+                    style={{
+                      background: editId ? undefined : "#f8f7ff",
+                      color: "#4f46e5",
+                      fontWeight: 600,
+                      cursor: editId ? "text" : "default",
+                      border: "1px solid #c7d2fe",
+                    }}
+                  />
+                </div>
+                <div className="inv-field">
+                  <label className="inv-label">Date</label>
+                  <input
+                    className="inv-input"
+                    type="date"
+                    value={header.date}
+                    onChange={(e) =>
+                      setHeader((h) => ({ ...h, date: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="inv-field">
+                  <label className="inv-label" style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                    <span>
+                      Supplier
+                      {loadingSuppliers && (
+                        <span style={{ marginLeft: 6, fontSize: 10, color: "#6b7280" }}>
+                          Loading...
+                        </span>
+                      )}
+                    </span>
+                    <button
+                  type="button"
+                  onClick={() => setNewSupplierModalOpen(true)}
+                  style={{ fontSize: 10, color: "#6366f1", border: "none", background: "none", cursor: "pointer", padding: 0 }}
                 >
-                  Auto
-                </span>
-              </label>
-              <input
-                className="inv-input"
-                value={header.poNo}
-                readOnly={!editId}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, poNo: e.target.value }))
-                }
-                style={{
-                  background: editId ? undefined : "#f8f7ff",
-                  color: "#4f46e5",
-                  fontWeight: 600,
-                  cursor: editId ? "text" : "default",
-                  border: "1px solid #c7d2fe",
-                }}
-              />
+                  + New Supplier
+                </button>
+                  </label>
+                  <select
+                    className="inv-input"
+                    value={header.supplierId}
+                    onChange={(e) => {
+                      const s = suppliers.find((x) => sid(x) === e.target.value);
+                      const ptId = s?.paymentTermsId ? String(s.paymentTermsId) : "";
+                      const pt = ptId
+                        ? paymentTermsList.find((x) => sid(x) === ptId)
+                        : null;
+                      setHeader((h) => ({
+                        ...h,
+                        supplierId: e.target.value,
+                        supplierName: s?.supplierName || "",
+                        paymentTermsId: ptId,
+                        paymentTermsName: pt?.name || "",
+                      }));
+                    }}
+                    disabled={loadingSuppliers}
+                  >
+                    <option value="">
+                      {loadingSuppliers ? "Loading suppliers..." : "Select supplier"}
+                    </option>
+                    {suppliers.map((s) => (
+                      <option key={sid(s)} value={sid(s)}>
+                        {s.supplierName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="inv-field" style={{ display: "none" }}>
+                  <label className="inv-label">Status</label>
+                  <select
+                    className="inv-input"
+                    value={header.status}
+                    onChange={(e) =>
+                      setHeader((h) => ({ ...h, status: e.target.value }))
+                    }
+                  >
+                    {["Open", "Closed", "Cancelled"].map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="inv-field">
+                  <label className="inv-label">Payment terms</label>
+                  <select
+                    className="inv-input"
+                    value={header.paymentTermsId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const pt = paymentTermsList.find(
+                        (x) => String(x.id || x._id) === id,
+                      );
+                      setHeader((h) => ({
+                        ...h,
+                        paymentTermsId: id,
+                        paymentTermsName: pt?.name || "",
+                      }));
+                    }}
+                  >
+                    <option value="">Optional — select terms</option>
+                    {paymentTermsList.map((p) => (
+                      <option key={sid(p)} value={sid(p)}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="inv-field" style={{ display: "none" }}>
+                  <label className="inv-label">Created By</label>
+                  <input
+                    className="inv-input"
+                    value={header.createdBy}
+                    onChange={(e) =>
+                      setHeader((h) => ({ ...h, createdBy: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="inv-field" style={{ display: "none" }}>
+                  <label className="inv-label">Created On</label>
+                  <input
+                    className="inv-input"
+                    type="date"
+                    value={header.createdOn}
+                    onChange={(e) =>
+                      setHeader((h) => ({ ...h, createdOn: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
             </div>
-            <div className="inv-field">
-              <label className="inv-label">Date</label>
-              <input
-                className="inv-input"
-                type="date"
-                value={header.date}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, date: e.target.value }))
-                }
-              />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">
-                Supplier
-                {loadingSuppliers && (
-                  <span style={{ marginLeft: 6, fontSize: 10, color: "#6b7280" }}>
-                    Loading...
-                  </span>
+          </div>
+
+          {/* ── Summary card ── */}
+          <div className="inv-card">
+            <div className="inv-card-body">
+              <div className="inv-section-label">Summary</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div className="inv-summary-box">
+                  <div className="inv-summary-box-label">Remarks</div>
+                  <input
+                    className="inv-input"
+                    value={header.remarks}
+                    onChange={(e) =>
+                      setHeader((h) => ({ ...h, remarks: e.target.value }))
+                    }
+                    placeholder="Optional remarks"
+                    style={{ marginTop: 4, background: "transparent" }}
+                  />
+                </div>
+
+                <div className="inv-summary-box" style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}>
+                  <div className="inv-summary-box-label">Gross Amount</div>
+                  <div className="inv-summary-box-value" style={{ color: "#64748b" }}>
+                    ₹{fmt(totals.grossAmount)}
+                  </div>
+                </div>
+
+                <div
+                  className="inv-summary-box"
+                  style={{ background: "#fffbeb", borderColor: "#fcd34d", position: "relative", overflow: "hidden" }}
+                >
+                  {totals.discPrice > 0 && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 6,
+                        right: 0,
+                        background: "#f59e0b",
+                        color: "#fff",
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: "2px 8px 2px 6px",
+                        borderRadius: "4px 0 0 4px",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      SAVINGS
+                    </div>
+                  )}
+                  <div className="inv-summary-box-label">Total Discount</div>
+                  <div className="inv-summary-box-value" style={{ color: "#b45309" }}>
+                    −₹{fmt(totals.discPrice)}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#92400e", marginTop: 2, fontWeight: 500 }}>
+                    {effectiveDiscPct.toFixed(2)}% effective
+                  </div>
+                </div>
+
+                <div className="inv-summary-box">
+                  <div className="inv-summary-box-label">PO Amount (after disc)</div>
+                  <div className="inv-summary-box-value">₹{fmt(totals.poAmount)}</div>
+                </div>
+
+                {gstEnabled && (
+                  <>
+                    <div className="inv-summary-box">
+                      <div className="inv-summary-box-label">Total GST</div>
+                      <div className="inv-summary-box-value">₹{fmt(totals.totGst)}</div>
+                    </div>
+                  </>
                 )}
-              </label>
-              <select
-                className="inv-input"
-                value={header.supplierId}
-                onChange={(e) => {
-                  const s = suppliers.find((x) => sid(x) === e.target.value);
-                  const ptId = s?.paymentTermsId ? String(s.paymentTermsId) : "";
-                  const pt = ptId
-                    ? paymentTermsList.find((x) => sid(x) === ptId)
-                    : null;
-                  setHeader((h) => ({
-                    ...h,
-                    supplierId: e.target.value,
-                    supplierName: s?.supplierName || "",
-                    paymentTermsId: ptId,
-                    paymentTermsName: pt?.name || "",
-                  }));
-                }}
-                disabled={loadingSuppliers}
-              >
-                <option value="">
-                  {loadingSuppliers ? "Loading suppliers..." : "Select supplier"}
-                </option>
-                {suppliers.map((s) => (
-                  <option key={sid(s)} value={sid(s)}>
-                    {s.supplierName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Status</label>
-              <select
-                className="inv-input"
-                value={header.status}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, status: e.target.value }))
-                }
-              >
-                {["Open", "Closed", "Cancelled"].map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
 
-          <div className="inv-form-row cols-2">
-            <div className="inv-field">
-              <label className="inv-label">Payment terms</label>
-              <select
-                className="inv-input"
-                value={header.paymentTermsId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  const pt = paymentTermsList.find(
-                    (x) => String(x.id || x._id) === id,
-                  );
-                  setHeader((h) => ({
-                    ...h,
-                    paymentTermsId: id,
-                    paymentTermsName: pt?.name || "",
-                  }));
-                }}
-              >
-                <option value="">Optional — select terms</option>
-                {paymentTermsList.map((p) => (
-                  <option key={sid(p)} value={sid(p)}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div />
-          </div>
+                <div className="inv-summary-box">
+                  <div className="inv-summary-box-label">Round Off</div>
+                  <div className="inv-summary-box-value">₹{fmt(roundOff)}</div>
+                </div>
 
-          <div className="inv-form-row cols-3">
-            <div className="inv-field">
-              <label className="inv-label">Created By</label>
-              <input
-                className="inv-input"
-                value={header.createdBy}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, createdBy: e.target.value }))
-                }
-              />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Created On</label>
-              <input
-                className="inv-input"
-                type="date"
-                value={header.createdOn}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, createdOn: e.target.value }))
-                }
-              />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Remarks</label>
-              <input
-                className="inv-input"
-                value={header.remarks}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, remarks: e.target.value }))
-                }
-              />
+                <div className="inv-summary-box" style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}>
+                  <div className="inv-summary-box-label">Grand Total</div>
+                  <div className="inv-summary-box-value" style={{ color: "var(--accent)" }}>
+                    ₹{fmt(grandTotal)}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Detail card ── */}
-      <div className="inv-card">
+        {/* ── RIGHT PANEL: Detail ── */}
+        <div style={{ flex: "999 1 500px", minWidth: 0 }}>
+          {/* ── Detail card ── */}
+          <div className="inv-card">
         <div className="inv-card-body">
           <div
             style={{
@@ -1120,11 +1240,9 @@ export default function PurchaseOrderPage() {
               <thead>
                 <tr>
                   <th>#</th>
+                  <th style={{ minWidth: 100 }}>Indent No</th>
                   <th style={{ minWidth: 220 }}>
-                    Indent Item
-                    <span style={{ fontSize: 10, fontWeight: 400, color: "var(--text-secondary)", marginLeft: 4 }}>
-                      (from Purchase Indent)
-                    </span>
+                    Item Description
                   </th>
                   <th style={{ minWidth: 80 }}>UOM</th>
                   <th style={{ minWidth: 80 }}>Indent Qty</th>
@@ -1167,6 +1285,15 @@ export default function PurchaseOrderPage() {
                       {idx + 1}
                     </td>
 
+                    {/* Indent No — read-only */}
+                    <td>
+                      <input
+                        value={row.indentNo || "—"}
+                        readOnly
+                        style={{ ...roInputStyle, width: 90, textAlign: "left" }}
+                      />
+                    </td>
+
                     {/* Indent item picker */}
                     <td style={{ minWidth: 220 }}>
                       <select
@@ -1182,15 +1309,10 @@ export default function PurchaseOrderPage() {
                             key={`${opt.detailId}-${optIdx}`}
                             value={String(opt.detailId)}
                           >
-                            {opt.indentNo} › {opt.itemName} (bal: {opt.balQty} / {opt.indentQty} {opt.uom})
+                            {opt.itemName} (bal: {fmtQty(opt.balQty)} / {fmtQty(opt.indentQty)} {opt.uom})
                           </option>
                         ))}
                       </select>
-                      {row.indentNo && (
-                        <div style={{ fontSize: 10, color: "#6366f1", paddingLeft: 4, marginTop: 2 }}>
-                          📋 {row.indentNo}
-                        </div>
-                      )}
                     </td>
 
                     {/* UOM — read-only */}
@@ -1207,9 +1329,10 @@ export default function PurchaseOrderPage() {
                     <td>
                       <input
                         type="number"
+                        step="0.001"
                         value={row.indentQty}
                         readOnly
-                        style={roInputStyle}
+                        style={{ ...roInputStyle, textAlign: "right" }}
                       />
                     </td>
 
@@ -1217,9 +1340,10 @@ export default function PurchaseOrderPage() {
                     <td>
                       <input
                         type="number"
+                        step="0.001"
                         value={row.alPoQty}
                         readOnly
-                        style={roInputStyle}
+                        style={{ ...roInputStyle, textAlign: "right" }}
                       />
                     </td>
 
@@ -1227,10 +1351,12 @@ export default function PurchaseOrderPage() {
                     <td>
                       <input
                         type="number"
+                        step="0.001"
                         value={row.balQty}
                         readOnly
                         style={{
                           ...roInputStyle,
+                          textAlign: "right",
                           background:
                             row.balQty === 0 && row.indentQty > 0 ? "#fff7ed" : "#f9fafb",
                           color:
@@ -1245,6 +1371,7 @@ export default function PurchaseOrderPage() {
                     <td>
                       <input
                         type="number"
+                        step="0.001"
                         value={row.poQty}
                         min={0}
                         onChange={(e) => updateDetail(idx, "poQty", e.target.value)}
@@ -1401,9 +1528,13 @@ export default function PurchaseOrderPage() {
               {/* Footer totals */}
               <tfoot>
                 <tr>
-                  <td colSpan={9} style={{ textAlign: "right", fontWeight: 600 }}>
+                  <td colSpan={7} style={{ textAlign: "right", fontWeight: 600 }}>
                     Total
                   </td>
+                  <td style={{ textAlign: "right", fontFamily: "DM Mono", fontWeight: 600 }}>
+                    {fmtQty(totals.poQty)}
+                  </td>
+                  <td colSpan={2}></td>
                   <td style={{ textAlign: "right", fontFamily: "DM Mono", fontSize: 11, color: "#dc2626" }}>
                     {totals.discPrice > 0 ? "−" : ""}₹{fmt(totals.discPrice)}
                   </td>
@@ -1432,7 +1563,7 @@ export default function PurchaseOrderPage() {
                       </td>
                     </>
                   )}
-                  <td style={{ textAlign: "right", fontFamily: "DM Mono" }}>
+                  <td style={{ textAlign: "right", fontFamily: "DM Mono", fontWeight: 600 }}>
                     {fmt(totals.totalAmount)}
                   </td>
                   <td colSpan={3}></td>
@@ -1443,95 +1574,6 @@ export default function PurchaseOrderPage() {
         </div>
       </div>
 
-      {/* ── Summary card ── */}
-      <div className="inv-card">
-        <div className="inv-card-body">
-          <div className="inv-section-label">Summary</div>
-          <div className="inv-summary-grid">
-            <div className="inv-summary-box" style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}>
-              <div className="inv-summary-box-label">Gross Amount</div>
-              <div className="inv-summary-box-value" style={{ color: "#64748b" }}>
-                ₹{fmt(totals.grossAmount)}
-              </div>
-            </div>
-
-            <div
-              className="inv-summary-box"
-              style={{ background: "#fffbeb", borderColor: "#fcd34d", position: "relative", overflow: "hidden" }}
-            >
-              {totals.discPrice > 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 6,
-                    right: 0,
-                    background: "#f59e0b",
-                    color: "#fff",
-                    fontSize: 9,
-                    fontWeight: 700,
-                    padding: "2px 8px 2px 6px",
-                    borderRadius: "4px 0 0 4px",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  SAVINGS
-                </div>
-              )}
-              <div className="inv-summary-box-label">Total Discount</div>
-              <div className="inv-summary-box-value" style={{ color: "#b45309" }}>
-                −₹{fmt(totals.discPrice)}
-              </div>
-              <div style={{ fontSize: 11, color: "#92400e", marginTop: 2, fontWeight: 500 }}>
-                {effectiveDiscPct.toFixed(2)}% effective
-              </div>
-            </div>
-
-            <div className="inv-summary-box">
-              <div className="inv-summary-box-label">PO Amount (after disc, before GST)</div>
-              <div className="inv-summary-box-value">₹{fmt(totals.poAmount)}</div>
-              {totals.discPrice > 0 && (
-                <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2, fontWeight: 500 }}>
-                  ↓ ₹{fmt(totals.discPrice)} saved vs gross
-                </div>
-              )}
-            </div>
-
-            {gstEnabled && (
-              <>
-                <div className="inv-summary-box">
-                  <div className="inv-summary-box-label">Total GST</div>
-                  <div className="inv-summary-box-value">₹{fmt(totals.totGst)}</div>
-                </div>
-                {gstType === "local" ? (
-                  <div className="inv-summary-box">
-                    <div className="inv-summary-box-label">SGST + CGST</div>
-                    <div className="inv-summary-box-value">
-                      ₹{fmt(totals.sgst + totals.cgst)}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="inv-summary-box">
-                    <div className="inv-summary-box-label">IGST (Other State)</div>
-                    <div className="inv-summary-box-value" style={{ color: "#7c3aed" }}>
-                      ₹{fmt(totals.igst)}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            <div className="inv-summary-box" style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}>
-              <div className="inv-summary-box-label">Grand Total</div>
-              <div className="inv-summary-box-value" style={{ color: "var(--accent)" }}>
-                ₹{fmt(totals.totalAmount)}
-              </div>
-              {totals.discPrice > 0 && (
-                <div style={{ fontSize: 11, color: "#1d4ed8", marginTop: 2, fontWeight: 500 }}>
-                  vs gross ₹{fmt(totals.grossAmount + totals.totGst)} — saved ₹{fmt(totals.discPrice)}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1625,6 +1667,17 @@ export default function PurchaseOrderPage() {
             </table>
           </div>
         </Modal>
+      )}
+
+      {newSupplierModalOpen && (
+        <SupplierCreateModal
+          onClose={() => setNewSupplierModalOpen(false)}
+          onCreated={async (created) => {
+            await loadSuppliers();
+            setHeader((h) => ({ ...h, supplierId: sid(created), supplierName: created.supplierName }));
+            setNewSupplierModalOpen(false);
+          }}
+        />
       )}
     </div>
   );

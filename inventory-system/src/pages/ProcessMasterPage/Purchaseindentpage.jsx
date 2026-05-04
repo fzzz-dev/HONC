@@ -10,8 +10,8 @@ import {
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) =>
   Number(n).toLocaleString("en-IN", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   });
 
 const today = () => new Date().toISOString().split("T")[0];
@@ -75,10 +75,10 @@ export default function PurchaseIndentPage() {
   const [listError, setListError] = useState(null);
 
   // ── form state ────────────────────────────────────────────────────────────
-  const [view, setView] = useState("list"); // "list" | "form"
+  const [view, setView] = useState("form"); // "list" | "form"
   const [editId, setEditId] = useState(null);
   const [header, setHeader] = useState(emptyHeader());
-  const [details, setDetails] = useState([emptyDetail()]);
+  const [details, setDetails] = useState(Array.from({ length: 10 }, emptyDetail));
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -86,6 +86,7 @@ export default function PurchaseIndentPage() {
   useEffect(() => {
     loadLookups();
     loadIndents();
+    openNew();
   }, []);
 
   async function loadLookups() {
@@ -141,7 +142,7 @@ export default function PurchaseIndentPage() {
     } catch {
       setHeader({ ...emptyHeader(), indentNo: "" });
     }
-    setDetails([emptyDetail()]);
+    setDetails(Array.from({ length: 10 }, emptyDetail));
     setEditId(null);
     setView("form");
   }
@@ -198,7 +199,7 @@ export default function PurchaseIndentPage() {
 
       if (field === "itemId") {
         const found = items.find((it) => (it.id || it._id) === val);
-        row.itemName = found?.itemName || "";
+        row.itemName = found?.itemDescription || found?.itemName || "";
         row.uom = found?.uom || "";
       }
 
@@ -228,7 +229,7 @@ export default function PurchaseIndentPage() {
       ...rest,
       id: rest.id || `dtl-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
     }));
-    const payload = { ...header, details: cleanDetails };
+    const payload = { ...header, details: cleanDetails, createdOn: today() };
 
     try {
       if (editId) {
@@ -442,7 +443,7 @@ export default function PurchaseIndentPage() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="inv-btn-secondary" onClick={() => setView("list")}>
-            ← Back
+            View Indent
           </button>
           <button
             className="inv-btn-primary"
@@ -539,7 +540,7 @@ export default function PurchaseIndentPage() {
               </select>
             </div>
 
-            <div className="inv-field">
+            <div className="inv-field" style={{ display: "none" }}>
               <label className="inv-label">Status</label>
               <select
                 className="inv-input"
@@ -557,7 +558,7 @@ export default function PurchaseIndentPage() {
             </div>
           </div>
 
-          <div className="inv-form-row cols-3">
+          <div className="inv-form-row cols-3" style={{ display: "none" }}>
             <div className="inv-field">
               <label className="inv-label">Created By</label>
               <input
@@ -613,14 +614,14 @@ export default function PurchaseIndentPage() {
             </button>
           </div>
 
-          <div style={{ overflowX: "auto" }}>
+          <div style={{ overflowX: "auto", overflowY: "auto", minHeight: "300px", maxHeight: "500px" }}>
             <table className="po-table">
               <thead>
                 <tr>
                   <th>#</th>
-                  <th style={{ minWidth: 150 }}>Item Category</th>
+                  <th style={{ minWidth: 150, display: "none" }}>Item Category</th>
                   <th style={{ minWidth: 150 }}>Main Category</th>
-                  <th style={{ minWidth: 170 }}>Item Name</th>
+                  <th style={{ minWidth: 170 }}>Item Description</th>
                   <th style={{ minWidth: 70 }}>UOM</th>
                   <th style={{ minWidth: 90 }}>Indent Qty</th>
                   <th style={{ minWidth: 120 }}>Due Date</th>
@@ -632,7 +633,7 @@ export default function PurchaseIndentPage() {
                 {details.map((row, idx) => {
                   const filteredCategories = row.inventoryHeadId
                     ? categories.filter((c) => c.headId === row.inventoryHeadId)
-                    : [];
+                    : categories;
 
                   const filteredItems = row.mainCategoryId
                     ? items.filter((it) => {
@@ -643,7 +644,7 @@ export default function PurchaseIndentPage() {
                     })
                     : row.inventoryHeadId
                       ? items.filter((it) => it.headId === row.inventoryHeadId)
-                      : [];
+                      : items;
 
                   return (
                     <tr key={row._rowId}>
@@ -656,7 +657,7 @@ export default function PurchaseIndentPage() {
                         {idx + 1}
                       </td>
 
-                      <td>
+                      <td style={{ display: "none" }}>
                         <select
                           value={row.inventoryHeadId}
                           onChange={(e) =>
@@ -683,12 +684,9 @@ export default function PurchaseIndentPage() {
                             updateDetail(idx, "mainCategoryId", e.target.value)
                           }
                           style={selectStyle}
-                          disabled={!row.inventoryHeadId}
                         >
                           <option value="">
-                            {row.inventoryHeadId
-                              ? "Select main cat"
-                              : "Select category first"}
+                            Select main cat
                           </option>
                           {filteredCategories.map((c) => (
                             <option key={c.id || c._id} value={c.id || c._id}>
@@ -705,19 +703,16 @@ export default function PurchaseIndentPage() {
                             updateDetail(idx, "itemId", e.target.value)
                           }
                           style={selectStyle}
-                          disabled={!row.inventoryHeadId}
                         >
                           <option value="">
-                            {row.inventoryHeadId
-                              ? "Select item"
-                              : "Select category first"}
+                            Select item
                           </option>
                           {filteredItems.map((it) => (
                             <option
                               key={it.id || it._id}
                               value={it.id || it._id}
                             >
-                              {it.itemName}
+                              {it.itemDescription || it.itemName}
                             </option>
                           ))}
                         </select>
@@ -743,6 +738,7 @@ export default function PurchaseIndentPage() {
                       <td>
                         <input
                           type="number"
+                          step="0.001"
                           value={row.indentQty}
                           min={0}
                           onChange={(e) =>
@@ -823,13 +819,13 @@ export default function PurchaseIndentPage() {
         <div className="inv-card-body">
           <div className="inv-section-label">Summary</div>
           <div className="inv-summary-grid">
-            <div className="inv-summary-box">
+            <div className="inv-summary-box" style={{ display: "none" }}>
               <div className="inv-summary-box-label">Department</div>
               <div className="inv-summary-box-value" style={{ fontSize: 15 }}>
                 {header.departmentName || "—"}
               </div>
             </div>
-            <div className="inv-summary-box">
+            <div className="inv-summary-box" style={{ display: "none" }}>
               <div className="inv-summary-box-label">Total Line Items</div>
               <div className="inv-summary-box-value">{details.length}</div>
             </div>
@@ -839,7 +835,7 @@ export default function PurchaseIndentPage() {
             </div>
             <div
               className="inv-summary-box"
-              style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}
+              style={{ background: "#eff6ff", borderColor: "#bfdbfe", display: "none" }}
             >
               <div className="inv-summary-box-label">Status</div>
               <div
@@ -848,6 +844,18 @@ export default function PurchaseIndentPage() {
               >
                 {header.status}
               </div>
+            </div>
+            <div className="inv-summary-box" style={{ gridColumn: "span 2" }}>
+              <div className="inv-summary-box-label">Remarks</div>
+              <input
+                className="inv-input"
+                value={header.remarks}
+                onChange={(e) =>
+                  setHeader((h) => ({ ...h, remarks: e.target.value }))
+                }
+                placeholder="Optional remarks"
+                style={{ marginTop: 4, background: "transparent" }}
+              />
             </div>
           </div>
         </div>
