@@ -16,6 +16,14 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  purchaseIndentId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  purchaseIndentNo: {
+    type: DataTypes.STRING,
+    defaultValue: "",
+  },
   supplierId: {
     type: DataTypes.INTEGER,
     allowNull: true,

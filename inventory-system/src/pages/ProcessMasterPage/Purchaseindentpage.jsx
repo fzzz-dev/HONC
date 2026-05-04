@@ -33,8 +33,11 @@ const FormGrid = ({ children }) => (
   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>{children}</div>
 );
 
-const Field = ({ label, children }) => (
-  <div className="inv-field"><label className="inv-label">{label}</label>{children}</div>
+const Field = ({ label, children, horizontal = true }) => (
+  <div className={`inv-field ${horizontal ? 'inv-field-h' : ''}`}>
+    <label className="inv-label">{label}</label>
+    <div className="inv-field-content" style={{ flex: 1 }}>{children}</div>
+  </div>
 );
 
 // Print functionality removed per user request
@@ -253,7 +256,7 @@ export default function PurchaseIndentPage() {
                           </select>
                         </td>
                         <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
-                        <td><input className="inv-input-cell" type="number" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
+                        <td><input className="inv-input-cell" type="number" step="0.001" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
                         <td><input className="inv-input-cell" type="date" value={row.dueDate} onChange={e => updateDetail(idx, "dueDate", e.target.value)} /></td>
                         <td><input className="inv-input-cell" value={row.remarks} onChange={e => updateDetail(idx, "remarks", e.target.value)} placeholder="Notes..." /></td>
                         <td style={{ textAlign: "center" }}>
@@ -277,7 +280,13 @@ export default function PurchaseIndentPage() {
         <div className="inv-card">
           <div className="inv-card-body">
             <div className="inv-section-label">Summary</div>
-            <Field label="Overall Remarks"><textarea className="inv-input" rows={3} value={header.remarks} onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))} placeholder="Enter any additional instructions or notes here..." /></Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+              <Field label="Remarks"><textarea className="inv-input" rows={2} value={header.remarks} onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))} placeholder="Enter any additional instructions or notes here..." /></Field>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                 <div className="inv-summary-row" style={{ border: "none" }}><span>Total Items</span><span>{details.length} Lines</span></div>
+                 <div className="inv-summary-row grand-total"><span>Total Quantity</span><span>{fmt(totalQty)}</span></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

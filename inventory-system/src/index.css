@@ -318,6 +318,22 @@ body {
 .inv-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,110,248,0.1); }
 .inv-input:disabled { background: #f9fafb; color: var(--text-secondary); }
 
+/* Horizontal Field Layout */
+.inv-field-h {
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+.inv-field-h .inv-label {
+  width: 120px;
+  min-width: 120px;
+  margin-bottom: 0 !important;
+  text-align: right;
+}
+.inv-field-h .inv-field-content {
+  flex: 1;
+}
+
 .inv-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
 
 /* Item Master: wider item name, narrower UOM */

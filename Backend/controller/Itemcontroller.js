@@ -170,6 +170,11 @@ function rowField(row, aliases) {
   return "";
 }
 
+function rowFieldStrict(row, aliases) {
+  const v = rowField(row, aliases);
+  return v ? String(v).trim() : "";
+}
+
 async function resolveInventoryHeadForBulk(row) {
   const idPart = rowField(row, ["headId", "head_id", "Head ID", "HeadId"]);
   const namePart = rowField(row, HEAD_NAME_ALIASES);
@@ -572,14 +577,14 @@ exports.bulkUpload = async (req, res) => {
       ]);
 
       const payload = normalizePayload({
-        headId: rowField(row, ["headId"]),
+        headId: rowField(row, ["headId", "head_id"]),
         head: rowField(row, HEAD_NAME_ALIASES),
         group: groupFromFile,
-        itemName: rowField(row, ["itemName", "item", "Item Name", "Item"]),
-        uom: rowField(row, ["uom", "UOM", "unit"]),
-        make: rowField(row, ["make", "Make", "brand"]),
-        spec: rowField(row, ["spec", "Spec", "specification"]),
-        rate: rowField(row, ["rate", "Rate", "price"]),
+        itemName: rowField(row, ["itemName", "item", "Item Name", "Item", "item_name", "item name"]),
+        uom: rowField(row, ["uom", "UOM", "unit", "Uom"]),
+        make: rowField(row, ["make", "Make", "brand", "Brand"]),
+        spec: rowField(row, ["spec", "Spec", "specification", "Specification"]),
+        rate: rowField(row, ["rate", "Rate", "price", "Price"]),
         active: (() => {
           const a = rowField(row, ["active", "Active"]);
           if (!rowValuePresent(a)) return true;

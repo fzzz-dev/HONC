@@ -41,13 +41,14 @@ const numberToWords = (num) => {
 };
 
 const emptyDetail = () => ({
-  _rowId: Math.random(), indentDetailId: "", itemId: "", itemName: "", uom: "", balQty: 0,
+  _rowId: Math.random(), indentDetailId: "", indentNo: "", itemId: "", itemName: "", uom: "", balQty: 0,
   poQty: 0, poRate: 0, discMode: "pct", discPct: 0, discPrice: 0, poAmount: 0,
   gstPct: 18, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0
 });
 
 const emptyHeader = () => ({
   poNo: "", date: today(), supplierId: "", supplierName: "", supplierAddress: "", supplierGst: "",
+  purchaseIndentId: "", purchaseIndentNo: "",
   refNo: "", refDate: "", paymentTermsId: "", paymentTermsName: "", deliveryDate: "",
   createdBy: "Admin", createdOn: today(), status: "Open", remarks: ""
 });
@@ -56,8 +57,11 @@ const FormGrid = ({ children }) => (
   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>{children}</div>
 );
 
-const Field = ({ label, children }) => (
-  <div className="inv-field"><label className="inv-label">{label}</label>{children}</div>
+const Field = ({ label, children, horizontal = true }) => (
+  <div className={`inv-field ${horizontal ? 'inv-field-h' : ''}`}>
+    <label className="inv-label">{label}</label>
+    <div className="inv-field-content" style={{ flex: 1 }}>{children}</div>
+  </div>
 );
 
 function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) {
@@ -346,7 +350,17 @@ export default function PurchaseOrderPage() {
       let row = { ...rows[idx], [field]: val };
       if (field === "indentDetailId") {
         const opt = indentDetailOptions.find(o => o.detailId === val);
-        if (opt) { row.itemId = opt.itemId; row.itemName = opt.itemName; row.uom = opt.uom; row.balQty = opt.balQty; row.poRate = opt.lastRate || 0; row.gstPct = opt.gstPct || 18; }
+        if (opt) { 
+          row.indentNo = opt.indentNo;
+          row.itemId = opt.itemId; 
+          row.itemName = opt.itemName; 
+          row.uom = opt.uom; 
+          row.balQty = opt.balQty; 
+          row.poRate = opt.lastRate || 0; 
+          row.gstPct = opt.gstPct || 18; 
+        } else {
+          row.indentNo = "";
+        }
       }
       rows[idx] = calcRow(row);
       return rows;
@@ -391,7 +405,7 @@ export default function PurchaseOrderPage() {
   function addPendingLinesToDetails() {
     const selected = pendingIndentRows.filter(r => pendingSelected.has(r.rowId));
     const newRows = selected.map(s => calcRow({
-      ...emptyDetail(), indentDetailId: s.detailId, itemId: s.itemId, itemName: s.itemName, uom: s.uom, balQty: s.balQty, poQty: s.balQty, poRate: s.rate || 0, gstPct: s.gstPct || 18
+      ...emptyDetail(), indentDetailId: s.detailId, indentNo: s.indentNo, itemId: s.itemId, itemName: s.itemName, uom: s.uom, balQty: s.balQty, poQty: s.balQty, poRate: s.rate || 0, gstPct: s.gstPct || 18
     }));
     setDetails(p => [...p.filter(r => r.itemId), ...newRows]);
     setPendingModalOpen(false); setPendingSelected(new Set());
@@ -460,15 +474,8 @@ export default function PurchaseOrderPage() {
                     <option value="">Select supplier</option>
                     {suppliers.map(s => <option key={sid(s)} value={sid(s)}>{s.supplierName}</option>)}
                   </select>
-                  <button type="button" className="inv-btn-ghost" style={{ padding: "8px" }} title="View Supplier" onClick={() => {
-                    if (header.supplierId) window.open(`/masters/supplier`, "_blank");
-                    else alert("Select a supplier first");
-                  }}>👁</button>
-                  <button type="button" className="inv-btn-ghost" style={{ padding: "8px" }} title="Add Supplier" onClick={() => window.open(`/masters/supplier`, "_blank")}>+</button>
                 </div>
               </Field>
-              <Field label="Address"><textarea className="inv-input" rows={1} value={header.supplierAddress} onChange={e => setHeader(h => ({ ...h, supplierAddress: e.target.value }))} /></Field>
-              <Field label="GST No"><input className="inv-input" value={header.supplierGst} onChange={e => setHeader(h => ({ ...h, supplierGst: e.target.value }))} /></Field>
               <Field label="GST Type">
                 <select className="inv-input" value={gstType} onChange={e => setGstType(e.target.value)}>
                   <option value="local">Local (SGST+CGST)</option>
@@ -477,7 +484,11 @@ export default function PurchaseOrderPage() {
               </Field>
               <Field label="Reference No"><input className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" /></Field>
               <Field label="Delivery Date"><input className="inv-input" type="date" value={header.deliveryDate} onChange={e => setHeader(h => ({ ...h, deliveryDate: e.target.value }))} /></Field>
+              <Field label="GST No"><input className="inv-input" value={header.supplierGst} onChange={e => setHeader(h => ({ ...h, supplierGst: e.target.value }))} /></Field>
             </FormGrid>
+            <div style={{ marginTop: 12 }}>
+              <Field label="Address"><textarea className="inv-input" rows={1} value={header.supplierAddress} onChange={e => setHeader(h => ({ ...h, supplierAddress: e.target.value }))} /></Field>
+            </div>
           </div>
         </div>
 
@@ -495,6 +506,7 @@ export default function PurchaseOrderPage() {
                 <thead>
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
+                    <th style={{ width: 120 }}>Indent No</th>
                     <th style={{ minWidth: 250 }}>Item Description</th>
                     <th style={{ width: 80 }}>UOM</th>
                     <th style={{ width: 80, textAlign: "right" }}>Bal</th>
@@ -516,6 +528,9 @@ export default function PurchaseOrderPage() {
                     <tr key={row._rowId}>
                       <td style={{ textAlign: "center", color: "#94a3b8", fontWeight: 500 }}>{idx + 1}</td>
                       <td>
+                        <input className="inv-input-cell" value={row.indentNo} readOnly placeholder="Select item..." />
+                      </td>
+                      <td>
                         <select className="inv-select-cell" value={row.indentDetailId} onChange={e => updateDetail(idx, "indentDetailId", e.target.value)}>
                           <option value="">— select item —</option>
                           {indentDetailOptions.map(o => <option key={o.detailId} value={o.detailId}>[{o.indentNo}] {o.itemName}</option>)}
@@ -523,7 +538,7 @@ export default function PurchaseOrderPage() {
                       </td>
                       <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
                       <td><input className="inv-input-cell" value={fmtQty(row.balQty)} readOnly style={{ textAlign: "right" }} /></td>
-                      <td><input className="inv-input-cell" type="number" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
+                      <td><input className="inv-input-cell" type="number" step="0.001" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
                       <td><input className="inv-input-cell" type="number" value={row.poRate} onChange={e => updateDetail(idx, "poRate", e.target.value)} style={{ textAlign: "right" }} /></td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center" }}>
