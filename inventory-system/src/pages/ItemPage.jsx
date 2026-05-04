@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Modal from "../components/Modal";
 import {
   Field,
@@ -27,12 +27,22 @@ const EMPTY = {
   uom: "",
   make: "",
   spec: "",
+  movementType: "moving",
   itemDescription: "",
+  minimumStock: "",
+  minimumOrderQty: "",
+  leadDays: "",
+  inTransitDays: "",
+  hsnCode: "",
+  gstPercent: "",
+  rackBinNo: "",
   rate: "",
   active: true,
   image: null, // preview URL (string) or server URL
   imageFile: null, // actual File object for new uploads
 };
+
+const GST_OPTIONS = [0, 5, 12, 18, 28];
 
 export default function ItemPage() {
   // ── Data state ───────────────────────────────────────────────────────────────
@@ -54,6 +64,7 @@ export default function ItemPage() {
   const [form, setForm] = useState(EMPTY);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const fileRef = useRef();
+  const bulkFileRef = useRef();
 
   // ── Bootstrap ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -129,6 +140,14 @@ export default function ItemPage() {
     .filter((s) => s.active !== false)
     .map((s) => ({ value: s.name, label: s.name }));
 
+  const computedItemDescription = useMemo(() => {
+    const n = String(form.itemName || "").trim();
+    const s = String(form.spec || "").trim();
+    const m = String(form.make || "").trim();
+    if (s && m) return `${n} ${s} ${m}`.replace(/\s+/g, " ").trim();
+    return n;
+  }, [form.itemName, form.spec, form.make]);
+
   // ── Filtered table rows ───────────────────────────────────────────────────────
   const filtered = items.filter((it) => {
     const q = search.toLowerCase();
@@ -156,7 +175,15 @@ export default function ItemPage() {
       uom: row.uom || "",
       make: row.make || "",
       spec: row.spec || "",
+      movementType: row.movementType || "moving",
       itemDescription: row.itemDescription || "",
+      minimumStock: String(row.minimumStock ?? ""),
+      minimumOrderQty: String(row.minimumOrderQty ?? ""),
+      leadDays: String(row.leadDays ?? ""),
+      inTransitDays: String(row.inTransitDays ?? ""),
+      hsnCode: row.hsnCode || "",
+      gstPercent: String(row.gstPercent ?? ""),
+      rackBinNo: row.rackBinNo || "",
       rate: String(row.rate ?? ""),
       active: row.active ?? true,
       image: row.image || null,
@@ -202,7 +229,15 @@ export default function ItemPage() {
         fd.append("uom", form.uom);
         fd.append("make", form.make);
         fd.append("spec", form.spec);
-        fd.append("itemDescription", form.itemDescription);
+        fd.append("movementType", form.movementType);
+        fd.append("itemDescription", computedItemDescription);
+        fd.append("minimumStock", parseFloat(form.minimumStock) || 0);
+        fd.append("minimumOrderQty", parseFloat(form.minimumOrderQty) || 0);
+        fd.append("leadDays", parseInt(form.leadDays, 10) || 0);
+        fd.append("inTransitDays", parseInt(form.inTransitDays, 10) || 0);
+        fd.append("hsnCode", form.hsnCode);
+        fd.append("gstPercent", parseFloat(form.gstPercent) || 0);
+        fd.append("rackBinNo", form.rackBinNo);
         fd.append("rate", parseFloat(form.rate) || 0);
         fd.append("active", form.active);
 
@@ -226,7 +261,15 @@ export default function ItemPage() {
           uom: form.uom,
           make: form.make,
           spec: form.spec,
-          itemDescription: form.itemDescription,
+          movementType: form.movementType,
+          itemDescription: computedItemDescription,
+          minimumStock: parseFloat(form.minimumStock) || 0,
+          minimumOrderQty: parseFloat(form.minimumOrderQty) || 0,
+          leadDays: parseInt(form.leadDays, 10) || 0,
+          inTransitDays: parseInt(form.inTransitDays, 10) || 0,
+          hsnCode: form.hsnCode,
+          gstPercent: parseFloat(form.gstPercent) || 0,
+          rackBinNo: form.rackBinNo,
           rate: parseFloat(form.rate) || 0,
           active: form.active,
           image: form.image, // null if removed, existing URL if unchanged
@@ -264,6 +307,46 @@ export default function ItemPage() {
     }
   }
 
+  async function handleDownloadTemplate() {
+    try {
+      const blob = await itemApi.downloadTemplate();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "item-bulk-template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message || "Template download failed");
+    }
+  }
+
+  async function handleBulkFileChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const result = await itemApi.bulkUpload(file);
+      await loadAll();
+      const msg = [
+        `Inserted: ${result.insertedCount || 0}`,
+        `Failed: ${result.failedCount || 0}`,
+      ];
+      if (result.errors?.length) {
+        const firstFew = result.errors
+          .slice(0, 5)
+          .map((er) => `Row ${er.row}: ${er.message}`)
+          .join("\n");
+        msg.push(`Errors:\n${firstFew}`);
+      }
+      alert(msg.join("\n"));
+    } catch (err) {
+      alert(err.message || "Bulk upload failed");
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="inv-page">
@@ -277,6 +360,24 @@ export default function ItemPage() {
         <button className="inv-btn-primary" onClick={openAdd}>
           + Add Item
         </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="inv-btn-ghost" onClick={handleDownloadTemplate}>
+            Download Template
+          </button>
+          <button
+            className="inv-btn-ghost"
+            onClick={() => bulkFileRef.current?.click()}
+          >
+            Bulk Upload
+          </button>
+          <input
+            ref={bulkFileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            style={{ display: "none" }}
+            onChange={handleBulkFileChange}
+          />
+        </div>
       </div>
 
       {error && (
@@ -342,6 +443,8 @@ export default function ItemPage() {
                 <th>UOM</th>
                 <th>Make</th>
                 <th>Spec</th>
+                <th>Movement</th>
+                <th>Description</th>
                 <th>Rate</th>
                 <th>Active</th>
                 <th>Actions</th>
@@ -350,13 +453,13 @@ export default function ItemPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="inv-empty">
+                  <td colSpan={12} className="inv-empty">
                     Loading…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="inv-empty">
+                  <td colSpan={12} className="inv-empty">
                     No records found
                   </td>
                 </tr>
@@ -385,6 +488,23 @@ export default function ItemPage() {
                     <td>{row.uom}</td>
                     <td className="inv-muted-sm">{row.make}</td>
                     <td className="inv-spec">{row.spec}</td>
+                    <td className="inv-muted-sm">
+                      {row.movementType === "non-moving"
+                        ? "Non-Moving"
+                        : "Moving"}
+                    </td>
+                    <td
+                      className="inv-muted-sm"
+                      style={{
+                        maxWidth: 200,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={row.itemDescription || ""}
+                    >
+                      {row.itemDescription || "—"}
+                    </td>
                     <td className="inv-bold">₹{Number(row.rate).toFixed(2)}</td>
                     <td>
                       <span
@@ -477,7 +597,7 @@ export default function ItemPage() {
             </Field>
           </FormGrid>
 
-          <FormGrid>
+          <FormGrid className="inv-form-grid--item-uom">
             <Field label="Item Name" required>
               <Input
                 value={form.itemName}
@@ -515,6 +635,88 @@ export default function ItemPage() {
           </FormGrid>
 
           <FormGrid>
+            <Field label="Moving / Non Moving" required>
+              <Select
+                value={form.movementType}
+                onChange={(v) => setForm((f) => ({ ...f, movementType: v }))}
+                options={[
+                  { value: "moving", label: "Moving" },
+                  { value: "non-moving", label: "Non-Moving" },
+                ]}
+                placeholder="Select movement type..."
+              />
+            </Field>
+            <Field label="Minimum Stock">
+              <Input
+                type="number"
+                value={form.minimumStock}
+                onChange={(v) => setForm((f) => ({ ...f, minimumStock: v }))}
+                placeholder="0"
+              />
+            </Field>
+          </FormGrid>
+
+          <FormGrid>
+            <Field label="Minimum Order Qty">
+              <Input
+                type="number"
+                value={form.minimumOrderQty}
+                onChange={(v) => setForm((f) => ({ ...f, minimumOrderQty: v }))}
+                placeholder="0"
+              />
+            </Field>
+            <Field label="Lead Days">
+              <Input
+                type="number"
+                value={form.leadDays}
+                onChange={(v) => setForm((f) => ({ ...f, leadDays: v }))}
+                placeholder="0"
+              />
+            </Field>
+          </FormGrid>
+
+          <FormGrid>
+            <Field label="In Transit Days">
+              <Input
+                type="number"
+                value={form.inTransitDays}
+                onChange={(v) => setForm((f) => ({ ...f, inTransitDays: v }))}
+                placeholder="0"
+              />
+            </Field>
+            <Field label="HSN Code">
+              <Input
+                value={form.hsnCode}
+                onChange={(v) => setForm((f) => ({ ...f, hsnCode: v }))}
+                placeholder="HSN"
+              />
+            </Field>
+          </FormGrid>
+
+          <FormGrid>
+            <Field label="GST %">
+              <Select
+                value={String(form.gstPercent === "" ? "" : form.gstPercent)}
+                onChange={(v) =>
+                  setForm((f) => ({ ...f, gstPercent: v === "" ? "" : v }))
+                }
+                options={GST_OPTIONS.map((g) => ({
+                  value: String(g),
+                  label: `${g}%`,
+                }))}
+                placeholder="Select GST %"
+              />
+            </Field>
+            <Field label="Rack – Bin No">
+              <Input
+                value={form.rackBinNo}
+                onChange={(v) => setForm((f) => ({ ...f, rackBinNo: v }))}
+                placeholder="e.g. A-12-03"
+              />
+            </Field>
+          </FormGrid>
+
+          <FormGrid>
             <Field label="Rate (₹)">
               <Input
                 type="number"
@@ -533,12 +735,13 @@ export default function ItemPage() {
             </Field>
           </FormGrid>
 
-          <Field label="Item Description">
+          <Field label="Item Description (auto)">
             <Textarea
-              value={form.itemDescription}
-              onChange={(v) => setForm((f) => ({ ...f, itemDescription: v }))}
-              placeholder="Brief description of the item..."
+              value={computedItemDescription}
+              readOnly
+              placeholder="Derived from Item Name, Spec, and Make"
               rows={2}
+              style={{ background: "var(--surface-muted, #f8fafc)" }}
             />
           </Field>
 

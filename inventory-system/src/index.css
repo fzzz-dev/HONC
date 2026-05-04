@@ -8,18 +8,19 @@
   --sidebar: #1a1f2e;
   --sidebar-hover: #252c3d;
   --sidebar-active: #2e3a52;
- --accent: #3b6ef8;
---accent-light: #eef2ff;
---text: #1a1f2e;
---text-secondary: #6b7280;
---border: #e5e7eb;
---border-mid: #d1d5db;
---border-subtle: #f0f0f0;
---success: #10b981;
---danger: #ef4444;
---warning: #f59e0b;
---radius: 8px;
---shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --accent: #3b6ef8;
+  --primary: var(--accent);
+  --accent-light: #eef2ff;
+  --text: #1a1f2e;
+  --text-secondary: #6b7280;
+  --border: #e5e7eb;
+  --border-mid: #d1d5db;
+  --border-subtle: #f0f0f0;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
 }
 
 body {
@@ -318,6 +319,65 @@ body {
 .inv-input:disabled { background: #f9fafb; color: var(--text-secondary); }
 
 .inv-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+
+/* Item Master: wider item name, narrower UOM */
+.inv-form-grid.inv-form-grid--item-uom {
+  grid-template-columns: minmax(200px, 2.2fr) minmax(72px, 0.65fr);
+  align-items: start;
+}
+
+/* Top save bar (embedded forms) */
+.inv-form-actions-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  flex-wrap: wrap;
+}
+
+.inv-save-btn {
+  min-height: 38px;
+  padding-left: 20px;
+  padding-right: 20px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* Printable label–value rows */
+.inv-print-pair {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e8ecf1;
+  font-size: 13px;
+}
+.inv-print-pair-label {
+  text-align: left;
+  color: #475569;
+  flex: 0 0 auto;
+  max-width: 48%;
+}
+.inv-print-pair-value {
+  text-align: right;
+  font-weight: 500;
+  flex: 1 1 auto;
+  word-break: break-word;
+}
+.inv-print-sheet {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px;
+  background: #fff;
+}
+@media print {
+  .inv-no-print { display: none !important; }
+  .inv-print-sheet { box-shadow: none; padding: 12px; }
+}
 
 /* ── Toggle ──────────────────────────────────────────── */
 .inv-toggle-wrap { display: flex; align-items: center; gap: 8px; }
@@ -623,4 +683,4 @@ div[class*="modal"]:not(.inv-modal-overlay) {
   border-radius: 4px;
   font-size: 10px;
   font-weight: bold;
-}
+}

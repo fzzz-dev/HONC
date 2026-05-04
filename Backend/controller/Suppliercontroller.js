@@ -3,7 +3,10 @@ const City = require("../model/city");
 const State = require("../model/state");
 const Country = require("../model/country");
 const SupplierType = require("../model/supplierType");
+const PaymentTerm = require("../model/paymentTerm");
 const { Op } = require("sequelize");
+
+const PINCODE_IN = /^\d{6}$/;
 
 // ─── Shared error handler ──────────────────────────────────────────────────────
 function handleError(res, error, context = "supplier") {
@@ -33,8 +36,28 @@ function normalizeBoolean(value, fallback = true) {
 }
 
 function normalizeSupplierPayload(body = {}, fallbackActive = true) {
+  const shortRaw = String(body.shortCode ?? "").trim().toUpperCase();
+  const shortCode = shortRaw.slice(0, 5);
+  let paymentTermsId = body.paymentTermsId;
+  if (paymentTermsId === "" || paymentTermsId === undefined) {
+    paymentTermsId = null;
+  } else {
+    paymentTermsId = parseInt(paymentTermsId, 10);
+    if (Number.isNaN(paymentTermsId)) paymentTermsId = null;
+  }
+  let purchaseCategoryIds = [];
+  if (Array.isArray(body.purchaseCategoryIds)) {
+    purchaseCategoryIds = [
+      ...new Set(
+        body.purchaseCategoryIds
+          .map((x) => parseInt(x, 10))
+          .filter((n) => !Number.isNaN(n)),
+      ),
+    ];
+  }
   return {
     supplierName: normalizeRequiredText(body.supplierName),
+    shortCode,
     type: normalizeRequiredText(body.type),
     active: normalizeBoolean(body.active, fallbackActive),
     addresses: Array.isArray(body.addresses) ? body.addresses : [],
@@ -44,11 +67,31 @@ function normalizeSupplierPayload(body = {}, fallbackActive = true) {
     emailId2: normalizeOptionalText(body.emailId2),
     mobileNo1: normalizeOptionalText(body.mobileNo1),
     mobileNo2: normalizeOptionalText(body.mobileNo2),
+    paymentTermsId,
+    purchaseCategoryIds,
   };
 }
 
 // ─── Shared address validator ──────────────────────────────────────────────────
 async function validateAndEnrichAddress(addr) {
+  const line1 = String(addr.line1 ?? addr.address ?? "").trim();
+  const line2 = String(addr.line2 ?? "").trim();
+  addr.line1 = line1;
+  addr.line2 = line2;
+  addr.address = [line1, line2].filter(Boolean).join(", ");
+
+  if (!line1) {
+    return { status: 400, message: "Address line 1 is required" };
+  }
+
+  const pin = String(addr.pinCode ?? "").trim();
+  if (pin && !PINCODE_IN.test(pin)) {
+    return {
+      status: 400,
+      message: "Pincode must be exactly 6 digits",
+    };
+  }
+
   if (!addr.cityId || !addr.stateId || !addr.countryId) {
     return {
       status: 400,
@@ -151,6 +194,20 @@ exports.createSupplier = async (req, res) => {
       return res.status(400).json({ success: false, message: "Supplier name and type are required" });
     }
 
+    if (!payload.shortCode || payload.shortCode.length < 1 || payload.shortCode.length > 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Short code is required (1–5 characters)",
+      });
+    }
+
+    if (payload.paymentTermsId) {
+      const pt = await PaymentTerm.findByPk(payload.paymentTermsId);
+      if (!pt) {
+        return res.status(400).json({ success: false, message: "Invalid payment terms" });
+      }
+    }
+
     const validType = await SupplierType.findOne({ where: { name: type, active: true } });
     if (!validType) {
       return res.status(400).json({ success: false, message: `Invalid supplier type: "${type}"` });
@@ -164,8 +221,19 @@ exports.createSupplier = async (req, res) => {
     }
 
     const supplier = await Supplier.create({
-      supplierName, type, active, addresses: addresses || [],
-      gstNo, panNo, emailId1, emailId2, mobileNo1, mobileNo2
+      supplierName,
+      shortCode: payload.shortCode,
+      type,
+      active,
+      addresses: addresses || [],
+      gstNo,
+      panNo,
+      emailId1,
+      emailId2,
+      mobileNo1,
+      mobileNo2,
+      paymentTermsId: payload.paymentTermsId,
+      purchaseCategoryIds: payload.purchaseCategoryIds,
     });
 
     res.status(201).json({ success: true, message: "Supplier created successfully", data: supplier });
@@ -196,6 +264,20 @@ exports.updateSupplier = async (req, res) => {
       mobileNo2,
     } = payload;
 
+    if (!payload.shortCode || payload.shortCode.length < 1 || payload.shortCode.length > 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Short code is required (1–5 characters)",
+      });
+    }
+
+    if (payload.paymentTermsId) {
+      const pt = await PaymentTerm.findByPk(payload.paymentTermsId);
+      if (!pt) {
+        return res.status(400).json({ success: false, message: "Invalid payment terms" });
+      }
+    }
+
     if (type) {
       const validType = await SupplierType.findOne({ where: { name: type, active: true } });
       if (!validType) {
@@ -211,8 +293,19 @@ exports.updateSupplier = async (req, res) => {
     }
 
     await supplier.update({
-      supplierName, type, active, addresses: addresses || [],
-      gstNo, panNo, emailId1, emailId2, mobileNo1, mobileNo2
+      supplierName,
+      shortCode: payload.shortCode,
+      type,
+      active,
+      addresses: addresses || [],
+      gstNo,
+      panNo,
+      emailId1,
+      emailId2,
+      mobileNo1,
+      mobileNo2,
+      paymentTermsId: payload.paymentTermsId,
+      purchaseCategoryIds: payload.purchaseCategoryIds,
     });
 
     res.status(200).json({ success: true, message: "Supplier updated successfully", data: supplier });

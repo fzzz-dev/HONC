@@ -18,6 +18,8 @@ export function Input({
   onChange,
   placeholder,
   disabled,
+  maxLength,
+  style,
 }) {
   return (
     <input
@@ -27,6 +29,8 @@ export function Input({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       disabled={disabled}
+      maxLength={maxLength}
+      style={style}
     />
   );
 }
@@ -85,6 +89,10 @@ export function Toggle({ value, onChange, label }) {
 }
 
 // ── Two-column grid ───────────────────────────────────────────────────────────
-export function FormGrid({ children }) {
-  return <div className="inv-form-grid">{children}</div>;
+export function FormGrid({ children, className }) {
+  return (
+    <div className={className ? `inv-form-grid ${className}` : "inv-form-grid"}>
+      {children}
+    </div>
+  );
 }

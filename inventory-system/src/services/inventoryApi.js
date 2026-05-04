@@ -82,6 +82,24 @@ export const itemApi = {
   create: (body) => request("/items", { method: "POST", body: j(body) }),
   update: (id, b) => request(`/items/${id}`, { method: "PUT", body: j(b) }),
   remove: (id) => request(`/items/${id}`, { method: "DELETE" }),
+  downloadTemplate: async () => {
+    const res = await fetch(`${BASE}/items/template`);
+    if (!res.ok) throw new Error("Failed to download template");
+    return res.blob();
+  },
+  bulkUpload: async (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${BASE}/items/bulk-upload`, {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Bulk upload failed");
+    }
+    return data;
+  },
 };
 
 export const supplierApi = {
@@ -90,6 +108,15 @@ export const supplierApi = {
   create: (body) => request("/suppliers", { method: "POST", body: j(body) }),
   update: (id, b) => request(`/suppliers/${id}`, { method: "PUT", body: j(b) }),
   remove: (id) => request(`/suppliers/${id}`, { method: "DELETE" }),
+};
+
+export const paymentTermsApi = {
+  getAll: () => request("/payment-terms"),
+  getOne: (id) => request(`/payment-terms/${id}`),
+  create: (body) => request("/payment-terms", { method: "POST", body: j(body) }),
+  update: (id, b) =>
+    request(`/payment-terms/${id}`, { method: "PUT", body: j(b) }),
+  remove: (id) => request(`/payment-terms/${id}`, { method: "DELETE" }),
 };
 
 export const departmentApi = {

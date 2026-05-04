@@ -14,6 +14,23 @@ const Supplier = sequelize.define("Supplier", {
       notEmpty: true,
     },
   },
+  shortCode: {
+    type: DataTypes.STRING(5),
+    allowNull: true,
+    defaultValue: "",
+  },
+  paymentTermsId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: "PaymentTerms",
+      key: "id",
+    },
+  },
+  purchaseCategoryIds: {
+    type: DataTypes.JSON,
+    defaultValue: [],
+  },
   type: {
     type: DataTypes.STRING,
     allowNull: false,

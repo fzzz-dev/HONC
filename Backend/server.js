@@ -54,6 +54,63 @@ const seedData = async () => {
   }
 };
 
+const ensureItemMovementTypeColumn = async () => {
+  const dbName = process.env.DB_NAME || "inventory_db";
+  const [rows] = await sequelize.query(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = :dbName
+       AND TABLE_NAME = 'Items'
+       AND COLUMN_NAME = 'movementType'
+     LIMIT 1`,
+    { replacements: { dbName } },
+  );
+
+  if (!rows.length) {
+    await sequelize.query(
+      "ALTER TABLE `Items` ADD COLUMN `movementType` ENUM('moving','non-moving') NOT NULL DEFAULT 'moving' AFTER `spec`",
+    );
+    console.log("Added movementType column to Items table");
+  }
+};
+
+async function columnExists(tableName, columnName) {
+  const dbName = process.env.DB_NAME || "inventory_db";
+  const [rows] = await sequelize.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = :db AND TABLE_NAME = :tbl AND COLUMN_NAME = :col LIMIT 1`,
+    { replacements: { db: dbName, tbl: tableName, col: columnName } },
+  );
+  return rows.length > 0;
+}
+
+async function ensureSchemaEnhancements() {
+  try {
+    const patches = [
+      ["Items", "minimumStock", "ADD COLUMN `minimumStock` DECIMAL(12,2) NOT NULL DEFAULT 0"],
+      ["Items", "minimumOrderQty", "ADD COLUMN `minimumOrderQty` DECIMAL(12,2) NOT NULL DEFAULT 0"],
+      ["Items", "leadDays", "ADD COLUMN `leadDays` INT NOT NULL DEFAULT 0"],
+      ["Items", "inTransitDays", "ADD COLUMN `inTransitDays` INT NOT NULL DEFAULT 0"],
+      ["Items", "hsnCode", "ADD COLUMN `hsnCode` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["Items", "gstPercent", "ADD COLUMN `gstPercent` DECIMAL(5,2) NOT NULL DEFAULT 0"],
+      ["Items", "rackBinNo", "ADD COLUMN `rackBinNo` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["Suppliers", "shortCode", "ADD COLUMN `shortCode` VARCHAR(5) NULL DEFAULT ''"],
+      ["Suppliers", "paymentTermsId", "ADD COLUMN `paymentTermsId` INT NULL"],
+      ["Suppliers", "purchaseCategoryIds", "ADD COLUMN `purchaseCategoryIds` JSON NULL"],
+      ["PurchaseOrders", "paymentTermsId", "ADD COLUMN `paymentTermsId` INT NULL"],
+      ["PurchaseOrders", "paymentTermsName", "ADD COLUMN `paymentTermsName` VARCHAR(255) NOT NULL DEFAULT ''"],
+    ];
+    for (const [table, col, ddl] of patches) {
+      if (!(await columnExists(table, col))) {
+        await sequelize.query(`ALTER TABLE \`${table}\` ${ddl}`);
+        console.log(`Schema: added ${table}.${col}`);
+      }
+    }
+  } catch (e) {
+    console.warn("Schema enhancement (non-fatal):", e.message);
+  }
+}
+
 // SQL Connection and Sync
 ensureDatabaseExists()
   .then(() => sequelize.authenticate())
@@ -63,6 +120,8 @@ ensureDatabaseExists()
   })
   .then(async () => {
     console.log("Database Synced");
+    await ensureItemMovementTypeColumn();
+    await ensureSchemaEnhancements();
     await seedData();
   })
   .catch((err) => {
@@ -81,6 +140,7 @@ app.use("/api/makes", require("./routes/makeRoutes"));
 app.use("/api/specs", require("./routes/specRoutes"));
 app.use("/api/suppliers", require("./routes/supplierRoutes"));
 app.use("/api/supplier-types", require("./routes/SuppliertypeRoutes"));
+app.use("/api/payment-terms", require("./routes/paymentTermRoutes"));
 app.use("/api/items", require("./routes/itemRoutes"));
 app.use("/api/purchase-indents", require("./routes/Purchaseindentroutes"));
 app.use("/api/purchase-orders", require("./routes/purchaseOrderRoutes"));

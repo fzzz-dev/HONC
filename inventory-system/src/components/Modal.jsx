@@ -4,37 +4,49 @@ const styles = {
   overlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0, 0, 0, 0.6)", // solid dark overlay – no transparency on the card itself
+    background: "rgba(0, 0, 0, 0.6)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1000,
     padding: "1rem",
-    backdropFilter: "none", // ensure no blur
+    backdropFilter: "none",
   },
   box: {
-    background: "#ffffff", // pure white, no transparency
-    borderRadius: "16px", // slightly more formal
-    border: "1px solid #eef2f6", // subtle border for definition
+    background: "#ffffff",
+    borderRadius: "16px",
+    border: "1px solid #eef2f6",
     width: "100%",
     maxWidth: "560px",
     maxHeight: "90vh",
     overflowY: "auto",
     boxShadow:
       "0 20px 35px -8px rgba(0, 0, 0, 0.2), 0 5px 12px -4px rgba(0, 0, 0, 0.1)",
+    display: "flex",
+    flexDirection: "column",
   },
   header: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: "12px",
     padding: "1rem 1.25rem",
     borderBottom: "1px solid #e5e7eb",
+    flexShrink: 0,
   },
   title: {
     fontSize: "15px",
     fontWeight: 600,
     color: "#1a1f2e",
     margin: 0,
+    flex: "1 1 auto",
+    minWidth: 0,
+  },
+  actions: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    flexShrink: 0,
   },
   closeBtn: {
     background: "none",
@@ -48,13 +60,8 @@ const styles = {
   },
   body: {
     padding: "1.25rem",
-  },
-  footer: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "8px",
-    padding: "1rem 1.25rem",
-    borderTop: "1px solid #e5e7eb",
+    flex: 1,
+    overflowY: "auto",
   },
 };
 
@@ -65,7 +72,10 @@ export default function Modal({
   children,
   saveLabel = "Save",
   saving,
+  saveDisabled,
+  maxWidth,
 }) {
+  const primaryDisabled = saving || saveDisabled;
   useEffect(() => {
     const handler = (e) => {
       if (e.key === "Escape") onClose();
@@ -79,22 +89,42 @@ export default function Modal({
       style={styles.overlay}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div style={styles.box}>
+      <div
+        style={{
+          ...styles.box,
+          ...(maxWidth ? { maxWidth } : {}),
+        }}
+      >
         <div style={styles.header}>
           <h2 style={styles.title}>{title}</h2>
-          <button style={styles.closeBtn} onClick={onClose}>
-            ×
-          </button>
+          <div style={styles.actions}>
+            <button
+              type="button"
+              className="inv-btn-primary inv-save-btn"
+              onClick={onSave}
+              disabled={primaryDisabled}
+            >
+              {saving ? "Saving…" : saveLabel}
+            </button>
+            <button
+              type="button"
+              className="inv-btn-ghost"
+              onClick={onClose}
+              disabled={primaryDisabled}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              style={styles.closeBtn}
+              onClick={onClose}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
         </div>
         <div style={styles.body}>{children}</div>
-        <div className="inv-modal-footer">
-          <button className="inv-btn-ghost" onClick={onClose} disabled={saving}>
-            Cancel
-          </button>
-          <button className="inv-btn-primary" onClick={onSave} disabled={saving}>
-            {saving ? "Saving..." : saveLabel}
-          </button>
-        </div>
       </div>
     </div>
   );

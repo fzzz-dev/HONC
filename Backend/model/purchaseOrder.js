@@ -28,6 +28,18 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
     type: DataTypes.STRING,
     defaultValue: "",
   },
+  paymentTermsId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: "PaymentTerms",
+      key: "id",
+    },
+  },
+  paymentTermsName: {
+    type: DataTypes.STRING,
+    defaultValue: "",
+  },
   gstEnabled: {
     type: DataTypes.BOOLEAN,
     defaultValue: true,

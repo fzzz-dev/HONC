@@ -46,8 +46,41 @@ const Item = sequelize.define("Item", {
     type: DataTypes.STRING,
     defaultValue: "",
   },
+  movementType: {
+    type: DataTypes.ENUM("moving", "non-moving"),
+    allowNull: false,
+    defaultValue: "moving",
+  },
   itemDescription: {
-    type: DataTypes.TEXT,
+    type: DataTypes.STRING(1024),
+    allowNull: true,
+  },
+  minimumStock: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0,
+  },
+  minimumOrderQty: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0,
+  },
+  leadDays: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  inTransitDays: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  hsnCode: {
+    type: DataTypes.STRING,
+    defaultValue: "",
+  },
+  gstPercent: {
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 0,
+  },
+  rackBinNo: {
+    type: DataTypes.STRING,
     defaultValue: "",
   },
   rate: {

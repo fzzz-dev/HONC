@@ -1,6 +1,7 @@
 // pages/PurchaseOrderPage.jsx
 import { useState, useEffect } from "react";
-import { purchaseOrderApi } from "../../services/inventoryApi";
+import { purchaseOrderApi, paymentTermsApi } from "../../services/inventoryApi";
+import Modal from "../../components/Modal";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n) =>
@@ -65,11 +66,170 @@ const emptyHeader = () => ({
   date: today(),
   supplierId: "",
   supplierName: "",
+  paymentTermsId: "",
+  paymentTermsName: "",
   createdBy: "Admin",
   createdOn: today(),
   status: "Open",
   remarks: "",
 });
+
+function printPurchaseOrder({
+  header,
+  details: detailRows,
+  totals,
+  gstEnabled,
+  gstType,
+}) {
+  const esc = (s) =>
+    String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+  const rows = detailRows || [];
+  const rowsHtml = rows
+    .map((d, i) => {
+      const disc = Number(d.discPrice || 0);
+      const discCell =
+        disc > 0 ? `₹${fmt(disc)}` : "—";
+      const gstPct = gstEnabled ? `${Number(d.gstPct || 0)}%` : "—";
+      const sgst = gstEnabled && gstType !== "other" ? fmt(d.sgst || 0) : "—";
+      const cgst = gstEnabled && gstType !== "other" ? fmt(d.cgst || 0) : "—";
+      const igst = gstEnabled && gstType === "other" ? fmt(d.igst || 0) : "—";
+      return `
+    <tr>
+      <td class="c">${i + 1}</td>
+      <td>${esc(d.itemName)}</td>
+      <td class="r">${esc(d.uom)}</td>
+      <td class="r">${Number(d.poQty || 0)}</td>
+      <td class="r">₹${fmt(d.poRate)}</td>
+      <td class="r">${discCell}</td>
+      <td class="r">₹${fmt(d.poAmount)}</td>
+      <td class="c">${gstPct}</td>
+      <td class="r">${gstType === "other" ? igst : sgst}</td>
+      <td class="r">${gstType === "other" ? "—" : cgst}</td>
+      <td class="r b">₹${fmt(d.totalAmount)}</td>
+    </tr>`;
+    })
+    .join("");
+
+  const gstLabel =
+    gstEnabled && gstType === "local"
+      ? "SGST / CGST (each ½ of GST)"
+      : gstEnabled
+        ? "IGST"
+        : "Tax";
+
+  const summaryBlock = `
+    <table class="sum">
+      <tr><td>Gross amount</td><td>₹${fmt(totals.grossAmount)}</td></tr>
+      ${
+        totals.discPrice > 0
+          ? `<tr><td>Less discount</td><td>−₹${fmt(totals.discPrice)}</td></tr>`
+          : ""
+      }
+      <tr><td>Taxable value</td><td>₹${fmt(totals.poAmount)}</td></tr>
+      ${
+        gstEnabled
+          ? gstType === "other"
+            ? `<tr><td>IGST</td><td>₹${fmt(totals.igst)}</td></tr>`
+            : `<tr><td>SGST</td><td>₹${fmt(totals.sgst)}</td></tr>
+               <tr><td>CGST</td><td>₹${fmt(totals.cgst)}</td></tr>`
+          : `<tr><td>Tax</td><td>₹0.00</td></tr>`
+      }
+      <tr class="grand"><td><strong>Grand total (incl. tax)</strong></td><td><strong>₹${fmt(totals.totalAmount)}</strong></td></tr>
+    </table>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><title>PO ${esc(header.poNo)}</title>
+<style>
+@page { margin: 12mm; size: A4; }
+*{box-sizing:border-box;}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;padding:16px 20px;color:#0f172a;font-size:11px;}
+.doc-head{border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:14px;}
+.doc-head h1{margin:0 0 4px;font-size:18px;letter-spacing:-0.02em;}
+.doc-head .sub{margin:0;color:#64748b;font-size:11px;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-bottom:14px;}
+.kv{display:flex;gap:8px;font-size:11px;line-height:1.35;}
+.kv span:first-child{min-width:100px;color:#64748b;flex-shrink:0;}
+.kv span:last-child{font-weight:600;text-align:right;flex:1;}
+table.lines{border-collapse:collapse;width:100%;font-size:10px;margin-top:8px;}
+table.lines th,table.lines td{border:1px solid #cbd5e1;padding:5px 6px;vertical-align:top;}
+table.lines th{background:#f1f5f9;font-weight:600;text-align:left;}
+table.lines td.r,table.lines th.r{text-align:right;}
+table.lines td.c,table.lines th.c{text-align:center;}
+table.lines td.b{font-weight:600;}
+table.sum{margin-top:14px;margin-left:auto;width:280px;border-collapse:collapse;font-size:11px;}
+table.sum td{padding:5px 0;border-bottom:1px solid #e2e8f0;}
+table.sum td:last-child{text-align:right;font-variant-numeric:tabular-nums;}
+table.sum tr.grand td{border-bottom:none;padding-top:10px;font-size:12px;}
+.rem{margin-top:12px;padding:8px 10px;background:#f8fafc;border-radius:6px;font-size:10px;color:#475569;}
+@media print{body{padding:0;}.no-print{display:none;}}
+</style></head><body>
+<div class="doc-head">
+  <h1>Purchase Order</h1>
+  <p class="sub">Printed ${esc(new Date().toLocaleString("en-IN"))}</p>
+</div>
+<div class="grid">
+  <div>
+    <div class="kv"><span>PO number</span><span>${esc(header.poNo || "—")}</span></div>
+    <div class="kv"><span>Date</span><span>${esc(header.date)}</span></div>
+    <div class="kv"><span>Status</span><span>${esc(header.status)}</span></div>
+    <div class="kv"><span>Created by</span><span>${esc(header.createdBy || "—")}</span></div>
+  </div>
+  <div>
+    <div class="kv"><span>Supplier</span><span>${esc(header.supplierName || "—")}</span></div>
+    <div class="kv"><span>Payment terms</span><span>${esc(header.paymentTermsName || "—")}</span></div>
+    <div class="kv"><span>GST</span><span>${gstEnabled ? "Applicable" : "Not applicable"} (${esc(gstLabel)})</span></div>
+    <div class="kv"><span>Created on</span><span>${esc(header.createdOn || "—")}</span></div>
+  </div>
+</div>
+<table class="lines">
+<thead><tr>
+<th class="c">#</th><th>Item / description</th><th class="r">UOM</th><th class="r">Qty</th><th class="r">Rate</th>
+<th class="r">Disc.</th><th class="r">Taxable</th><th class="c">GST %</th><th class="r">${gstType === "other" ? "IGST" : "SGST"}</th><th class="r">${gstType === "other" ? "—" : "CGST"}</th><th class="r">Amount</th>
+</tr></thead>
+<tbody>${rowsHtml || `<tr><td colspan="11" style="text-align:center;color:#64748b">No line items</td></tr>`}</tbody>
+</table>
+${summaryBlock}
+${header.remarks ? `<div class="rem"><strong>Remarks:</strong> ${esc(header.remarks)}</div>` : ""}
+<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},100);});</script>
+</body></html>`;
+
+  const w = window.open("", "_blank");
+  if (w) {
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    return;
+  }
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("title", "Print purchase order");
+  iframe.style.cssText =
+    "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;";
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument || iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  const win = iframe.contentWindow;
+  const trigger = () => {
+    try {
+      win.focus();
+      win.print();
+    } finally {
+      setTimeout(() => iframe.remove(), 500);
+    }
+  };
+  if (doc.readyState === "complete") {
+    setTimeout(trigger, 150);
+  } else {
+    iframe.onload = () => setTimeout(trigger, 150);
+  }
+}
 
 // ─── GST calculation ──────────────────────────────────────────────────────────
 function calcRow(row, gstEnabled, gstType) {
@@ -112,6 +272,31 @@ function calcRow(row, gstEnabled, gstType) {
   };
 }
 
+function buildDetailFromIndentOption(opt, gstEnabled, gstType) {
+  const base = emptyDetail();
+  return calcRow(
+    {
+      ...base,
+      indentDetailId: opt.detailId,
+      indentId: opt.indentId,
+      indentNo: opt.indentNo,
+      itemId: opt.itemId || "",
+      itemName: opt.itemName,
+      uom: opt.uom,
+      indentQty: opt.indentQty || 0,
+      alPoQty: opt.alPoQty || 0,
+      balQty: opt.balQty || 0,
+      poQty: opt.balQty || 0,
+      priceListRate: opt.priceListRate || 0,
+      poRate: opt.priceListRate || 0,
+      gstPct: opt.gstPct ?? 18,
+      indentRemarks: opt.indentRemarks || "",
+    },
+    gstEnabled,
+    gstType,
+  );
+}
+
 // ─── component ────────────────────────────────────────────────────────────────
 export default function PurchaseOrderPage() {
   const [pos, setPos] = useState([]);
@@ -121,6 +306,9 @@ export default function PurchaseOrderPage() {
   const [indents, setIndents] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [pendingSelected, setPendingSelected] = useState(() => new Set());
+  const [paymentTermsList, setPaymentTermsList] = useState([]);
 
   const [view, setView] = useState("list");
   const [editId, setEditId] = useState(null);
@@ -137,7 +325,19 @@ export default function PurchaseOrderPage() {
     loadPos();
     loadIndents();
     loadSuppliers();
+    (async () => {
+      try {
+        const pt = await paymentTermsApi.getAll();
+        setPaymentTermsList(Array.isArray(pt) ? pt : []);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
   }, []);
+
+  useEffect(() => {
+    if (pendingModalOpen) setPendingSelected(new Set());
+  }, [pendingModalOpen]);
 
   async function loadPos() {
     setLoadingList(true);
@@ -197,6 +397,8 @@ export default function PurchaseOrderPage() {
       date: po.date,
       supplierId: sid(po.supplierId),
       supplierName: po.supplierName,
+      paymentTermsId: po.paymentTermsId ? String(po.paymentTermsId) : "",
+      paymentTermsName: po.paymentTermsName || "",
       createdBy: po.createdBy,
       createdOn: po.createdOn,
       status: po.status,
@@ -232,24 +434,36 @@ export default function PurchaseOrderPage() {
   function updateDetail(idx, field, val) {
     setDetails((prev) => {
       const rows = [...prev];
+      const coerced =
+        field === "indentDetailId"
+          ? val === "" || val == null
+            ? ""
+            : String(val)
+          : isNaN(val) || val === "" ? val : +val;
       const row = {
         ...rows[idx],
-        [field]: isNaN(val) || val === "" ? val : +val,
+        [field]: coerced,
       };
 
       if (field === "indentDetailId") {
-        const found = indentDetailOptions.find((o) => o.detailId === val);
+        const found = indentDetailOptions.find(
+          (o) => String(o.detailId) === String(val),
+        );
         if (found) {
-          row.indentDetailId = val;
+          row.indentDetailId = String(found.detailId);
           row.indentId = found.indentId;
           row.indentNo = found.indentNo;
-          row.itemId = found.itemId; // Note: if itemId is available in indent detail
+          row.itemId = found.itemId || "";
           row.itemName = found.itemName;
           row.uom = found.uom;
           row.indentQty = found.indentQty || 0;
           row.alPoQty = found.alPoQty || 0;
           row.balQty = found.balQty || 0;
           row.poQty = found.balQty || 0;
+          row.priceListRate = found.priceListRate || 0;
+          row.poRate = found.priceListRate || row.poRate || 0;
+          row.gstPct = found.gstPct ?? 18;
+          row.indentRemarks = found.indentRemarks || "";
         } else {
           row.indentDetailId = "";
           row.indentId = "";
@@ -260,6 +474,28 @@ export default function PurchaseOrderPage() {
       rows[idx] = calcRow(row, gstEnabled, gstType);
       return rows;
     });
+  }
+
+  function addPendingLinesToDetails() {
+    const picks = pendingIndentRows.filter((r) =>
+      pendingSelected.has(r.rowId),
+    );
+    if (!picks.length) return;
+    setDetails((prev) => {
+      const isBlankOnly =
+        prev.length === 1 &&
+        !String(prev[0].indentDetailId || "").trim() &&
+        !(prev[0].itemName || "").trim();
+      const base = isBlankOnly ? [] : prev;
+      const existing = new Set(
+        base.map((r) => String(r.indentDetailId || "")).filter(Boolean),
+      );
+      const merged = picks
+        .filter((p) => !existing.has(String(p.detailId)))
+        .map((p) => buildDetailFromIndentOption(p, gstEnabled, gstType));
+      return [...base, ...merged];
+    });
+    setPendingModalOpen(false);
   }
 
   function toggleDiscMode(idx) {
@@ -342,21 +578,43 @@ export default function PurchaseOrderPage() {
 
   // Build flat list of all indent detail rows for the dropdown
   const indentDetailOptions = [];
+  const pendingIndentRows = [];
   for (const indent of indents) {
     const detailsArray = safeDetails(indent.details);
     detailsArray.forEach((d, dIdx) => {
-      // Fallback ID if missing
       const detailId = sid(d) || `idx-${sid(indent)}-${dIdx}`;
+      const balQty = d.balQty ?? d.indentQty ?? 0;
+      const gstRaw = d.gstPct;
+      const gstPct =
+        gstRaw !== undefined && gstRaw !== null && gstRaw !== ""
+          ? Number(gstRaw)
+          : 18;
+      const priceListRate = Number(d.priceListRate) || 0;
+
+      const opt = {
+        detailId,
+        indentId: sid(indent),
+        indentNo: indent.indentNo,
+        itemId: sid(d.itemId),
+        itemName: d.itemName || "—",
+        uom: d.uom || "",
+        indentQty: d.indentQty || 0,
+        alPoQty: d.alPoQty || 0,
+        balQty,
+        priceListRate,
+        gstPct: Number.isFinite(gstPct) ? gstPct : 18,
+        indentRemarks: d.remarks || "",
+      };
+
       if (detailId) {
-        indentDetailOptions.push({
-          detailId,
-          indentId: sid(indent),
-          indentNo: indent.indentNo,
-          itemName: d.itemName || "—",
-          uom: d.uom || "",
-          indentQty: d.indentQty || 0,
-          alPoQty: d.alPoQty || 0,
-          balQty: d.balQty ?? d.indentQty ?? 0,
+        indentDetailOptions.push(opt);
+      }
+
+      if (balQty > 0) {
+        pendingIndentRows.push({
+          ...opt,
+          rowId: `${sid(indent)}-${detailId}`,
+          date: indent.date,
         });
       }
     });
@@ -543,7 +801,33 @@ export default function PurchaseOrderPage() {
           <p className="inv-page-sub">Fill header, select indents and save</p>
         </div>
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="inv-btn-primary inv-save-btn"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? "Saving…" : "Save PO"}
+          </button>
+          <button className="inv-btn-secondary" type="button" onClick={() => setView("list")}>
+            ← Back
+          </button>
+          <button
+            type="button"
+            className="inv-btn-ghost"
+            onClick={() =>
+              printPurchaseOrder({
+                header,
+                details,
+                totals,
+                gstEnabled,
+                gstType,
+              })
+            }
+          >
+            Print
+          </button>
           {/* GST Enabled toggle */}
           <button
             type="button"
@@ -620,16 +904,6 @@ export default function PurchaseOrderPage() {
             </button>
           )}
 
-          <button className="inv-btn-secondary" onClick={() => setView("list")}>
-            ← Back
-          </button>
-          <button
-            className="inv-btn-primary"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? "Saving…" : "Save PO"}
-          </button>
         </div>
       </div>
 
@@ -704,10 +978,16 @@ export default function PurchaseOrderPage() {
                 value={header.supplierId}
                 onChange={(e) => {
                   const s = suppliers.find((x) => sid(x) === e.target.value);
+                  const ptId = s?.paymentTermsId ? String(s.paymentTermsId) : "";
+                  const pt = ptId
+                    ? paymentTermsList.find((x) => sid(x) === ptId)
+                    : null;
                   setHeader((h) => ({
                     ...h,
                     supplierId: e.target.value,
                     supplierName: s?.supplierName || "",
+                    paymentTermsId: ptId,
+                    paymentTermsName: pt?.name || "",
                   }));
                 }}
                 disabled={loadingSuppliers}
@@ -738,6 +1018,35 @@ export default function PurchaseOrderPage() {
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="inv-form-row cols-2">
+            <div className="inv-field">
+              <label className="inv-label">Payment terms</label>
+              <select
+                className="inv-input"
+                value={header.paymentTermsId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const pt = paymentTermsList.find(
+                    (x) => String(x.id || x._id) === id,
+                  );
+                  setHeader((h) => ({
+                    ...h,
+                    paymentTermsId: id,
+                    paymentTermsName: pt?.name || "",
+                  }));
+                }}
+              >
+                <option value="">Optional — select terms</option>
+                {paymentTermsList.map((p) => (
+                  <option key={sid(p)} value={sid(p)}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div />
           </div>
 
           <div className="inv-form-row cols-3">
@@ -790,9 +1099,20 @@ export default function PurchaseOrderPage() {
             <div className="inv-section-label" style={{ marginBottom: 0 }}>
               Detail
             </div>
-            <button className="inv-btn-secondary inv-btn-sm" onClick={addRow}>
-              + Add Row
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="inv-btn-secondary inv-btn-sm"
+                onClick={async () => {
+                  await loadIndents();
+                  setPendingModalOpen(true);
+                }}
+              >
+                Pending
+              </button>
+              <button className="inv-btn-secondary inv-btn-sm" onClick={addRow}>
+                + Add Row
+              </button>
+            </div>
           </div>
 
           <div style={{ overflowX: "auto" }}>
@@ -850,7 +1170,7 @@ export default function PurchaseOrderPage() {
                     {/* Indent item picker */}
                     <td style={{ minWidth: 220 }}>
                       <select
-                        value={row.indentDetailId}
+                        value={String(row.indentDetailId ?? "")}
                         onChange={(e) =>
                           updateDetail(idx, "indentDetailId", e.target.value)
                         }
@@ -858,7 +1178,10 @@ export default function PurchaseOrderPage() {
                       >
                         <option value="">— select indent item —</option>
                         {indentDetailOptions.map((opt, optIdx) => (
-                          <option key={`${opt.detailId}-${optIdx}`} value={opt.detailId}>
+                          <option
+                            key={`${opt.detailId}-${optIdx}`}
+                            value={String(opt.detailId)}
+                          >
                             {opt.indentNo} › {opt.itemName} (bal: {opt.balQty} / {opt.indentQty} {opt.uom})
                           </option>
                         ))}
@@ -1211,6 +1534,98 @@ export default function PurchaseOrderPage() {
           </div>
         </div>
       </div>
+
+      {pendingModalOpen && (
+        <Modal
+          maxWidth="920px"
+          title={`Pending indent lines (${pendingIndentRows.length})`}
+          onClose={() => setPendingModalOpen(false)}
+          onSave={addPendingLinesToDetails}
+          saveLabel={
+            pendingSelected.size
+              ? `Add ${pendingSelected.size} to PO`
+              : "Add selected to PO"
+          }
+          saveDisabled={pendingSelected.size === 0}
+        >
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 12px" }}>
+            Select lines with balance, then click <strong>Add selected to PO</strong> (or Cancel to close).
+          </p>
+          <div className="inv-table-wrap">
+            <table className="inv-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      aria-label="Select all pending lines"
+                      checked={
+                        pendingIndentRows.length > 0 &&
+                        pendingSelected.size === pendingIndentRows.length
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setPendingSelected(
+                            new Set(pendingIndentRows.map((r) => r.rowId)),
+                          );
+                        } else {
+                          setPendingSelected(new Set());
+                        }
+                      }}
+                    />
+                  </th>
+                  <th>#</th>
+                  <th>Indent No</th>
+                  <th>Date</th>
+                  <th>Item</th>
+                  <th>UOM</th>
+                  <th>Indent Qty</th>
+                  <th>Already PO Qty</th>
+                  <th>Balance Qty</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingIndentRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="inv-empty">
+                      No pending purchase indents
+                    </td>
+                  </tr>
+                ) : (
+                  pendingIndentRows.map((row, idx) => (
+                    <tr key={row.rowId}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={pendingSelected.has(row.rowId)}
+                          onChange={() => {
+                            setPendingSelected((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(row.rowId)) next.delete(row.rowId);
+                              else next.add(row.rowId);
+                              return next;
+                            });
+                          }}
+                        />
+                      </td>
+                      <td className="inv-idx">{String(idx + 1).padStart(2, "0")}</td>
+                      <td style={{ fontWeight: 600 }}>{row.indentNo}</td>
+                      <td>{row.date}</td>
+                      <td>{row.itemName}</td>
+                      <td>{row.uom}</td>
+                      <td>{row.indentQty}</td>
+                      <td>{row.alPoQty}</td>
+                      <td style={{ fontWeight: 600, color: "#b45309" }}>
+                        {row.balQty}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

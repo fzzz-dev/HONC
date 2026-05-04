@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCountries } from "../slices/countrySlice";
 import { fetchStates } from "../slices/stateSlice";
@@ -12,6 +12,9 @@ import {
   FormGrid,
   Textarea,
 } from "../components/FormFields";
+import { mainCategoryApi, paymentTermsApi } from "../services/inventoryApi";
+
+const PINCODE_RE = /^\d{6}$/;
 
 // ─── API BASE ──────────────────────────────────────────────────────────────────
 const API = import.meta.env.VITE_API_URL || "/api";
@@ -91,6 +94,8 @@ const typesAPI = {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const EMPTY_ADDRESS = {
+  line1: "",
+  line2: "",
   address: "",
   pinCode: "",
   cityId: "",
@@ -105,6 +110,7 @@ const EMPTY_ADDRESS = {
 
 const EMPTY_FORM = {
   supplierName: "",
+  shortCode: "",
   type: "",
   active: true,
   addresses: [],
@@ -114,6 +120,8 @@ const EMPTY_FORM = {
   emailId2: "",
   mobileNo1: "",
   mobileNo2: "",
+  paymentTermsId: "",
+  purchaseCategoryIds: [],
 };
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
@@ -173,9 +181,29 @@ const StarIcon = ({ filled }) => (
   </svg>
 );
 
-// ─── Address Form Page ─────────────────────────────────────────────────────────
+// ─── Normalize legacy address (single `address` text) into line1 / line2 ───────
+function normalizeAddrForForm(addr) {
+  const base = { ...EMPTY_ADDRESS, ...addr };
+  if (base.line1) return base;
+  const raw = String(base.address || "").trim();
+  if (!raw) return base;
+  const comma = raw.indexOf(",");
+  if (comma === -1) {
+    return { ...base, line1: raw, line2: "" };
+  }
+  return {
+    ...base,
+    line1: raw.slice(0, comma).trim(),
+    line2: raw.slice(comma + 1).trim(),
+  };
+}
+
+// ─── Address editor (embedded in page — no overlay) ───────────────────────────
 function AddressFormPage({ address, onSave, onCancel, countries = [], states = [], cities = [], addressNumber }) {
   const [form, setForm] = useState(address);
+  useEffect(() => {
+    setForm(address);
+  }, [address]);
 
   const countryOptions = countries.map((c) => ({ value: String(c.id || c._id), label: c.name }));
   const stateOptions = states.map((s) => ({ value: String(s.id || s._id), label: s.name }));
@@ -203,54 +231,62 @@ function AddressFormPage({ address, onSave, onCancel, countries = [], states = [
   }
 
   function handleSubmit() {
-    if (!form.address.trim()) return alert("Address is required");
+    const line1 = String(form.line1 ?? "").trim();
+    const line2 = String(form.line2 ?? "").trim();
+    if (!line1) return alert("Address line 1 is required");
+    const pin = String(form.pinCode ?? "").trim();
+    if (pin && !PINCODE_RE.test(pin)) return alert("Pincode must be exactly 6 digits");
     if (!form.countryId) return alert("Country is required");
     if (!form.stateId) return alert("State is required");
     if (!form.cityId) return alert("City is required");
-    onSave(form);
+    const combined = [line1, line2].filter(Boolean).join(", ");
+    onSave({ ...form, line1, line2, address: combined });
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#fff", borderRadius: 12, width: "90%", maxWidth: 700, maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
-            {addressNumber ? `Edit Address ${addressNumber}` : "Add New Address"}
-          </h2>
+    <div style={{ border: "1px solid var(--border-mid)", borderRadius: 10, background: "#fafbfc", marginTop: 12 }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 600, fontSize: 14 }}>
+          {addressNumber ? `Edit address ${addressNumber}` : "Add address"}
+        </span>
+        <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+          <button type="button" className="inv-btn-primary inv-save-btn" onClick={handleSubmit}>Save address</button>
+          <button type="button" className="inv-btn-ghost" onClick={onCancel}>Cancel</button>
         </div>
-        <div style={{ padding: 24 }}>
-          <Field label="Address" required>
-            <Textarea value={form.address} onChange={(v) => setForm({ ...form, address: v })} placeholder="Enter full address" rows={3} />
+      </div>
+      <div style={{ padding: 20 }}>
+        <FormGrid>
+          <Field label="Add 1" required>
+            <Input value={form.line1} onChange={(v) => setForm({ ...form, line1: v })} placeholder="Address line 1" />
           </Field>
-          <FormGrid>
-            <Field label="Pin code">
-              <Input value={form.pinCode} onChange={(v) => setForm({ ...form, pinCode: v })} placeholder="e.g. 600001" />
-            </Field>
-            <Field label="Country" required>
-              <Select value={form.countryId} onChange={handleCountryChange} options={countryOptions} placeholder="Select country..." />
-            </Field>
-          </FormGrid>
-          <FormGrid>
-            <Field label="State" required>
-              <Select value={form.stateId} onChange={handleStateChange} options={stateOptions} placeholder={!form.countryId ? "Select country first" : stateOptions.length === 0 ? "No states available" : "Select state..."} />
-            </Field>
-            <Field label="City" required>
-              <Select value={form.cityId} onChange={handleCityChange} options={cityOptions} placeholder={!form.stateId ? "Select state first" : cityOptions.length === 0 ? "No cities available" : "Select city..."} />
-            </Field>
-          </FormGrid>
-          <Field label="Note">
-            <Textarea value={form.note} onChange={(v) => setForm({ ...form, note: v })} placeholder="Additional notes (optional)" rows={2} />
+          <Field label="Add 2">
+            <Input value={form.line2} onChange={(v) => setForm({ ...form, line2: v })} placeholder="Address line 2" />
           </Field>
-          <Field label="Set as primary address">
-            <div style={{ paddingTop: 6 }}>
-              <Toggle value={form.isPrimary} onChange={(v) => setForm({ ...form, isPrimary: v })} />
-            </div>
+        </FormGrid>
+        <FormGrid>
+          <Field label="Pincode">
+            <Input value={form.pinCode} onChange={(v) => setForm({ ...form, pinCode: v })} placeholder="6 digits" maxLength={6} />
           </Field>
-        </div>
-        <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border)", display: "flex", gap: 10, justifyContent: "flex-end", position: "sticky", bottom: 0, background: "#fff" }}>
-          <button onClick={onCancel} style={{ padding: "8px 16px", border: "1px solid var(--border)", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Cancel</button>
-          <button onClick={handleSubmit} style={{ padding: "8px 16px", border: "none", borderRadius: 6, background: "var(--primary)", color: "#000", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Save Address</button>
-        </div>
+          <Field label="Country" required>
+            <Select value={form.countryId} onChange={handleCountryChange} options={countryOptions} placeholder="Select country…" />
+          </Field>
+        </FormGrid>
+        <FormGrid>
+          <Field label="State" required>
+            <Select value={form.stateId} onChange={handleStateChange} options={stateOptions} placeholder={!form.countryId ? "Select country first" : stateOptions.length === 0 ? "No states" : "Select state…"} />
+          </Field>
+          <Field label="City" required>
+            <Select value={form.cityId} onChange={handleCityChange} options={cityOptions} placeholder={!form.stateId ? "Select state first" : cityOptions.length === 0 ? "No cities" : "Select city…"} />
+          </Field>
+        </FormGrid>
+        <Field label="Note">
+          <Textarea value={form.note} onChange={(v) => setForm({ ...form, note: v })} placeholder="Optional" rows={2} />
+        </Field>
+        <Field label="Set as primary address">
+          <div style={{ paddingTop: 6 }}>
+            <Toggle value={form.isPrimary} onChange={(v) => setForm({ ...form, isPrimary: v })} />
+          </div>
+        </Field>
       </div>
     </div>
   );
@@ -287,7 +323,15 @@ function AddressList({ addresses, onEdit, onDelete, onSetPrimary }) {
               <button onClick={() => onDelete(idx)} style={{ padding: "4px 8px", border: "1px solid #fca5a5", borderRadius: 5, background: "#fff", cursor: "pointer", fontSize: 11, color: "var(--danger)" }}>Delete</button>
             </div>
           </div>
-          <div style={{ fontSize: 13, marginBottom: 6 }}>{addr.address}</div>
+          <div style={{ fontSize: 13, marginBottom: 6 }}>
+            {addr.line1 || addr.address}
+            {addr.line2 ? (
+              <>
+                <br />
+                {addr.line2}
+              </>
+            ) : null}
+          </div>
           <div style={{ fontSize: 12, color: "var(--text-secondary)", display: "flex", gap: 4, flexWrap: "wrap" }}>
             {addr.pinCode && <span>{addr.pinCode}</span>}
             {addr.cityName && <span>• {addr.cityName}</span>}
@@ -345,10 +389,10 @@ function TypeManagementModal({ types, onClose, onAdd, onEdit, onDelete, loading 
         <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
           <div style={{ marginBottom: 20 }}>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Add new category</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input type="text" value={newType} onChange={(e) => setNewType(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()} placeholder="e.g. Wholesaler" style={{ flex: 1, padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13, outline: "none" }} />
-              <button type="button" onClick={handleAdd} disabled={saving || !newType.trim()} style={{ padding: "8px 18px", border: "none", borderRadius: 6, background: "var(--primary)", color: "#fff", cursor: saving || !newType.trim() ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", opacity: saving || !newType.trim() ? 0.55 : 1 }}>
-                {saving ? "Adding…" : "+ Add"}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "stretch" }}>
+              <input type="text" value={newType} onChange={(e) => setNewType(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()} placeholder="e.g. Wholesaler" style={{ flex: "1 1 160px", minWidth: 0, padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 6, fontSize: 13, outline: "none" }} />
+              <button type="button" className="inv-btn-primary inv-save-btn" onClick={handleAdd} disabled={saving || !newType.trim()} style={{ flex: "0 0 auto", padding: "8px 18px", border: "none", borderRadius: 6, cursor: saving || !newType.trim() ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", opacity: saving || !newType.trim() ? 0.55 : 1 }}>
+                {saving ? "Saving…" : "Save"}
               </button>
             </div>
           </div>
@@ -366,7 +410,7 @@ function TypeManagementModal({ types, onClose, onAdd, onEdit, onDelete, loading 
                   {editingId === (type.id || type._id || type.value) ? (
                     <>
                       <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()} autoFocus style={{ flex: 1, padding: "6px 10px", border: "1px solid var(--border)", borderRadius: 5, fontSize: 13, outline: "none" }} />
-                      <button type="button" onClick={handleSaveEdit} disabled={saving} style={{ padding: "6px 12px", border: "none", borderRadius: 4, background: "var(--primary)", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 500, opacity: saving ? 0.6 : 1 }}>{saving ? "…" : "Save"}</button>
+                      <button type="button" className="inv-btn-primary" onClick={handleSaveEdit} disabled={saving} style={{ padding: "6px 12px", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: 500, opacity: saving ? 0.6 : 1 }}>{saving ? "…" : "Save"}</button>
                       <button type="button" onClick={() => { setEditingId(null); setEditValue(""); }} style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 12 }}>Cancel</button>
                     </>
                   ) : (
@@ -421,7 +465,8 @@ function ViewModal({ supplier, onClose }) {
                 Address {i + 1}
                 {addr.isPrimary && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 100, background: "#10b981", color: "#fff", fontWeight: 500, textTransform: "uppercase" }}>Primary</span>}
               </div>
-              <Row label="Address" value={addr.address} />
+              <Row label="Add 1" value={addr.line1 || addr.address} />
+              <Row label="Add 2" value={addr.line2} />
               <Row label="Pin code" value={addr.pinCode} />
               <Row label="City" value={addr.cityName} />
               <Row label="State" value={addr.stateName} />
@@ -473,6 +518,8 @@ export default function SupplierPage() {
   const [viewSupplier, setViewSupplier] = useState(null);
   const [addressForm, setAddressForm] = useState(null);
   const [typeManagement, setTypeManagement] = useState(false);
+  const [paymentTerms, setPaymentTerms] = useState([]);
+  const [mainCategories, setMainCategories] = useState([]);
 
   const dispatch = useDispatch();
   const countries = useSelector((s) => s.countries?.data || []);
@@ -519,6 +566,21 @@ export default function SupplierPage() {
     dispatch(fetchCities({ page: 1, limit: 10000 }));
   }, [dispatch]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const [pt, mc] = await Promise.all([
+          paymentTermsApi.getAll(),
+          mainCategoryApi.getAll(),
+        ]);
+        setPaymentTerms(Array.isArray(pt) ? pt : []);
+        setMainCategories(Array.isArray(mc) ? mc : []);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
+
   // Debounce search / filter
   useEffect(() => {
     const t = setTimeout(() => fetchSuppliers(), 400);
@@ -531,14 +593,41 @@ export default function SupplierPage() {
     id: t.id || t._id,
   }));
 
+  const paymentTermOptions = paymentTerms
+    .filter((p) => p.active !== false)
+    .map((p) => ({
+      value: String(p.id || p._id),
+      label: p.name,
+    }));
+
+  const mainCategoryOptions = useMemo(
+    () =>
+      mainCategories
+        .filter((c) => c.active !== false)
+        .map((c) => ({
+          id: String(c.id || c._id),
+          label: `${c.groupName || ""}${c.headName ? ` (${c.headName})` : ""}`,
+        })),
+    [mainCategories],
+  );
+
   // ── Modal helpers ────────────────────────────────────────────────────────────
   function openAdd() {
     setForm({ ...EMPTY_FORM, addresses: [] });
     setModal({ mode: "add" });
   }
   function openEdit(row) {
-    // ✅ FIX: normalise addresses to always be an array when loading into form
-    setForm({ ...EMPTY_FORM, ...row, addresses: toArray(row.addresses) });
+    const ids = Array.isArray(row.purchaseCategoryIds)
+      ? row.purchaseCategoryIds.map((x) => String(x))
+      : [];
+    setForm({
+      ...EMPTY_FORM,
+      ...row,
+      addresses: toArray(row.addresses).map((a) => normalizeAddrForForm(a)),
+      shortCode: String(row.shortCode || "").toUpperCase().slice(0, 5),
+      paymentTermsId: row.paymentTermsId ? String(row.paymentTermsId) : "",
+      purchaseCategoryIds: ids,
+    });
     setModal({ mode: "edit", id: row.id || row._id });
   }
 
@@ -547,7 +636,11 @@ export default function SupplierPage() {
     setAddressForm({ mode: "add", address: { ...EMPTY_ADDRESS } });
   }
   function openEditAddress(idx) {
-    setAddressForm({ mode: "edit", index: idx, address: { ...form.addresses[idx] } });
+    setAddressForm({
+      mode: "edit",
+      index: idx,
+      address: normalizeAddrForForm({ ...toArray(form.addresses)[idx] }),
+    });
   }
 
   function handleAddressSave(addr) {
@@ -583,13 +676,23 @@ export default function SupplierPage() {
   async function handleSave() {
     if (!form.supplierName.trim()) return alert("Party name is required");
     if (!form.type) return alert("Party category is required");
+    const sc = String(form.shortCode || "").trim().toUpperCase();
+    if (sc.length < 1 || sc.length > 5) {
+      return alert("Short code is required (1–5 characters)");
+    }
     setSaving(true);
     try {
       const cleanAddresses = toArray(form.addresses)
-        .filter((a) => a.address && a.cityId && a.stateId && a.countryId)
+        .filter((a) => (a.line1 || a.address) && a.cityId && a.stateId && a.countryId)
         .map(({ _id, ...rest }) => rest);
 
-      const payload = { ...form, addresses: cleanAddresses };
+      const payload = {
+        ...form,
+        shortCode: sc,
+        paymentTermsId: form.paymentTermsId || null,
+        purchaseCategoryIds: form.purchaseCategoryIds.map((x) => parseInt(x, 10)).filter((n) => !Number.isNaN(n)),
+        addresses: cleanAddresses,
+      };
 
       if (modal.mode === "add") {
         await suppliersAPI.create(payload);
@@ -660,14 +763,134 @@ export default function SupplierPage() {
     <div className="inv-page">
       <div className="inv-page-header">
         <div>
-          <h1 className="inv-page-title">Supplier</h1>
-          <p className="inv-page-sub">Manage your supplier directory and contacts</p>
+          <h1 className="inv-page-title">Party Master</h1>
+          <p className="inv-page-sub">Suppliers and customers — directory and contacts</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="inv-btn-secondary" onClick={() => setTypeManagement(true)}>Manage Categories</button>
           <button className="inv-btn-primary" onClick={openAdd}>+ Add supplier</button>
         </div>
       </div>
+
+      {modal && (
+        <div className="inv-card" style={{ marginBottom: 20 }}>
+          <div className="inv-form-actions-top" style={{ justifyContent: "flex-start" }}>
+            <button
+              type="button"
+              className="inv-btn-primary inv-save-btn"
+              disabled={saving}
+              onClick={handleSave}
+            >
+              {saving ? "Saving…" : modal.mode === "add" ? "Save party" : "Save changes"}
+            </button>
+            <button type="button" className="inv-btn-ghost" onClick={() => setModal(null)}>
+              Cancel
+            </button>
+          </div>
+
+          <SectionLabel>Basic info</SectionLabel>
+          <FormGrid>
+            <Field
+              label={
+                <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                  <span>Party category *</span>
+                  <button type="button" className="inv-btn-ghost" onClick={() => setTypeManagement(true)} style={{ padding: "0 4px", fontSize: "11px", color: "var(--primary)" }}>+ Add New</button>
+                </div>
+              }
+              required
+            >
+              <Select value={form.type} onChange={(v) => setForm((f) => ({ ...f, type: v }))} options={typeOptions} placeholder={typesLoading ? "Loading…" : typeOptions.length === 0 ? "No categories — add one first" : "Select type…"} />
+            </Field>
+            <Field label="Short code *">
+              <Input value={form.shortCode} onChange={(v) => setForm((f) => ({ ...f, shortCode: v.toUpperCase().slice(0, 5) }))} placeholder="Max 5 chars" maxLength={5} />
+            </Field>
+          </FormGrid>
+          <div style={{ marginBottom: 12, maxWidth: 720, width: "100%" }}>
+            <Field label="Party name *" required>
+              <Input value={form.supplierName} onChange={(v) => setForm((f) => ({ ...f, supplierName: v }))} placeholder="e.g. Steel India Ltd." style={{ width: "100%" }} />
+            </Field>
+          </div>
+
+          <SectionLabel>Business configuration</SectionLabel>
+          <FormGrid>
+            <Field label="Payment terms">
+              <Select
+                value={form.paymentTermsId}
+                onChange={(v) => setForm((f) => ({ ...f, paymentTermsId: v }))}
+                options={paymentTermOptions}
+                placeholder={paymentTermOptions.length === 0 ? "Add payment terms master first" : "Select payment terms…"}
+              />
+            </Field>
+            <Field label="Status">
+              <div style={{ paddingTop: 6 }}>
+                <Toggle value={form.active} onChange={(v) => setForm((f) => ({ ...f, active: v }))} label="Active" />
+              </div>
+            </Field>
+          </FormGrid>
+
+          <SectionLabel>Purchase category mapping</SectionLabel>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 16px", marginBottom: 16, maxHeight: 160, overflowY: "auto", padding: "8px 0" }}>
+            {mainCategoryOptions.length === 0 ? (
+              <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>No main categories available</span>
+            ) : (
+              mainCategoryOptions.map((c) => {
+                const checked = form.purchaseCategoryIds.map(String).includes(c.id);
+                return (
+                  <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setForm((f) => {
+                          const set = new Set(f.purchaseCategoryIds.map(String));
+                          if (set.has(c.id)) set.delete(c.id);
+                          else set.add(c.id);
+                          return { ...f, purchaseCategoryIds: [...set] };
+                        });
+                      }}
+                    />
+                    {c.label}
+                  </label>
+                );
+              })
+            )}
+          </div>
+
+          <SectionLabel>Addresses</SectionLabel>
+          <AddressList addresses={form.addresses} onEdit={openEditAddress} onDelete={deleteAddress} onSetPrimary={setAddressPrimary} />
+          <button type="button" onClick={openAddAddress} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "1px dashed var(--border-mid)", borderRadius: 6, padding: "8px 12px", cursor: "pointer", fontSize: 12, color: "var(--text-secondary)", marginTop: 12 }}>
+            <PlusIcon /> Add address
+          </button>
+
+          {addressForm && (
+            <AddressFormPage
+              address={addressForm.address}
+              addressNumber={addressForm.mode === "edit" ? addressForm.index + 1 : null}
+              onSave={handleAddressSave}
+              onCancel={() => setAddressForm(null)}
+              countries={countries}
+              states={states}
+              cities={cities}
+            />
+          )}
+
+          <SectionLabel>Tax info</SectionLabel>
+          <FormGrid>
+            <Field label="GST no"><Input value={form.gstNo} onChange={(v) => setForm((f) => ({ ...f, gstNo: v }))} placeholder="e.g. 33AABCU9603R1ZN" /></Field>
+            <Field label="PAN no"><Input value={form.panNo} onChange={(v) => setForm((f) => ({ ...f, panNo: v }))} placeholder="e.g. AABCU9603R" /></Field>
+          </FormGrid>
+
+          <SectionLabel>Contact</SectionLabel>
+          <FormGrid>
+            <Field label="Email ID 1"><Input type="email" value={form.emailId1} onChange={(v) => setForm((f) => ({ ...f, emailId1: v }))} placeholder="primary@email.com" /></Field>
+            <Field label="Email ID 2"><Input type="email" value={form.emailId2} onChange={(v) => setForm((f) => ({ ...f, emailId2: v }))} placeholder="secondary@email.com" /></Field>
+          </FormGrid>
+          <FormGrid>
+            <Field label="Mobile no 1"><Input value={form.mobileNo1} onChange={(v) => setForm((f) => ({ ...f, mobileNo1: v }))} placeholder="+91 98765 43210" /></Field>
+            <Field label="Mobile no 2"><Input value={form.mobileNo2} onChange={(v) => setForm((f) => ({ ...f, mobileNo2: v }))} placeholder="+91 98765 43210" /></Field>
+          </FormGrid>
+        </div>
+      )}
 
       <div className="inv-card">
         <div className="inv-toolbar">
@@ -687,6 +910,7 @@ export default function SupplierPage() {
               <tr>
                 <th>#</th>
                 <th>Party category</th>
+                <th>Short</th>
                 <th>Party name</th>
                 <th>Mobile no</th>
                 <th>Email</th>
@@ -699,9 +923,9 @@ export default function SupplierPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={10} className="inv-empty">Loading…</td></tr>
+                <tr><td colSpan={11} className="inv-empty">Loading…</td></tr>
               ) : suppliers.length === 0 ? (
-                <tr><td colSpan={10} className="inv-empty">No records found</td></tr>
+                <tr><td colSpan={11} className="inv-empty">No records found</td></tr>
               ) : (
                 suppliers.map((row, i) => {
                   // ✅ FIX: always normalise addresses to array before calling .find()
@@ -715,6 +939,7 @@ export default function SupplierPage() {
                           {row.type || "—"}
                         </span>
                       </td>
+                      <td className="inv-muted-sm">{row.shortCode || "—"}</td>
                       <td className="inv-bold">{row.supplierName}</td>
                       <td className="inv-muted-sm">{row.mobileNo1 || "—"}</td>
                       <td className="inv-muted-sm">{row.emailId1 || "—"}</td>
@@ -752,69 +977,6 @@ export default function SupplierPage() {
           onEdit={handleEditType}
           onDelete={handleDeleteType}
           loading={typesLoading}
-        />
-      )}
-
-      {modal && (
-        <Modal title={modal.mode === "add" ? "Add supplier" : "Edit supplier"} onClose={() => setModal(null)} onSave={handleSave} saveLabel={saving ? "Saving…" : modal.mode === "add" ? "Add supplier" : "Save changes"}>
-          <SectionLabel>Basic info</SectionLabel>
-          <FormGrid>
-            <Field
-              label={
-                <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
-                  <span>Party category *</span>
-                  <button type="button" className="inv-btn-ghost" onClick={() => setTypeManagement(true)} style={{ padding: "0 4px", fontSize: "11px", color: "var(--primary)" }}>+ Add New</button>
-                </div>
-              }
-              required
-            >
-              <Select value={form.type} onChange={(v) => setForm((f) => ({ ...f, type: v }))} options={typeOptions} placeholder={typesLoading ? "Loading…" : typeOptions.length === 0 ? "No categories — add one first" : "Select type…"} />
-            </Field>
-            <Field label="Party name" required>
-              <Input value={form.supplierName} onChange={(v) => setForm((f) => ({ ...f, supplierName: v }))} placeholder="e.g. Steel India Ltd." />
-            </Field>
-          </FormGrid>
-
-          <SectionLabel>Addresses</SectionLabel>
-          <AddressList addresses={form.addresses} onEdit={openEditAddress} onDelete={deleteAddress} onSetPrimary={setAddressPrimary} />
-          <button type="button" onClick={openAddAddress} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "1px dashed var(--border-mid)", borderRadius: 6, padding: "8px 12px", cursor: "pointer", fontSize: 12, color: "var(--text-secondary)", marginTop: 12 }}>
-            <PlusIcon /> Add address
-          </button>
-
-          <SectionLabel>Tax info</SectionLabel>
-          <FormGrid>
-            <Field label="GST no"><Input value={form.gstNo} onChange={(v) => setForm((f) => ({ ...f, gstNo: v }))} placeholder="e.g. 33AABCU9603R1ZN" /></Field>
-            <Field label="PAN no"><Input value={form.panNo} onChange={(v) => setForm((f) => ({ ...f, panNo: v }))} placeholder="e.g. AABCU9603R" /></Field>
-          </FormGrid>
-
-          <SectionLabel>Contact</SectionLabel>
-          <FormGrid>
-            <Field label="Email ID 1"><Input type="email" value={form.emailId1} onChange={(v) => setForm((f) => ({ ...f, emailId1: v }))} placeholder="primary@email.com" /></Field>
-            <Field label="Email ID 2"><Input type="email" value={form.emailId2} onChange={(v) => setForm((f) => ({ ...f, emailId2: v }))} placeholder="secondary@email.com" /></Field>
-          </FormGrid>
-          <FormGrid>
-            <Field label="Mobile no 1"><Input value={form.mobileNo1} onChange={(v) => setForm((f) => ({ ...f, mobileNo1: v }))} placeholder="+91 98765 43210" /></Field>
-            <Field label="Mobile no 2"><Input value={form.mobileNo2} onChange={(v) => setForm((f) => ({ ...f, mobileNo2: v }))} placeholder="+91 98765 43210" /></Field>
-          </FormGrid>
-
-          <SectionLabel>Status</SectionLabel>
-          <Field label="Active">
-            <div style={{ paddingTop: 6 }}>
-              <Toggle value={form.active} onChange={(v) => setForm((f) => ({ ...f, active: v }))} />
-            </div>
-          </Field>
-        </Modal>
-      )}
-
-      {addressForm && (
-        <AddressFormPage
-          address={addressForm.address}
-          addressNumber={addressForm.mode === "edit" ? addressForm.index + 1 : null}
-          onSave={handleAddressSave}
-          onCancel={() => setAddressForm(null)}
-          countries={countries}
-          states={states}
-          cities={cities}
         />
       )}
 

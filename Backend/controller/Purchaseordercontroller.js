@@ -1,6 +1,7 @@
 const PurchaseOrder = require("../model/purchaseOrder");
 const PurchaseIndent = require("../model/purchaseIndent");
 const Supplier = require("../model/supplier");
+const PaymentTerm = require("../model/paymentTerm");
 const { Op } = require("sequelize");
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -128,8 +129,18 @@ exports.getOne = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const {
-      poNo, date, supplierId, supplierName, gstEnabled = true, gstType = "local",
-      createdBy, createdOn, status, remarks, details = [],
+      poNo,
+      date,
+      supplierId,
+      supplierName,
+      paymentTermsId,
+      gstEnabled = true,
+      gstType = "local",
+      createdBy,
+      createdOn,
+      status,
+      remarks,
+      details = [],
     } = req.body;
 
     if (!poNo) return res.status(400).json({ message: "poNo is required" });
@@ -144,12 +155,31 @@ exports.create = async (req, res) => {
       }
     }
 
+    let ptId = paymentTermsId ? parseInt(paymentTermsId, 10) : null;
+    let paymentTermsName = "";
+    if (ptId) {
+      const pt = await PaymentTerm.findByPk(ptId);
+      if (!pt) return res.status(400).json({ message: "Invalid payment terms" });
+      paymentTermsName = pt.name;
+    } else {
+      ptId = null;
+    }
+
     const computedDetails = details.map((d) => calcDetail(d, gstEnabled, gstType));
 
     const po = await PurchaseOrder.create({
-      poNo, date, supplierId: supplierId || null,
+      poNo,
+      date,
+      supplierId: supplierId || null,
       supplierName: finalSupplierName,
-      gstEnabled, gstType, createdBy, createdOn, status, remarks,
+      paymentTermsId: ptId,
+      paymentTermsName,
+      gstEnabled,
+      gstType,
+      createdBy,
+      createdOn,
+      status,
+      remarks,
       details: computedDetails,
     });
 
@@ -168,8 +198,18 @@ exports.update = async (req, res) => {
     if (!po) return res.status(404).json({ message: "PO not found" });
 
     const {
-      poNo, date, supplierId, supplierName, gstEnabled = true, gstType = "local",
-      createdBy, createdOn, status, remarks, details = [],
+      poNo,
+      date,
+      supplierId,
+      supplierName,
+      paymentTermsId,
+      gstEnabled = true,
+      gstType = "local",
+      createdBy,
+      createdOn,
+      status,
+      remarks,
+      details = [],
     } = req.body;
 
     let finalSupplierName = supplierName;
@@ -180,12 +220,31 @@ exports.update = async (req, res) => {
       }
     }
 
+    let ptId = paymentTermsId ? parseInt(paymentTermsId, 10) : null;
+    let paymentTermsName = "";
+    if (ptId) {
+      const pt = await PaymentTerm.findByPk(ptId);
+      if (!pt) return res.status(400).json({ message: "Invalid payment terms" });
+      paymentTermsName = pt.name;
+    } else {
+      ptId = null;
+    }
+
     const computedDetails = details.map((d) => calcDetail(d, gstEnabled, gstType));
 
     await po.update({
-      poNo, date, supplierId: supplierId || null,
+      poNo,
+      date,
+      supplierId: supplierId || null,
       supplierName: finalSupplierName,
-      gstEnabled, gstType, createdBy, createdOn, status, remarks,
+      paymentTermsId: ptId,
+      paymentTermsName,
+      gstEnabled,
+      gstType,
+      createdBy,
+      createdOn,
+      status,
+      remarks,
       details: computedDetails,
     });
 

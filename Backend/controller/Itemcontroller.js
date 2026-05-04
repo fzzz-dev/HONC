@@ -1,8 +1,29 @@
 const Item = require("../model/item");
+const InventoryHead = require("../model/inventoryHead");
+const MainCategory = require("../model/mainCategory");
+const Uom = require("../model/uom");
+const Make = require("../model/make");
+const Spec = require("../model/spec");
+const sequelize = require("../config/database");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
+const XLSX = require("xlsx");
 const { Op } = require("sequelize");
+
+/** Excel column aliases for inventory head *name* (when headId missing or invalid). */
+const HEAD_NAME_ALIASES = [
+  "head",
+  "headName",
+  "inventoryHead",
+  "Head",
+  "inventory head",
+  "Inventory Head",
+  "InventoryHead",
+  "invHead",
+  "Inv Head",
+  "HEAD",
+];
 
 // ── Multer disk storage config ────────────────────────────────────────────────
 const storage = multer.diskStorage({
@@ -30,11 +51,63 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
+const bulkUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    if (ext === ".xlsx" || ext === ".xls") cb(null, true);
+    else cb(new Error("Only .xlsx or .xls files are allowed"), false);
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+});
+
 function toBoolean(value) {
   if (value === undefined) return value;
   if (typeof value === "boolean") return value;
-  if (typeof value === "string") return value.toLowerCase() === "true";
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(normalized)) return true;
+    if (["false", "0", "no", "n"].includes(normalized)) return false;
+    return normalized === "true";
+  }
   return Boolean(value);
+}
+
+function normalizeMovementType(value) {
+  if (value === undefined || value === null) return value;
+  const normalized = String(value).trim().toLowerCase().replace(/_/g, "-");
+  if (normalized === "non moving" || normalized === "non-moving") {
+    return "non-moving";
+  }
+  if (normalized === "moving") return "moving";
+  return value;
+}
+
+/** Item Name + Spec + Make; Spec and Make only if both are non-empty. */
+function computeItemDescription(itemName, spec, make) {
+  const n = String(itemName || "").trim();
+  const s = String(spec || "").trim();
+  const m = String(make || "").trim();
+  if (s && m) return `${n} ${s} ${m}`.replace(/\s+/g, " ").trim();
+  return n;
+}
+
+async function assertUniqueItemDescription(description, excludeId) {
+  const trimmed = String(description || "").trim();
+  const value = trimmed || null;
+  if (value === null) return;
+  const where = { itemDescription: value };
+  if (excludeId != null) {
+    where.id = { [Op.ne]: excludeId };
+  }
+  const exists = await Item.findOne({ where });
+  if (exists) {
+    const err = new Error(
+      "This item description already exists. Item descriptions must be unique.",
+    );
+    err.code = "DUPLICATE_ITEM_DESCRIPTION";
+    throw err;
+  }
 }
 
 function getStoredImageName(imageValue) {
@@ -73,15 +146,111 @@ function removeStoredImage(imageValue) {
   }
 }
 
+function rowValuePresent(val) {
+  if (val === undefined || val === null) return false;
+  if (typeof val === "number") return !Number.isNaN(val);
+  return String(val).trim() !== "";
+}
+
+/** Read first matching column from Excel row (case- / space-insensitive header). */
+function rowField(row, aliases) {
+  const r = row || {};
+  const keys = Object.keys(r);
+  const norm = (k) => String(k).replace(/\s+/g, "").toLowerCase();
+
+  for (const alias of aliases) {
+    if (Object.prototype.hasOwnProperty.call(r, alias)) {
+      const v = r[alias];
+      if (rowValuePresent(v)) return v;
+    }
+    const matchKey = keys.find((k) => norm(k) === norm(alias));
+    if (matchKey != null) {
+      const v = r[matchKey];
+      if (rowValuePresent(v)) return v;
+    }
+  }
+  return "";
+}
+
+async function resolveInventoryHeadForBulk(row) {
+  const idPart = rowField(row, ["headId", "head_id", "Head ID", "HeadId"]);
+  const namePart = rowField(row, HEAD_NAME_ALIASES);
+
+  if (rowValuePresent(idPart)) {
+    const num = Number(String(idPart).trim());
+    if (!Number.isNaN(num) && num > 0) {
+      const byId = await InventoryHead.findByPk(num);
+      if (byId) return byId;
+    }
+  }
+
+  const name = String(namePart || "").trim();
+  if (name) {
+    const byName = await InventoryHead.findOne({
+      where: sequelize.where(
+        sequelize.fn("LOWER", sequelize.col("headName")),
+        name.toLowerCase(),
+      ),
+    });
+    if (byName) return byName;
+    return InventoryHead.create({
+      headName: name,
+      active: true,
+    });
+  }
+
+  return null;
+}
+
+async function ensureMainCategoryRow(headId, headName, groupRaw) {
+  const g = String(groupRaw || "").trim();
+  if (!g) return;
+
+  const existing = await MainCategory.findOne({
+    where: {
+      [Op.and]: [
+        { headId },
+        sequelize.where(
+          sequelize.fn("LOWER", sequelize.col("groupName")),
+          g.toLowerCase(),
+        ),
+      ],
+    },
+  });
+  if (existing) return;
+
+  await MainCategory.create({
+    headId,
+    headName,
+    groupName: g,
+    active: true,
+  });
+}
+
+async function ensureMasterName(Model, value, extraDefaults = {}) {
+  const n = String(value || "").trim();
+  if (!n) return;
+
+  const existing = await Model.findOne({
+    where: sequelize.where(
+      sequelize.fn("LOWER", sequelize.col("name")),
+      n.toLowerCase(),
+    ),
+  });
+  if (existing) return;
+
+  try {
+    await Model.create({ name: n, active: true, ...extraDefaults });
+  } catch (err) {
+    if (err.name !== "SequelizeUniqueConstraintError") throw err;
+  }
+}
+
 function normalizePayload(body) {
   const payload = { ...body };
 
   if (payload.headId !== undefined && payload.headId !== "") {
     payload.headId = Number(payload.headId);
-  }
-
-  if (payload.rate !== undefined && payload.rate !== "") {
-    payload.rate = Number(payload.rate) || 0;
   }
 
   if (payload.active !== undefined) {
@@ -96,11 +265,37 @@ function normalizePayload(body) {
     "uom",
     "make",
     "spec",
-    "itemDescription",
+    "movementType",
+    "hsnCode",
+    "rackBinNo",
   ].forEach((field) => {
     if (typeof payload[field] === "string") {
       payload[field] = payload[field].trim();
     }
+  });
+
+  if (payload.movementType !== undefined) {
+    payload.movementType = normalizeMovementType(payload.movementType);
+  }
+
+  payload.itemDescription = computeItemDescription(
+    payload.itemName,
+    payload.spec,
+    payload.make,
+  );
+
+  const numFields = [
+    "minimumStock",
+    "minimumOrderQty",
+    "leadDays",
+    "inTransitDays",
+    "gstPercent",
+    "rate",
+  ];
+  numFields.forEach((f) => {
+    if (payload[f] === undefined || payload[f] === "") return;
+    const n = Number(payload[f]);
+    payload[f] = Number.isFinite(n) ? n : 0;
   });
 
   if (payload.image !== undefined && payload.image !== null && payload.image !== "") {
@@ -181,10 +376,22 @@ exports.create = async (req, res) => {
       payload.image = req.file.filename;
     }
 
+    await assertUniqueItemDescription(payload.itemDescription, null);
+
     const item = await Item.create(payload);
 
     res.status(201).json({ success: true, data: serializeItem(item, req) });
   } catch (err) {
+    if (err.code === "DUPLICATE_ITEM_DESCRIPTION") {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    if (err.name === "SequelizeUniqueConstraintError") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This item description already exists. Item descriptions must be unique.",
+      });
+    }
     res.status(400).json({ success: false, message: err.message });
   }
 };
@@ -210,10 +417,22 @@ exports.update = async (req, res) => {
       payload.image = null;
     }
 
+    await assertUniqueItemDescription(payload.itemDescription, item.id);
+
     await item.update(payload);
 
     res.json({ success: true, data: serializeItem(item, req) });
   } catch (err) {
+    if (err.code === "DUPLICATE_ITEM_DESCRIPTION") {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    if (err.name === "SequelizeUniqueConstraintError") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This item description already exists. Item descriptions must be unique.",
+      });
+    }
     res.status(400).json({ success: false, message: err.message });
   }
 };
@@ -237,3 +456,238 @@ exports.remove = async (req, res) => {
 };
 
 exports.upload = upload;
+exports.bulkUploadMiddleware = bulkUpload;
+
+exports.downloadTemplate = async (req, res) => {
+  try {
+    const headers = [
+      "headId",
+      "head",
+      "group",
+      "category",
+      "subCategory",
+      "itemName",
+      "uom",
+      "make",
+      "spec",
+      "rate",
+      "active",
+      "movementType",
+      "minimumStock",
+      "minimumOrderQty",
+      "leadDays",
+      "inTransitDays",
+      "hsnCode",
+      "gstPercent",
+      "rackBinNo",
+    ];
+
+    const sampleRow = {
+      headId: 1,
+      head: "Raw Material",
+      group: "Steel",
+      category: "",
+      subCategory: "Flat",
+      itemName: "MS Flat Bar 50x6",
+      uom: "KG",
+      make: "TATA",
+      spec: "IS 2062",
+      rate: 100.5,
+      active: "true",
+      movementType: "moving",
+      minimumStock: 0,
+      minimumOrderQty: 1,
+      leadDays: 7,
+      inTransitDays: 3,
+      hsnCode: "",
+      gstPercent: 18,
+      rackBinNo: "",
+    };
+
+    const ws = XLSX.utils.json_to_sheet([sampleRow], { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "ItemsTemplate");
+
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="item-bulk-template.xlsx"',
+    );
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.bulkUpload = async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Excel file is required" });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Excel sheet not found" });
+    }
+
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, {
+      defval: "",
+      raw: false,
+      blankrows: false,
+    });
+
+    if (!rows.length) {
+      return res
+        .status(400)
+        .json({ success: false, message: "No data rows found in file" });
+    }
+
+    const errors = [];
+    const validRows = [];
+
+    for (let idx = 0; idx < rows.length; idx += 1) {
+      const row = rows[idx];
+      const rowNumber = idx + 2;
+
+      const isRowEmpty = Object.values(row).every(
+        (v) =>
+          v === undefined ||
+          v === null ||
+          (typeof v === "number" && Number.isNaN(v)) ||
+          String(v).trim() === "",
+      );
+      if (isRowEmpty) continue;
+
+      const groupFromFile = rowField(row, [
+        "group",
+        "category",
+        "groupName",
+        "mainCategory",
+      ]);
+
+      const payload = normalizePayload({
+        headId: rowField(row, ["headId"]),
+        head: rowField(row, HEAD_NAME_ALIASES),
+        group: groupFromFile,
+        subCategory: rowField(row, ["subCategory", "sub_category", "SubCategory"]),
+        itemName: rowField(row, ["itemName", "item", "Item Name", "Item"]),
+        uom: rowField(row, ["uom", "UOM", "unit"]),
+        make: rowField(row, ["make", "Make", "brand"]),
+        spec: rowField(row, ["spec", "Spec", "specification"]),
+        rate: rowField(row, ["rate", "Rate", "price"]),
+        active: (() => {
+          const a = rowField(row, ["active", "Active"]);
+          if (!rowValuePresent(a)) return true;
+          return a;
+        })(),
+        movementType: rowField(row, ["movementType", "movement", "Movement"]) || "moving",
+        minimumStock: rowField(row, ["minimumStock", "minStock"]),
+        minimumOrderQty: rowField(row, ["minimumOrderQty", "moq"]),
+        leadDays: rowField(row, ["leadDays", "lead"]),
+        inTransitDays: rowField(row, ["inTransitDays", "transitDays"]),
+        hsnCode: rowField(row, ["hsnCode", "HSN", "hsn"]),
+        gstPercent: rowField(row, ["gstPercent", "gst", "GST"]),
+        rackBinNo: rowField(row, ["rackBinNo", "rack", "bin"]),
+      });
+
+      const headRecord = await resolveInventoryHeadForBulk(row);
+      if (!headRecord) {
+        errors.push({
+          row: rowNumber,
+          message:
+            "Inventory head not found: provide headId (existing) or head name (new heads are created automatically)",
+        });
+        continue;
+      }
+
+      payload.headId = headRecord.id;
+      payload.head = headRecord.headName;
+
+      try {
+        await ensureMainCategoryRow(
+          headRecord.id,
+          headRecord.headName,
+          payload.group,
+        );
+        await ensureMasterName(Uom, payload.uom, { description: "" });
+        await ensureMasterName(Make, payload.make, { description: "" });
+        await ensureMasterName(Spec, payload.spec);
+      } catch (ensureErr) {
+        errors.push({
+          row: rowNumber,
+          message: ensureErr.message || "Failed to ensure category / masters",
+        });
+        continue;
+      }
+
+      if (!payload.itemName || !String(payload.itemName).trim()) {
+        errors.push({ row: rowNumber, message: "itemName is required" });
+        continue;
+      }
+      if (!["moving", "non-moving"].includes(payload.movementType)) {
+        errors.push({
+          row: rowNumber,
+          message: 'movementType must be "moving" or "non-moving"',
+        });
+        continue;
+      }
+
+      const fileDup = validRows.some(
+        (r) => r.itemDescription === payload.itemDescription,
+      );
+      if (fileDup) {
+        errors.push({
+          row: rowNumber,
+          message: "Duplicate item description (also in this file)",
+        });
+        continue;
+      }
+
+      const dbDup = await Item.findOne({
+        where: { itemDescription: payload.itemDescription },
+      });
+      if (dbDup) {
+        errors.push({
+          row: rowNumber,
+          message: "Duplicate item description (already exists)",
+        });
+        continue;
+      }
+
+      validRows.push(payload);
+    }
+
+    if (!validRows.length) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid rows found",
+        insertedCount: 0,
+        failedCount: errors.length,
+        errors,
+      });
+    }
+
+    const createdItems = await Item.bulkCreate(validRows);
+
+    return res.json({
+      success: true,
+      message: "Bulk upload completed",
+      insertedCount: createdItems.length,
+      failedCount: errors.length,
+      errors,
+      data: createdItems.map((item) => serializeItem(item, req)),
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};

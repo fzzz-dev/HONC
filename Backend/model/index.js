@@ -11,6 +11,7 @@ const Uom = require("./uom");
 const Make = require("./make");
 const Spec = require("./spec");
 const SupplierType = require("./supplierType");
+const PaymentTerm = require("./paymentTerm");
 const Supplier = require("./supplier");
 const MainCategory = require("./mainCategory");
 const ItemPriceList = require("./Itempricelist");
@@ -42,5 +43,5 @@ module.exports = {
   sequelize,
   Country, State, City, InventoryHead, Item, Department, Store, Process,
   Uom, Make, Spec, SupplierType, Supplier, MainCategory, ItemPriceList,
-  PurchaseIndent, PurchaseOrder, PurchaseGRN, ConsumptionIssue, User, Role, Permission
+  PurchaseIndent, PurchaseOrder, PaymentTerm, PurchaseGRN, ConsumptionIssue, User, Role, Permission
 };

@@ -44,6 +44,7 @@ const MASTERS = [
   { path: "/main-cat", label: "Main Category", icon: Icons.Category },
   { path: "/item", label: "Item", icon: Icons.Item },
   { path: "/supplier", label: "Supplier", icon: Icons.Supplier },
+  { path: "/payment-terms", label: "Payment Terms", icon: Icons.Price },
   { path: "/uom", label: "UOM", icon: Icons.Uom },
   { path: "/make", label: "Make", icon: Icons.Make },
   { path: "/spec", label: "Spec Name", icon: Icons.Spec },

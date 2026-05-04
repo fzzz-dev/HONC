@@ -14,6 +14,7 @@ import ItemPage from "./pages/ItemPage";
 import MakePage from "./pages/Makepage";
 import SpecPage from "./pages/SpecPage";
 import SupplierPage from "./pages/SupplierPage";
+import PaymentTermsPage from "./pages/PaymentTermsPage";
 import CountryPage from "./pages/CountryPage";
 import StatePage from "./pages/StatePage";
 import CityPage from "./pages/CityPage";
@@ -73,6 +74,7 @@ export default function App() {
                 <Route path="/main-cat" element={<MainCategoryPage />} />
                 <Route path="/item" element={<ItemPage />} />
                 <Route path="/supplier" element={<SupplierPage />} />
+                <Route path="/payment-terms" element={<PaymentTermsPage />} />
                 <Route path="/uom" element={<Uompage />} />
                 <Route path="/make" element={<MakePage />} />
                 <Route path="/spec" element={<SpecPage />} />
