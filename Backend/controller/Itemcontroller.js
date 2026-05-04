@@ -474,6 +474,7 @@ exports.downloadTemplate = async (req, res) => {
       "inTransitDays",
       "hsnCode",
       "gstPercent",
+      "gstType",
       "rackBinNo",
     ];
 
@@ -494,6 +495,7 @@ exports.downloadTemplate = async (req, res) => {
       inTransitDays: 3,
       hsnCode: "",
       gstPercent: 18,
+      gstType: "local",
       rackBinNo: "",
     };
 
