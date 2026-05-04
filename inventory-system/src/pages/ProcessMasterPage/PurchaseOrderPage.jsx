@@ -73,6 +73,8 @@ const emptyHeader = () => ({
   date: today(),
   supplierId: "",
   supplierName: "",
+  supplierAddress: "",
+  supplierGst: "",
   paymentTermsId: "",
   paymentTermsName: "",
   createdBy: "Admin",
@@ -81,12 +83,28 @@ const emptyHeader = () => ({
   remarks: "",
 });
 
+const numberToWords = (num) => {
+  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const n = ("0000000" + num).substr(-7).match(/^(\d{2})(\d{2})(\d{1})(\d{2})$/);
+  if (!n) return '';
+  let str = '';
+  str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'Crore ' : '';
+  str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
+  str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Hundred ' : '';
+  str += (n[4] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'only ' : '';
+  return str;
+};
+
 function printPurchaseOrder({
   header,
   details: detailRows,
   totals,
   gstEnabled,
   gstType,
+  company,
+  supplier,
 }) {
   const esc = (s) =>
     String(s ?? "")
@@ -129,78 +147,255 @@ function printPurchaseOrder({
         : "Tax";
 
   const summaryBlock = `
-    <table class="sum">
-      <tr><td>Gross amount</td><td>₹${fmt(totals.grossAmount)}</td></tr>
-      ${
-        totals.discPrice > 0
+    <div style="width: 280px;">
+      <table class="sum">
+        <tr><td>Gross amount</td><td>₹${fmt(totals.grossAmount)}</td></tr>
+        ${totals.discPrice > 0
           ? `<tr><td>Less discount</td><td>−₹${fmt(totals.discPrice)}</td></tr>`
           : ""
-      }
-      <tr><td>Taxable value</td><td>₹${fmt(totals.poAmount)}</td></tr>
-      ${
-        gstEnabled
+        }
+        <tr><td>Taxable value</td><td>₹${fmt(totals.poAmount)}</td></tr>
+        ${gstEnabled
           ? gstType === "other"
             ? `<tr><td>IGST</td><td>₹${fmt(totals.igst)}</td></tr>`
             : `<tr><td>SGST</td><td>₹${fmt(totals.sgst)}</td></tr>
-               <tr><td>CGST</td><td>₹${fmt(totals.cgst)}</td></tr>`
+                   <tr><td>CGST</td><td>₹${fmt(totals.cgst)}</td></tr>`
           : `<tr><td>Tax</td><td>₹0.00</td></tr>`
-      }
-      <tr class="grand"><td><strong>Grand total (incl. tax)</strong></td><td><strong>₹${fmt(totals.totalAmount)}</strong></td></tr>
-    </table>`;
+        }
+        <tr class="grand"><td><strong>Grand total</strong></td><td><strong>₹${fmt(totals.totalAmount)}</strong></td></tr>
+      </table>
+    </div>`;
 
   const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><title>PO ${esc(header.poNo)}</title>
 <style>
-@page { margin: 12mm; size: A4; }
+@page { margin: 8mm; size: A4; }
 *{box-sizing:border-box;}
-body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;padding:16px 20px;color:#0f172a;font-size:11px;}
-.doc-head{border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:14px;}
-.doc-head h1{margin:0 0 4px;font-size:18px;letter-spacing:-0.02em;}
-.doc-head .sub{margin:0;color:#64748b;font-size:11px;}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-bottom:14px;}
-.kv{display:flex;gap:8px;font-size:11px;line-height:1.35;}
-.kv span:first-child{min-width:100px;color:#64748b;flex-shrink:0;}
-.kv span:last-child{font-weight:600;text-align:right;flex:1;}
-table.lines{border-collapse:collapse;width:100%;font-size:10px;margin-top:8px;}
-table.lines th,table.lines td{border:1px solid #cbd5e1;padding:5px 6px;vertical-align:top;}
-table.lines th{background:#f1f5f9;font-weight:600;text-align:left;}
-table.lines td.r,table.lines th.r{text-align:right;}
-table.lines td.c,table.lines th.c{text-align:center;}
-table.lines td.b{font-weight:600;}
-table.sum{margin-top:14px;margin-left:auto;width:280px;border-collapse:collapse;font-size:11px;}
-table.sum td{padding:5px 0;border-bottom:1px solid #e2e8f0;}
-table.sum td:last-child{text-align:right;font-variant-numeric:tabular-nums;}
-table.sum tr.grand td{border-bottom:none;padding-top:10px;font-size:12px;}
-.rem{margin-top:12px;padding:8px 10px;background:#f8fafc;border-radius:6px;font-size:10px;color:#475569;}
-@media print{body{padding:0;}.no-print{display:none;}}
+body{font-family: Arial, sans-serif; margin:0; padding:10px; color:#000; font-size:10px;}
+.container { border: 1px solid #000; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border: 1px solid #000; padding: 4px; vertical-align: top; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.bold { font-weight: bold; }
+.title { font-size: 14px; border-bottom: 2px solid #000; padding: 4px; margin-bottom: 0; }
+.header-table td { padding: 2px 5px; }
+.header-box { display: flex; border-bottom: 1px solid #000; }
+.header-left { flex: 2; border-right: 1px solid #000; padding: 5px; text-align: center; }
+.header-right { flex: 1; }
+.doc-info-table td { border: 0; border-bottom: 1px solid #000; border-right: 1px solid #000; }
+.doc-info-table td:last-child { border-right: 0; }
+.doc-info-table tr:last-child td { border-bottom: 0; }
+.section-title { background: #f0f0f0; font-weight: bold; font-size: 9px; text-transform: uppercase; border-bottom: 1px solid #000; padding: 2px 5px; }
+.party-box { display: flex; border-bottom: 1px solid #000; }
+.party-left { flex: 2; border-right: 1px solid #000; }
+.party-right { flex: 1; }
+.delivery-box { display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid #000; }
+.delivery-col { border-right: 1px solid #000; min-height: 80px; }
+.delivery-col:last-child { border-right: 0; }
+.lines-table th { background: #f0f0f0; font-size: 9px; }
+.lines-table td { height: 25px; border-top: 0; border-bottom: 0; }
+.lines-table tr.last-row td { border-bottom: 1px solid #000; height: auto; }
+.footer-box { display: flex; border-top: 1px solid #000; }
+.footer-left { flex: 2; border-right: 1px solid #000; }
+.footer-right { flex: 1; }
+.summary-table td { border: 0; border-bottom: 1px solid #000; padding: 3px 5px; }
+.summary-table tr:last-child td { border-bottom: 0; }
+.words-box { padding: 5px; border-top: 1px solid #000; border-bottom: 1px solid #000; font-size: 9px; }
+.signature-grid { display: grid; grid-template-columns: 1fr 1fr 1.5fr 1fr 1.5fr; }
+.sig-col { border-right: 1px solid #000; padding: 5px; height: 120px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; }
+.sig-col:last-child { border-right: 0; }
+.sig-label { font-weight: bold; font-size: 9px; text-transform: uppercase; }
+@media print { .no-print { display: none; } }
 </style></head><body>
-<div class="doc-head">
-  <h1>Purchase Order</h1>
-  <p class="sub">Printed ${esc(new Date().toLocaleString("en-IN"))}</p>
-</div>
-<div class="grid">
-  <div>
-    <div class="kv"><span>PO number</span><span>${esc(header.poNo || "—")}</span></div>
-    <div class="kv"><span>Date</span><span>${esc(header.date)}</span></div>
-    <div class="kv"><span>Status</span><span>${esc(header.status)}</span></div>
-    <div class="kv"><span>Created by</span><span>${esc(header.createdBy || "—")}</span></div>
+
+<div class="text-right bold" style="margin-bottom: 2px;">Page 1 of 1</div>
+<div class="container">
+  <div class="text-center bold title">PURCHASE ORDER</div>
+  
+  <div class="header-box">
+    <div class="header-left" style="flex: 2; padding: 5px; text-align: left; display: flex; gap: 10px; align-items: center;">
+      ${company?.logo ? `<img src="${company.logo}" style="max-height: 50px; width: auto;" alt="Logo"/>` : ""}
+      <div>
+        <div class="bold" style="font-size: 12px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+        <div style="font-size: 9px; margin-top: 2px;">${esc(company?.address || "Company Address")}</div>
+        <div style="font-size: 9px;">Tel: ${esc(company?.tel || "")} Email: ${esc(company?.email || "")}</div>
+        <div style="font-size: 9px;">GSTIN: ${esc(company?.gstin || "")}</div>
+      </div>
+    </div>
+    <div class="header-right" style="border-left: 1px solid #000; flex: 1;">
+      <table class="doc-info-table" style="height: 100%;">
+        <tr style="background: #f0f0f0;">
+          <td class="text-center bold">PO NUMBER</td>
+          <td class="text-center bold">PO DATE</td>
+        </tr>
+        <tr>
+          <td class="text-center bold" style="font-size: 12px; padding: 10px 0;">${esc(header.poNo)}</td>
+          <td class="text-center bold" style="font-size: 11px;">${esc(new Date(header.date).toLocaleDateString("en-GB"))}</td>
+        </tr>
+      </table>
+    </div>
   </div>
-  <div>
-    <div class="kv"><span>Supplier</span><span>${esc(header.supplierName || "—")}</span></div>
-    <div class="kv"><span>Payment terms</span><span>${esc(header.paymentTermsName || "—")}</span></div>
-    <div class="kv"><span>GST</span><span>${gstEnabled ? "Applicable" : "Not applicable"} (${esc(gstLabel)})</span></div>
-    <div class="kv"><span>Created on</span><span>${esc(header.createdOn || "—")}</span></div>
+
+  <div class="party-box">
+    <div class="party-left" style="flex: 1; border-right: 1px solid #000;">
+       <div style="border-bottom: 1px solid #000; padding: 2px 5px;">
+         <span class="bold">Reference:</span> ${esc(header.remarks || "")}
+       </div>
+       <div style="padding: 2px 5px;">
+         <span class="bold">Delivery Date:</span> ${esc(new Date(header.date).toLocaleDateString("en-GB"))}
+       </div>
+    </div>
+    <div class="party-right" style="flex: 2;">
+      <div style="padding: 5px;">
+        <span class="bold">Party:</span> ${esc(header.supplierName)}<br/>
+        ${esc(header.supplierAddress || "")}<br/>
+        GST: ${esc(header.supplierGst || "")}
+      </div>
+    </div>
+  </div>
+
+  <div class="delivery-box">
+    <div class="delivery-col">
+      <div class="section-title">PLACE OF DELIVERY</div>
+      <div style="padding: 5px;">
+        ${esc(company?.companyName)}<br/>
+        ${esc(company?.address)}<br/>
+        GST: ${esc(company?.gstin)}
+      </div>
+    </div>
+    <div class="delivery-col">
+      <div class="section-title">TRANSPORTED</div>
+      <div style="padding: 5px;"></div>
+    </div>
+    <div class="delivery-col">
+      <div class="section-title">INVOICE TO BE SENT TO</div>
+      <div style="padding: 5px;">
+        ${esc(company?.companyName)}<br/>
+        ${esc(company?.address)}<br/>
+        GST: ${esc(company?.gstin)}
+      </div>
+    </div>
+  </div>
+
+  <table class="lines-table">
+    <thead>
+      <tr>
+        <th width="40">SNO</th>
+        <th>ITEM NAME</th>
+        <th width="70">DISCOUNT%</th>
+        <th width="50">TAX%</th>
+        <th width="50">UOM</th>
+        <th width="70">QUANTITY</th>
+        <th width="70">RATE</th>
+        <th width="80">VALUE</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map((d, i) => `
+        <tr>
+          <td class="text-center">${i + 1}</td>
+          <td>${esc(d.itemName)}</td>
+          <td class="text-right">${d.discPct > 0 ? fmt(d.discPct) : ""}</td>
+          <td class="text-right">${fmt(d.gstPct)}</td>
+          <td class="text-center">${esc(d.uom)}</td>
+          <td class="text-right">${fmtQty(d.poQty)}</td>
+          <td class="text-right">${fmt(d.poRate)}</td>
+          <td class="text-right">${fmt(d.poAmount)}</td>
+        </tr>
+      `).join("")}
+      ${Array.from({ length: Math.max(0, 10 - rows.length) }).map(() => `
+        <tr>
+          <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+        </tr>
+      `).join("")}
+      <tr class="last-row">
+        <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer-box">
+    <div class="footer-left">
+      <table class="summary-table">
+        <tr>
+          <td class="bold">Gross Value</td>
+          <td class="text-right bold">${fmt(totals.grossAmount)}</td>
+        </tr>
+        <tr>
+          <td>Discount</td>
+          <td class="text-right">${fmt(totals.discPrice)}</td>
+        </tr>
+        <tr class="bold">
+          <td>Basic Value</td>
+          <td class="text-right">${fmt(totals.poAmount)}</td>
+        </tr>
+        <tr>
+          <td>IGST</td>
+          <td class="text-right">${gstType === "other" ? fmt(totals.igst) : "0.00"}</td>
+        </tr>
+        <tr>
+          <td>CGST ${gstType === "local" ? "2.5%" : ""}</td>
+          <td class="text-right">${gstType === "local" ? fmt(totals.cgst) : "0.00"}</td>
+        </tr>
+        <tr>
+          <td>SGST ${gstType === "local" ? "2.5%" : ""}</td>
+          <td class="text-right">${gstType === "local" ? fmt(totals.sgst) : "0.00"}</td>
+        </tr>
+        <tr>
+          <td>Other Charges</td>
+          <td class="text-right">0.00</td>
+        </tr>
+        <tr>
+          <td>Round off</td>
+          <td class="text-right">0.00</td>
+        </tr>
+        <tr class="bold" style="font-size: 11px; background: #f0f0f0;">
+          <td>Net Value</td>
+          <td class="text-right">${fmt(totals.totalAmount)}</td>
+        </tr>
+      </table>
+    </div>
+    <div class="footer-right">
+      <div class="section-title" style="border-bottom: 0;">REMARKS</div>
+      <div style="padding: 5px; height: 100px;">
+        ${esc(header.remarks)}
+      </div>
+    </div>
+  </div>
+
+  <div class="words-box">
+    <span class="bold">VALUE IN WORDS</span> Rupees ${numberToWords(Math.round(totals.totalAmount))}
+  </div>
+
+  <div class="signature-grid">
+    <div class="sig-col">
+      <div style="height: 60px;"></div>
+      <div class="sig-label">PREPARED BY</div>
+    </div>
+    <div class="sig-col">
+      <div style="height: 60px;"></div>
+      <div class="sig-label">VERIFIED BY</div>
+    </div>
+    <div class="sig-col">
+      <div style="width: 100%;">
+        <div class="bold">Name:</div>
+        <div class="bold" style="margin-top: 10px;">Mobile No:</div>
+        <div class="bold" style="margin-top: 10px;">Sign:</div>
+      </div>
+    </div>
+    <div class="sig-col">
+      <div style="height: 60px;"></div>
+      <div class="sig-label">Received By</div>
+    </div>
+    <div class="sig-col">
+      <div style="text-align: right; width: 100%; font-size: 9px;">For ${esc(company?.companyName)}</div>
+      <div style="height: 40px;"></div>
+      <div class="sig-label">Authorised Signatory</div>
+    </div>
   </div>
 </div>
-<table class="lines">
-<thead><tr>
-<th class="c">#</th><th>Item / description</th><th class="r">UOM</th><th class="r">Qty</th><th class="r">Rate</th>
-<th class="r">Disc.</th><th class="r">Taxable</th><th class="c">GST %</th><th class="r">${gstType === "other" ? "IGST" : "SGST"}</th><th class="r">${gstType === "other" ? "—" : "CGST"}</th><th class="r">Amount</th>
-</tr></thead>
-<tbody>${rowsHtml || `<tr><td colspan="11" style="text-align:center;color:#64748b">No line items</td></tr>`}</tbody>
-</table>
-${summaryBlock}
-${header.remarks ? `<div class="rem"><strong>Remarks:</strong> ${esc(header.remarks)}</div>` : ""}
+
 <script>window.addEventListener("load",function(){setTimeout(function(){window.print();},100);});</script>
 </body></html>`;
 
@@ -309,6 +504,7 @@ export default function PurchaseOrderPage() {
   const [pos, setPos] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState(null);
+  const [company, setCompany] = useState(null);
 
   const [indents, setIndents] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -338,8 +534,12 @@ export default function PurchaseOrderPage() {
     openNew();
     (async () => {
       try {
-        const pt = await paymentTermsApi.getAll();
+        const [pt, comp] = await Promise.all([
+          paymentTermsApi.getAll(),
+          fetch("/api/company").then((res) => res.json()),
+        ]);
         setPaymentTermsList(Array.isArray(pt) ? pt : []);
+        setCompany(comp);
       } catch (e) {
         console.error(e);
       }
@@ -408,6 +608,8 @@ export default function PurchaseOrderPage() {
       date: po.date,
       supplierId: sid(po.supplierId),
       supplierName: po.supplierName,
+      supplierAddress: po.supplierAddress || "",
+      supplierGst: po.supplierGst || "",
       paymentTermsId: po.paymentTermsId ? String(po.paymentTermsId) : "",
       paymentTermsName: po.paymentTermsName || "",
       createdBy: po.createdBy,
@@ -852,15 +1054,18 @@ export default function PurchaseOrderPage() {
           <button
             type="button"
             className="inv-btn-ghost"
-            onClick={() =>
+            onClick={() => {
+              const supplier = suppliers.find((s) => sid(s) === header.supplierId);
               printPurchaseOrder({
                 header,
                 details,
                 totals,
                 gstEnabled,
                 gstType,
-              })
-            }
+                company,
+                supplier,
+              });
+            }}
           >
             Print
           </button>
@@ -1035,6 +1240,8 @@ export default function PurchaseOrderPage() {
                         ...h,
                         supplierId: e.target.value,
                         supplierName: s?.supplierName || "",
+                        supplierAddress: s?.address || "",
+                        supplierGst: s?.gstNo || "",
                         paymentTermsId: ptId,
                         paymentTermsName: pt?.name || "",
                       }));
@@ -1050,6 +1257,26 @@ export default function PurchaseOrderPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div className="inv-field">
+                  <label className="inv-label">Party Address</label>
+                  <textarea
+                    className="inv-input"
+                    rows={2}
+                    value={header.supplierAddress}
+                    onChange={(e) => setHeader(h => ({ ...h, supplierAddress: e.target.value }))}
+                    placeholder="Supplier Address"
+                  />
+                </div>
+                <div className="inv-field">
+                  <label className="inv-label">Party GST</label>
+                  <input
+                    className="inv-input"
+                    value={header.supplierGst}
+                    onChange={(e) => setHeader(h => ({ ...h, supplierGst: e.target.value }))}
+                    placeholder="Supplier GSTIN"
+                  />
                 </div>
                 <div className="inv-field" style={{ display: "none" }}>
                   <label className="inv-label">Status</label>

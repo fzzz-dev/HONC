@@ -512,12 +512,13 @@ export default function SupplierPage() {
   const [toast, setToast] = useState({ msg: "", type: "success" });
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("");
-  const [modal, setModal] = useState(null);
+  const [modal, setModal] = useState({ mode: "add" });
   const [form, setForm] = useState(EMPTY_FORM);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [viewSupplier, setViewSupplier] = useState(null);
   const [addressForm, setAddressForm] = useState(null);
   const [typeManagement, setTypeManagement] = useState(false);
+  const [showList, setShowList] = useState(false);
   const [paymentTerms, setPaymentTerms] = useState([]);
   const [mainCategories, setMainCategories] = useState([]);
 
@@ -767,12 +768,16 @@ export default function SupplierPage() {
           <p className="inv-page-sub">Suppliers and customers — directory and contacts</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-secondary" onClick={() => setTypeManagement(true)}>Manage Categories</button>
-          <button className="inv-btn-primary" onClick={openAdd}>+ Add supplier</button>
+          <button className="inv-btn-secondary" onClick={() => setShowList(!showList)}>
+            {showList ? "Hide History" : "View Suppliers"}
+          </button>
+          {!modal && (
+            <button className="inv-btn-primary" onClick={openAdd}>+ Add supplier</button>
+          )}
         </div>
       </div>
 
-      {modal && (
+      {modal && !showList && (
         <div className="inv-card" style={{ marginBottom: 20 }}>
           <div className="inv-form-actions-top" style={{ justifyContent: "flex-start" }}>
             <button
@@ -783,8 +788,8 @@ export default function SupplierPage() {
             >
               {saving ? "Saving…" : modal.mode === "add" ? "Save party" : "Save changes"}
             </button>
-            <button type="button" className="inv-btn-ghost" onClick={() => setModal(null)}>
-              Cancel
+            <button type="button" className="inv-btn-ghost" onClick={() => { setModal(null); setShowList(true); }}>
+              Back to List
             </button>
           </div>
 
@@ -892,80 +897,85 @@ export default function SupplierPage() {
         </div>
       )}
 
-      <div className="inv-card">
-        <div className="inv-toolbar">
-          <input className="inv-search" placeholder="Search suppliers…" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select className="inv-filter-select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-            <option value="">All types</option>
-            {typeOptions.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-          <span className="inv-count">{loading ? "…" : `${suppliers.length} record${suppliers.length !== 1 ? "s" : ""}`}</span>
-        </div>
+      {showList && (
+        <div className="inv-card">
+          <div className="inv-toolbar">
+            <input className="inv-search" placeholder="Search suppliers…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <select className="inv-filter-select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+              <option value="">All types</option>
+              {typeOptions.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+            <span className="inv-count">{loading ? "…" : `${suppliers.length} record${suppliers.length !== 1 ? "s" : ""}`}</span>
+          </div>
 
-        <div className="inv-table-wrap">
-          <table className="inv-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Party category</th>
-                <th>Short</th>
-                <th>Party name</th>
-                <th>Mobile no</th>
-                <th>Email</th>
-                <th>City</th>
-                <th>State</th>
-                <th>GST no</th>
-                <th>Active</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={11} className="inv-empty">Loading…</td></tr>
-              ) : suppliers.length === 0 ? (
-                <tr><td colSpan={11} className="inv-empty">No records found</td></tr>
-              ) : (
-                suppliers.map((row, i) => {
-                  // ✅ FIX: always normalise addresses to array before calling .find()
-                  const addrs = toArray(row.addresses);
-                  const primaryAddr = addrs.find((a) => a.isPrimary) || addrs[0];
-                  return (
-                    <tr key={row.id || row._id}>
-                      <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
-                      <td>
-                        <span style={{ display: "inline-flex", alignItems: "center", fontSize: 11, padding: "3px 8px", borderRadius: 100, fontWeight: 500, background: "#E6F1FB", color: "#185FA5" }}>
-                          {row.type || "—"}
-                        </span>
-                      </td>
-                      <td className="inv-muted-sm">{row.shortCode || "—"}</td>
-                      <td className="inv-bold">{row.supplierName}</td>
-                      <td className="inv-muted-sm">{row.mobileNo1 || "—"}</td>
-                      <td className="inv-muted-sm">{row.emailId1 || "—"}</td>
-                      <td className="inv-muted-sm">{primaryAddr?.cityName || "—"}</td>
-                      <td className="inv-muted-sm">{primaryAddr?.stateName || "—"}</td>
-                      <td className="inv-spec">{row.gstNo || "—"}</td>
-                      <td>
-                        <span className={`inv-badge ${row.active ? "inv-badge-yes" : "inv-badge-no"}`}>
-                          {row.active ? "Yes" : "No"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="inv-actions">
-                          <button className="inv-btn-icon" title="View" onClick={() => setViewSupplier(row)}><ViewIcon /></button>
-                          <button className="inv-btn-icon" title="Edit" onClick={() => openEdit(row)}><EditIcon /></button>
-                          <button className="inv-btn-icon inv-btn-danger" title="Delete" onClick={() => setDeleteConfirm(row.id || row._id)}><DeleteIcon /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+          <div className="inv-table-wrap">
+            <table className="inv-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Party category</th>
+                  <th>Short</th>
+                  <th>Party name</th>
+                  <th>Mobile no</th>
+                  <th>Email</th>
+                  <th>City</th>
+                  <th>State</th>
+                  <th>GST no</th>
+                  <th>Active</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={11} className="inv-empty">Loading…</td></tr>
+                ) : suppliers.length === 0 ? (
+                  <tr><td colSpan={11} className="inv-empty">No records found</td></tr>
+                ) : (
+                  suppliers.map((row, i) => {
+                    // ✅ FIX: always normalise addresses to array before calling .find()
+                    const addrs = toArray(row.addresses);
+                    const primaryAddr = addrs.find((a) => a.isPrimary) || addrs[0];
+                    return (
+                      <tr key={row.id || row._id}>
+                        <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
+                        <td>
+                          <span style={{ display: "inline-flex", alignItems: "center", fontSize: 11, padding: "3px 8px", borderRadius: 100, fontWeight: 500, background: "#E6F1FB", color: "#185FA5" }}>
+                            {row.type || "—"}
+                          </span>
+                        </td>
+                        <td className="inv-muted-sm">{row.shortCode || "—"}</td>
+                        <td className="inv-bold">{row.supplierName}</td>
+                        <td className="inv-muted-sm">{row.mobileNo1 || "—"}</td>
+                        <td className="inv-muted-sm">{row.emailId1 || "—"}</td>
+                        <td className="inv-muted-sm">{primaryAddr?.cityName || "—"}</td>
+                        <td className="inv-muted-sm">{primaryAddr?.stateName || "—"}</td>
+                        <td className="inv-spec">{row.gstNo || "—"}</td>
+                        <td>
+                          <span className={`inv-badge ${row.active ? "inv-badge-yes" : "inv-badge-no"}`}>
+                            {row.active ? "Yes" : "No"}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="inv-actions">
+                            <button className="inv-btn-icon" title="View" onClick={() => setViewSupplier(row)}><ViewIcon /></button>
+                            <button className="inv-btn-icon" title="Edit" onClick={() => openEdit(row)}><EditIcon /></button>
+                            <button className="inv-btn-icon inv-btn-danger" title="Delete" onClick={() => setDeleteConfirm(row.id || row._id)}><DeleteIcon /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ padding: '10px 20px', textAlign: 'right' }}>
+            <button className="inv-btn-ghost" onClick={() => setShowList(false)}>Hide List</button>
+          </div>
         </div>
-      </div>
+      )}
 
       {viewSupplier && <ViewModal supplier={viewSupplier} onClose={() => setViewSupplier(null)} />}
 

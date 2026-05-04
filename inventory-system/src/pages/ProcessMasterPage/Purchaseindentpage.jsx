@@ -62,6 +62,185 @@ const emptyHeader = () => ({
   remarks: "",
 });
 
+const numberToWords = (num) => {
+  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const n = ("0000000" + num).substr(-7).match(/^(\d{2})(\d{2})(\d{1})(\d{2})$/);
+  if (!n) return '';
+  let str = '';
+  str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'Crore ' : '';
+  str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
+  str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Hundred ' : '';
+  str += (n[4] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'only ' : '';
+  return str;
+};
+
+function printPurchaseIndent({ header, details: detailRows, company }) {
+  const esc = (s) =>
+    String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+  const rows = detailRows || [];
+  const rowsHtml = rows
+    .map(
+      (d, i) => `
+    <tr>
+      <td class="c">${i + 1}</td>
+      <td>${esc(d.itemName)}</td>
+      <td class="r">${esc(d.uom)}</td>
+      <td class="r b">${Number(d.indentQty || 0)}</td>
+      <td>${esc(d.dueDate || "—")}</td>
+      <td>${esc(d.remarks || "—")}</td>
+    </tr>`,
+    )
+    .join("");
+
+  const totalQty = rows.reduce((s, r) => s + Number(r.indentQty || 0), 0);
+
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><title>Indent ${esc(header.indentNo)}</title>
+<style>
+@page { margin: 8mm; size: A4; }
+*{box-sizing:border-box;}
+body{font-family: Arial, sans-serif; margin:0; padding:10px; color:#000; font-size:10px;}
+.container { border: 1px solid #000; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border: 1px solid #000; padding: 4px; vertical-align: top; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.bold { font-weight: bold; }
+.title { font-size: 14px; border-bottom: 2px solid #000; padding: 4px; margin-bottom: 0; }
+.header-box { display: flex; border-bottom: 1px solid #000; }
+.header-left { flex: 2; border-right: 1px solid #000; padding: 5px; text-align: center; }
+.header-right { flex: 1; }
+.doc-info-table td { border: 0; border-bottom: 1px solid #000; border-right: 1px solid #000; }
+.doc-info-table td:last-child { border-right: 0; }
+.doc-info-table tr:last-child td { border-bottom: 0; }
+.section-title { background: #f0f0f0; font-weight: bold; font-size: 9px; text-transform: uppercase; border-bottom: 1px solid #000; padding: 2px 5px; }
+.lines-table th { background: #f0f0f0; font-size: 9px; }
+.lines-table td { height: 25px; border-top: 0; border-bottom: 0; }
+.lines-table tr.last-row td { border-bottom: 1px solid #000; height: auto; }
+.signature-grid { display: grid; grid-template-columns: 1fr 1fr 1.5fr 1.5fr; border-top: 1px solid #000; }
+.sig-col { border-right: 1px solid #000; padding: 5px; height: 100px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; }
+.sig-col:last-child { border-right: 0; }
+.sig-label { font-weight: bold; font-size: 9px; text-transform: uppercase; }
+@media print { .no-print { display: none; } }
+</style></head><body>
+
+<div class="text-right bold" style="margin-bottom: 2px;">Page 1 of 1</div>
+<div class="container">
+  <div class="text-center bold title">PURCHASE INDENT</div>
+  
+  <div class="header-box">
+  <div class="header-box">
+    <div class="header-left" style="flex: 2; padding: 5px; text-align: left; display: flex; gap: 10px; align-items: center;">
+      ${company?.logo ? `<img src="${company.logo}" style="max-height: 50px; width: auto;" alt="Logo"/>` : ""}
+      <div>
+        <div class="bold" style="font-size: 12px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+        <div style="font-size: 9px; margin-top: 2px;">${esc(company?.address || "Company Address")}</div>
+        <div style="font-size: 9px;">Tel: ${esc(company?.tel || "")} Email: ${esc(company?.email || "")}</div>
+        <div style="font-size: 9px;">GSTIN: ${esc(company?.gstin || "")}</div>
+      </div>
+    </div>
+    <div class="header-right" style="border-left: 1px solid #000; flex: 1.5;">
+      <table class="doc-info-table" style="height: 100%;">
+        <tr style="background: #f0f0f0;">
+          <td class="text-center bold">INDENT NUMBER</td>
+          <td class="text-center bold">DATE</td>
+        </tr>
+        <tr>
+          <td class="text-center bold" style="font-size: 12px; padding: 5px 0;">${esc(header.indentNo)}</td>
+          <td class="text-center bold" style="font-size: 11px;">${esc(new Date(header.date).toLocaleDateString("en-GB"))}</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="border-top: 1px solid #000; padding: 5px;">
+            <span class="bold">Department:</span> ${esc(header.departmentName)}<br/>
+            <span class="bold">Requested By:</span> ${esc(header.createdBy)}
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <table class="lines-table">
+    <thead>
+      <tr>
+        <th width="40">SNO</th>
+        <th>ITEM DESCRIPTION</th>
+        <th width="50">UOM</th>
+        <th width="70">QUANTITY</th>
+        <th width="100">DUE DATE</th>
+        <th>REMARKS</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map((d, i) => `
+        <tr>
+          <td class="text-center">${i + 1}</td>
+          <td>${esc(d.itemName)}</td>
+          <td class="text-center">${esc(d.uom)}</td>
+          <td class="text-right bold">${Number(d.indentQty || 0).toFixed(3)}</td>
+          <td class="text-center">${esc(d.dueDate || "—")}</td>
+          <td>${esc(d.remarks || "—")}</td>
+        </tr>
+      `).join("")}
+      ${Array.from({ length: Math.max(0, 10 - rows.length) }).map(() => `
+        <tr>
+          <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td>
+        </tr>
+      `).join("")}
+      <tr class="last-row">
+        <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="padding: 5px; border-bottom: 1px solid #000; display: flex;">
+    <div style="flex: 1; border-right: 1px solid #000; padding: 10px;">
+       <div class="bold" style="font-size: 11px;">SUMMARY:</div>
+       <div class="bold" style="font-size: 14px; margin-top: 4px;">TOTAL QTY: ${totalQty.toFixed(3)}</div>
+    </div>
+    <div style="flex: 1.5; padding: 10px;">
+       <div class="bold" style="font-size: 9px; margin-bottom: 4px;">GENERAL REMARKS / DETAILS:</div>
+       <div style="font-size: 10px;">${esc(header.remarks || "No specific instructions provided.")}</div>
+    </div>
+  </div>
+
+  <div class="signature-grid">
+    <div class="sig-col">
+      <div style="height: 60px;"></div>
+      <div class="sig-label">Prepared By</div>
+    </div>
+    <div class="sig-col">
+      <div style="height: 60px;"></div>
+      <div class="sig-label">Verified By</div>
+    </div>
+    <div class="sig-col">
+      <div style="height: 60px;"></div>
+      <div class="sig-label">HOD Approval</div>
+    </div>
+    <div class="sig-col">
+      <div style="height: 60px;"></div>
+      <div class="sig-label">Manager Approval</div>
+    </div>
+  </div>
+</div>
+
+<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},100);});</script>
+</body></html>`;
+
+  const w = window.open("", "_blank");
+  if (w) {
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    return;
+  }
+}
+
 export default function PurchaseIndentPage() {
   // ── lookup data ───────────────────────────────────────────────────────────
   const [departments, setDepartments] = useState([]);
@@ -73,6 +252,7 @@ export default function PurchaseIndentPage() {
   const [indents, setIndents] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState(null);
+  const [company, setCompany] = useState(null);
 
   // ── form state ────────────────────────────────────────────────────────────
   const [view, setView] = useState("form"); // "list" | "form"
@@ -91,14 +271,16 @@ export default function PurchaseIndentPage() {
 
   async function loadLookups() {
     try {
-      const [depts, headsData, catsData, itemsData] = await Promise.all([
+      const [depts, headsData, catsData, itemsData, comp] = await Promise.all([
         departmentApi.getAll(),
         inventoryHeadApi.getAll(),
         mainCategoryApi.getAll(),
         itemApi.getAll(),
+        fetch("/api/company").then((res) => res.json()),
       ]);
       setDepartments(Array.isArray(depts) ? depts : []);
       setHeads(Array.isArray(headsData) ? headsData : []);
+      setCompany(comp);
       setCategories(
         (Array.isArray(catsData) ? catsData : []).map((c) => ({
           ...c,
@@ -446,6 +628,13 @@ export default function PurchaseIndentPage() {
             View Indent
           </button>
           <button
+            className="inv-btn-ghost"
+            type="button"
+            onClick={() => printPurchaseIndent({ header, details, company })}
+          >
+            Print
+          </button>
+          <button
             className="inv-btn-primary"
             onClick={handleSave}
             disabled={saving}
@@ -461,401 +650,269 @@ export default function PurchaseIndentPage() {
         </div>
       )}
 
-      {/* ── Header card ─────────────────────────────────────────────────────── */}
-      <div className="inv-card">
-        <div className="inv-card-body">
-          <div className="inv-section-label">Header</div>
-
-          <div className="inv-form-row cols-4">
-            <div className="inv-field">
-              <label className="inv-label">
-                Indent No
-                <span
-                  style={{
-                    marginLeft: 6,
-                    fontSize: 10,
-                    fontWeight: 500,
-                    color: "#6366f1",
-                    background: "#eef2ff",
-                    border: "1px solid #c7d2fe",
-                    borderRadius: 4,
-                    padding: "1px 6px",
-                    letterSpacing: "0.03em",
-                  }}
-                >
-                  Auto
-                </span>
-              </label>
-              <input
-                className="inv-input"
-                value={header.indentNo}
-                readOnly={!editId}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, indentNo: e.target.value }))
-                }
-                style={{
-                  background: editId ? undefined : "#f8f7ff",
-                  color: "#4f46e5",
-                  fontWeight: 600,
-                  cursor: editId ? "text" : "default",
-                  border: "1px solid #c7d2fe",
-                }}
-              />
-            </div>
-
-            <div className="inv-field">
-              <label className="inv-label">Date</label>
-              <input
-                className="inv-input"
-                type="date"
-                value={header.date}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, date: e.target.value }))
-                }
-              />
-            </div>
-
-            <div className="inv-field">
-              <label className="inv-label">Department *</label>
-              <select
-                className="inv-input"
-                value={header.departmentId}
-                onChange={(e) => {
-                  const d = departments.find(
-                    (x) => sid(x.id || x._id) === e.target.value,
-                  );
-                  setHeader((h) => ({
-                    ...h,
-                    departmentId: e.target.value,
-                    departmentName: d?.name || d?.departmentName || "",
-                  }));
-                }}
-              >
-                <option value="">Select department</option>
-                {departments.map((d) => (
-                  <option key={sid(d.id || d._id)} value={sid(d.id || d._id)}>
-                    {d.name || d.departmentName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="inv-field" style={{ display: "none" }}>
-              <label className="inv-label">Status</label>
-              <select
-                className="inv-input"
-                value={header.status}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, status: e.target.value }))
-                }
-              >
-                {["Open", "Closed", "Cancelled"].map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="inv-form-row cols-3" style={{ display: "none" }}>
-            <div className="inv-field">
-              <label className="inv-label">Created By</label>
-              <input
-                className="inv-input"
-                value={header.createdBy}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, createdBy: e.target.value }))
-                }
-              />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Created On</label>
-              <input
-                className="inv-input"
-                type="date"
-                value={header.createdOn}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, createdOn: e.target.value }))
-                }
-              />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Remarks</label>
-              <input
-                className="inv-input"
-                value={header.remarks}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, remarks: e.target.value }))
-                }
-                placeholder="Optional remarks"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Detail card ─────────────────────────────────────────────────────── */}
-      <div className="inv-card">
-        <div className="inv-card-body">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 10,
-            }}
-          >
-            <div className="inv-section-label" style={{ marginBottom: 0 }}>
-              Detail
-            </div>
-            <button className="inv-btn-secondary inv-btn-sm" onClick={addRow}>
-              + Add Row
-            </button>
-          </div>
-
-          <div style={{ overflowX: "auto", overflowY: "auto", minHeight: "300px", maxHeight: "500px" }}>
-            <table className="po-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th style={{ minWidth: 150, display: "none" }}>Item Category</th>
-                  <th style={{ minWidth: 150 }}>Main Category</th>
-                  <th style={{ minWidth: 170 }}>Item Description</th>
-                  <th style={{ minWidth: 70 }}>UOM</th>
-                  <th style={{ minWidth: 90 }}>Indent Qty</th>
-                  <th style={{ minWidth: 120 }}>Due Date</th>
-                  <th style={{ minWidth: 160 }}>Remarks</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {details.map((row, idx) => {
-                  const filteredCategories = row.inventoryHeadId
-                    ? categories.filter((c) => c.headId === row.inventoryHeadId)
-                    : categories;
-
-                  const filteredItems = row.mainCategoryId
-                    ? items.filter((it) => {
-                      const cat = categories.find(
-                        (c) => (c.id || c._id) === row.mainCategoryId,
-                      );
-                      return cat ? it.group === cat.groupName : false;
-                    })
-                    : row.inventoryHeadId
-                      ? items.filter((it) => it.headId === row.inventoryHeadId)
-                      : items;
-
-                  return (
-                    <tr key={row._rowId}>
-                      <td
-                        style={{
-                          textAlign: "center",
-                          color: "var(--text-secondary)",
-                        }}
-                      >
-                        {idx + 1}
-                      </td>
-
-                      <td style={{ display: "none" }}>
-                        <select
-                          value={row.inventoryHeadId}
-                          onChange={(e) =>
-                            updateDetail(idx, "inventoryHeadId", e.target.value)
-                          }
-                          style={selectStyle}
-                        >
-                          <option value="">Select category</option>
-                          {heads.map((h) => (
-                            <option
-                              key={sid(h.id || h._id)}
-                              value={sid(h.id || h._id)}
-                            >
-                              {h.headName}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-
-                      <td>
-                        <select
-                          value={row.mainCategoryId}
-                          onChange={(e) =>
-                            updateDetail(idx, "mainCategoryId", e.target.value)
-                          }
-                          style={selectStyle}
-                        >
-                          <option value="">
-                            Select main cat
-                          </option>
-                          {filteredCategories.map((c) => (
-                            <option key={c.id || c._id} value={c.id || c._id}>
-                              {c.groupName}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-
-                      <td style={{ minWidth: 170 }}>
-                        <select
-                          value={row.itemId}
-                          onChange={(e) =>
-                            updateDetail(idx, "itemId", e.target.value)
-                          }
-                          style={selectStyle}
-                        >
-                          <option value="">
-                            Select item
-                          </option>
-                          {filteredItems.map((it) => (
-                            <option
-                              key={it.id || it._id}
-                              value={it.id || it._id}
-                            >
-                              {it.itemDescription || it.itemName}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-
-                      <td>
-                        <input
-                          value={row.uom}
-                          readOnly
-                          style={{
-                            width: 60,
-                            border: "none",
-                            outline: "none",
-                            fontSize: 11.5,
-                            background: "transparent",
-                            color: "var(--text-secondary)",
-                            padding: "2px 4px",
-                          }}
-                          placeholder="—"
-                        />
-                      </td>
-
-                      <td>
-                        <input
-                          type="number"
-                          step="0.001"
-                          value={row.indentQty}
-                          min={0}
-                          onChange={(e) =>
-                            updateDetail(idx, "indentQty", e.target.value)
-                          }
-                          style={{ width: 80, textAlign: "right" }}
-                        />
-                      </td>
-
-                      <td>
-                        <input
-                          type="date"
-                          value={row.dueDate}
-                          onChange={(e) =>
-                            updateDetail(idx, "dueDate", e.target.value)
-                          }
-                          style={{
-                            border: "none",
-                            outline: "none",
-                            fontSize: 11.5,
-                            background: "transparent",
-                            padding: "2px 4px",
-                          }}
-                        />
-                      </td>
-
-                      <td>
-                        <input
-                          value={row.remarks}
-                          onChange={(e) =>
-                            updateDetail(idx, "remarks", e.target.value)
-                          }
-                          placeholder="Optional"
-                          style={{ width: 140 }}
-                        />
-                      </td>
-
-                      <td>
-                        <button
-                          className="inv-btn-icon inv-btn-danger"
-                          onClick={() => removeRow(idx)}
-                          style={{ padding: "2px 6px", fontSize: 13 }}
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td
-                    colSpan={5}
-                    style={{ textAlign: "right", fontWeight: 600 }}
-                  >
-                    Total
-                  </td>
-                  <td
+      <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+        {/* ── Sidebar (Left) ── */}
+        <div style={{ width: "320px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "20px" }}>
+          {/* Header Card */}
+          <div className="inv-card">
+            <div className="inv-card-body">
+              <div className="inv-section-label">Header</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div className="inv-field">
+                  <label className="inv-label">
+                    Indent No
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        fontSize: 10,
+                        fontWeight: 500,
+                        color: "#6366f1",
+                        background: "#eef2ff",
+                        border: "1px solid #c7d2fe",
+                        borderRadius: 4,
+                        padding: "1px 6px",
+                        letterSpacing: "0.03em",
+                      }}
+                    >
+                      Auto
+                    </span>
+                  </label>
+                  <input
+                    className="inv-input"
+                    value={header.indentNo}
+                    readOnly={!editId}
+                    onChange={(e) =>
+                      setHeader((h) => ({ ...h, indentNo: e.target.value }))
+                    }
                     style={{
-                      textAlign: "right",
-                      fontFamily: "DM Mono, monospace",
+                      background: editId ? undefined : "#f8f7ff",
+                      color: "#4f46e5",
                       fontWeight: 600,
+                      cursor: editId ? "text" : "default",
+                      border: "1px solid #c7d2fe",
+                    }}
+                  />
+                </div>
+                <div className="inv-field">
+                  <label className="inv-label">Date</label>
+                  <input
+                    className="inv-input"
+                    type="date"
+                    value={header.date}
+                    onChange={(e) =>
+                      setHeader((h) => ({ ...h, date: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="inv-field">
+                  <label className="inv-label">Department *</label>
+                  <select
+                    className="inv-input"
+                    value={header.departmentId}
+                    onChange={(e) => {
+                      const d = departments.find(
+                        (x) => sid(x.id || x._id) === e.target.value,
+                      );
+                      setHeader((h) => ({
+                        ...h,
+                        departmentId: e.target.value,
+                        departmentName: d?.name || d?.departmentName || "",
+                      }));
                     }}
                   >
+                    <option value="">Select department</option>
+                    {departments.map((d) => (
+                      <option key={sid(d.id || d._id)} value={sid(d.id || d._id)}>
+                        {d.name || d.departmentName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="inv-field">
+                  <label className="inv-label">Requested By</label>
+                  <input
+                    className="inv-input"
+                    value={header.createdBy}
+                    onChange={(e) =>
+                      setHeader((h) => ({ ...h, createdBy: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Summary Card */}
+          <div className="inv-card">
+            <div className="inv-card-body">
+              <div className="inv-section-label">Summary</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div className="inv-field">
+                  <label className="inv-label">Remarks</label>
+                  <textarea
+                    className="inv-input"
+                    rows={2}
+                    value={header.remarks}
+                    onChange={(e) =>
+                      setHeader((h) => ({ ...h, remarks: e.target.value }))
+                    }
+                    placeholder="Optional remarks"
+                  />
+                </div>
+                <div className="inv-summary-box">
+                  <div className="inv-summary-box-label">Total Indent Qty</div>
+                  <div className="inv-summary-box-value" style={{ fontSize: "18px", color: "#1e293b" }}>
                     {fmt(totalQty)}
-                  </td>
-                  <td colSpan={3}></td>
-                </tr>
-              </tfoot>
-            </table>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Summary card ────────────────────────────────────────────────────── */}
-      <div className="inv-card">
-        <div className="inv-card-body">
-          <div className="inv-section-label">Summary</div>
-          <div className="inv-summary-grid">
-            <div className="inv-summary-box" style={{ display: "none" }}>
-              <div className="inv-summary-box-label">Department</div>
-              <div className="inv-summary-box-value" style={{ fontSize: 15 }}>
-                {header.departmentName || "—"}
-              </div>
-            </div>
-            <div className="inv-summary-box" style={{ display: "none" }}>
-              <div className="inv-summary-box-label">Total Line Items</div>
-              <div className="inv-summary-box-value">{details.length}</div>
-            </div>
-            <div className="inv-summary-box">
-              <div className="inv-summary-box-label">Total Indent Qty</div>
-              <div className="inv-summary-box-value">{fmt(totalQty)}</div>
-            </div>
-            <div
-              className="inv-summary-box"
-              style={{ background: "#eff6ff", borderColor: "#bfdbfe", display: "none" }}
-            >
-              <div className="inv-summary-box-label">Status</div>
+        {/* ── Main Content (Right) ── */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="inv-card">
+            <div className="inv-card-body">
               <div
-                className="inv-summary-box-value"
-                style={{ color: "var(--accent)" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                }}
               >
-                {header.status}
+                <div className="inv-section-label" style={{ marginBottom: 0 }}>
+                  Detail
+                </div>
+                <button className="inv-btn-secondary inv-btn-sm" onClick={addRow}>
+                  + Add Row
+                </button>
               </div>
-            </div>
-            <div className="inv-summary-box" style={{ gridColumn: "span 2" }}>
-              <div className="inv-summary-box-label">Remarks</div>
-              <input
-                className="inv-input"
-                value={header.remarks}
-                onChange={(e) =>
-                  setHeader((h) => ({ ...h, remarks: e.target.value }))
-                }
-                placeholder="Optional remarks"
-                style={{ marginTop: 4, background: "transparent" }}
-              />
+
+              <div style={{ overflowX: "auto", minHeight: "400px" }}>
+                <table className="po-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: "40px" }}>#</th>
+                      <th style={{ minWidth: "150px" }}>Main Category</th>
+                      <th style={{ minWidth: "200px" }}>Item Description</th>
+                      <th style={{ width: "80px" }}>UOM</th>
+                      <th style={{ width: "100px" }}>Indent Qty</th>
+                      <th style={{ width: "120px" }}>Due Date</th>
+                      <th style={{ minWidth: "150px" }}>Remarks</th>
+                      <th style={{ width: "40px" }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {details.map((row, idx) => {
+                      const filteredCategories = row.inventoryHeadId
+                        ? categories.filter((c) => c.headId === row.inventoryHeadId)
+                        : categories;
+
+                      const filteredItems = row.mainCategoryId
+                        ? items.filter((it) => {
+                          const cat = categories.find(
+                            (c) => (c.id || c._id) === row.mainCategoryId,
+                          );
+                          return cat ? it.group === cat.groupName : false;
+                        })
+                        : row.inventoryHeadId
+                          ? items.filter((it) => it.headId === row.inventoryHeadId)
+                          : items;
+
+                      return (
+                        <tr key={row._rowId}>
+                          <td style={{ textAlign: "center", color: "#64748b" }}>{idx + 1}</td>
+                          <td>
+                            <select
+                              value={row.mainCategoryId}
+                              onChange={(e) => updateDetail(idx, "mainCategoryId", e.target.value)}
+                              style={selectStyle}
+                            >
+                              <option value="">Select Category</option>
+                              {filteredCategories.map((c) => (
+                                <option key={c.id || c._id} value={c.id || c._id}>
+                                  {c.groupName}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <select
+                              value={row.itemId}
+                              onChange={(e) => updateDetail(idx, "itemId", e.target.value)}
+                              style={selectStyle}
+                            >
+                              <option value="">Select Item</option>
+                              {filteredItems.map((it) => (
+                                <option key={it.id || it._id} value={it.id || it._id}>
+                                  {it.itemDescription || it.itemName}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              className="inv-input-clean"
+                              value={row.uom}
+                              readOnly
+                              placeholder="—"
+                              style={{ textAlign: "center" }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="inv-input-clean"
+                              type="number"
+                              step="0.001"
+                              value={row.indentQty}
+                              min={0}
+                              onChange={(e) => updateDetail(idx, "indentQty", e.target.value)}
+                              style={{ textAlign: "right", fontWeight: 600 }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="inv-input-clean"
+                              type="date"
+                              value={row.dueDate}
+                              onChange={(e) => updateDetail(idx, "dueDate", e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="inv-input-clean"
+                              value={row.remarks}
+                              onChange={(e) => updateDetail(idx, "remarks", e.target.value)}
+                              placeholder="Optional"
+                            />
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            <button
+                              className="inv-btn-icon inv-btn-danger"
+                              onClick={() => removeRow(idx)}
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: "#f8fafc" }}>
+                      <td colSpan={4} style={{ textAlign: "right", fontWeight: 700, paddingRight: "15px" }}>
+                        Total
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: 700, color: "#4f46e5" }}>
+                        {fmt(totalQty)}
+                      </td>
+                      <td colSpan={3}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           </div>
         </div>

@@ -147,6 +147,7 @@ app.use("/api/purchase-orders", require("./routes/purchaseOrderRoutes"));
 app.use("/api/item-price-lists", require("./routes/itemPriceListRoutes"));
 app.use("/api/grns", require("./routes/Grnroutes"));
 app.use("/api/consumption-issues", require("./routes/consumptionIssueRoutes"));
+app.use("/api/company", require("./routes/companyRoutes"));
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/roles", require("./routes/roleRoutes"));
