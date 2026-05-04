@@ -10,6 +10,11 @@ const fmt = (n) =>
     maximumFractionDigits: 2,
   });
 
+const toTitleCase = (str) => {
+  if (!str) return "";
+  return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
 const fmtQty = (n) =>
   Number(n || 0).toLocaleString("en-IN", {
     minimumFractionDigits: 3,
@@ -433,8 +438,9 @@ th, td { border: 1px solid #000; padding: 4px; vertical-align: top; }
 }
 
 // ─── GST calculation ──────────────────────────────────────────────────────────
-function calcRow(row, gstEnabled, gstType) {
+function calcRow(row, gstEnabled) {
   const baseAmt = (row.poQty || 0) * (row.poRate || 0);
+  const rowGstType = row.gstType || "local";
 
   let discPct = row.discPct || 0;
   let discPrice = row.discPrice || 0;
@@ -452,7 +458,7 @@ function calcRow(row, gstEnabled, gstType) {
 
   let sgst = 0, cgst = 0, igst = 0;
   if (gstEnabled) {
-    if (gstType === "other") {
+    if (rowGstType === "other") {
       igst = gst;
     } else {
       sgst = gst / 2;
@@ -462,6 +468,7 @@ function calcRow(row, gstEnabled, gstType) {
 
   return {
     ...row,
+    itemName: toTitleCase(row.itemName),
     discPct: +discPct.toFixed(4),
     discPrice: +discPrice.toFixed(2),
     poAmount: +netAmt.toFixed(2),
@@ -473,7 +480,7 @@ function calcRow(row, gstEnabled, gstType) {
   };
 }
 
-function buildDetailFromIndentOption(opt, gstEnabled, gstType) {
+function buildDetailFromIndentOption(opt, gstEnabled) {
   const base = emptyDetail();
   return calcRow(
     {
@@ -491,10 +498,10 @@ function buildDetailFromIndentOption(opt, gstEnabled, gstType) {
       priceListRate: opt.priceListRate || 0,
       poRate: opt.priceListRate || 0,
       gstPct: opt.gstPct ?? 18,
+      gstType: opt.gstType || "local",
       indentRemarks: opt.indentRemarks || "",
     },
-    gstEnabled,
-    gstType,
+    gstEnabled
   );
 }
 
@@ -513,6 +520,7 @@ export default function PurchaseOrderPage() {
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [pendingSelected, setPendingSelected] = useState(() => new Set());
   const [paymentTermsList, setPaymentTermsList] = useState([]);
+  const [saveSuccessModal, setSaveSuccessModal] = useState(false);
 
   const [view, setView] = useState("form");
   const [editId, setEditId] = useState(null);
@@ -524,6 +532,11 @@ export default function PurchaseOrderPage() {
 
   const [gstEnabled, setGstEnabled] = useState(true);
   const [gstType, setGstType] = useState("local");
+
+  function handleGstTypeChange(type) {
+    setGstType(type);
+    setDetails((prev) => prev.map((row) => calcRow(row, gstEnabled, type)));
+  }
 
   useEffect(() => {
     loadPos();
@@ -744,7 +757,7 @@ export default function PurchaseOrderPage() {
         setHeader((h) => ({ ...h, poNo: created.poNo }));
       }
       await loadIndents();
-      alert("Purchase Order has been saved successfully!");
+      setSaveSuccessModal(true);
     } catch (err) {
       setFormError(err.message || "Save failed");
     } finally {
@@ -1191,6 +1204,7 @@ export default function PurchaseOrderPage() {
                     }
                   />
                 </div>
+
                 <div className="inv-field">
                   <label className="inv-label" style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
                     <span>
@@ -1218,6 +1232,8 @@ export default function PurchaseOrderPage() {
                       const pt = ptId
                         ? paymentTermsList.find((x) => sid(x) === ptId)
                         : null;
+                      const type = s?.gstType || "local";
+                      
                       setHeader((h) => ({
                         ...h,
                         supplierId: e.target.value,
@@ -1227,6 +1243,7 @@ export default function PurchaseOrderPage() {
                         paymentTermsId: ptId,
                         paymentTermsName: pt?.name || "",
                       }));
+                      handleGstTypeChange(type);
                     }}
                     disabled={loadingSuppliers}
                   >

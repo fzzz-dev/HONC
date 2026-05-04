@@ -39,6 +39,11 @@ const Supplier = sequelize.define("Supplier", {
     type: DataTypes.BOOLEAN,
     defaultValue: true,
   },
+  gstType: {
+    type: DataTypes.ENUM("local", "other"),
+    allowNull: false,
+    defaultValue: "local",
+  },
   state: {
     type: DataTypes.STRING,
     defaultValue: "",

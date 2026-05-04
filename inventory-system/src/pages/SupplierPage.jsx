@@ -113,6 +113,7 @@ export const EMPTY_FORM = {
   shortCode: "",
   type: "",
   active: true,
+  gstType: "local",
   addresses: [],
   gstNo: "",
   panNo: "",
@@ -824,6 +825,16 @@ export default function SupplierPage() {
                 onChange={(v) => setForm((f) => ({ ...f, paymentTermsId: v }))}
                 options={paymentTermOptions}
                 placeholder={paymentTermOptions.length === 0 ? "Add payment terms master first" : "Select payment terms…"}
+              />
+            </Field>
+            <Field label="GST Type">
+              <Select
+                value={form.gstType}
+                onChange={(v) => setForm((f) => ({ ...f, gstType: v }))}
+                options={[
+                  { value: "local", label: "Local (SGST+CGST)" },
+                  { value: "other", label: "Other State (IGST)" },
+                ]}
               />
             </Field>
             <Field label="Status">
