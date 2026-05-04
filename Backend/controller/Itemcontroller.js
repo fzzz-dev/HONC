@@ -23,6 +23,11 @@ const HEAD_NAME_ALIASES = [
   "invHead",
   "Inv Head",
   "HEAD",
+  "category",
+  "Category",
+  "head_name",
+  "category_name",
+  "Item Head",
 ];
 
 // ── Multer disk storage config ────────────────────────────────────────────────
@@ -580,11 +585,11 @@ exports.bulkUpload = async (req, res) => {
         headId: rowField(row, ["headId", "head_id"]),
         head: rowField(row, HEAD_NAME_ALIASES),
         group: groupFromFile,
-        itemName: rowField(row, ["itemName", "item", "Item Name", "Item", "item_name", "item name"]),
-        uom: rowField(row, ["uom", "UOM", "unit", "Uom"]),
-        make: rowField(row, ["make", "Make", "brand", "Brand"]),
-        spec: rowField(row, ["spec", "Spec", "specification", "Specification"]),
-        rate: rowField(row, ["rate", "Rate", "price", "Price"]),
+        itemName: rowField(row, ["itemName", "item", "Item Name", "Item", "item_name", "item name", "Description", "description", "Item Description"]),
+        uom: rowField(row, ["uom", "UOM", "unit", "Uom", "Unit"]),
+        make: rowField(row, ["make", "Make", "brand", "Brand", "Manufacturer"]),
+        spec: rowField(row, ["spec", "Spec", "specification", "Specification", "Size"]),
+        rate: rowField(row, ["rate", "Rate", "price", "Price", "Unit Rate"]),
         active: (() => {
           const a = rowField(row, ["active", "Active"]);
           if (!rowValuePresent(a)) return true;

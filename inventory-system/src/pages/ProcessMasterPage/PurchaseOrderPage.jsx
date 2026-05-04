@@ -327,7 +327,9 @@ export default function PurchaseOrderPage() {
   function openEdit(po) {
     setEditId(sid(po)); setHeader({ ...po, supplierId: sid(po.supplierId), paymentTermsId: sid(po.paymentTermsId) });
     setDetails(safeDetails(po.details).map(d => ({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) })));
-    setGstType(po.gstType || "local"); setGstEnabled(po.gstEnabled !== false); setView("form");
+    setGstType(po.gstType || "local"); 
+    setGstEnabled(po.gstEnabled !== false); 
+    setView("form");
   }
 
   const calcRow = (row) => {
@@ -359,7 +361,14 @@ export default function PurchaseOrderPage() {
           row.poRate = opt.lastRate || 0; 
           row.gstPct = opt.gstPct || 18; 
         } else {
-          row.indentNo = "";
+          row.indentNo = ""; row.itemId = ""; row.itemName = ""; row.uom = ""; row.balQty = 0;
+        }
+      }
+      if (field === "itemId") {
+        const it = items.find(i => sid(i) === val);
+        if (it) {
+          row.itemId = val; row.itemName = it.itemName; row.uom = it.uom; row.gstPct = it.gstPercent || 18;
+          row.indentDetailId = ""; row.indentNo = "Direct"; row.balQty = 0;
         }
       }
       rows[idx] = calcRow(row);
@@ -393,7 +402,13 @@ export default function PurchaseOrderPage() {
     poAmount: acc.poAmount + r.poAmount, totGst: acc.totGst + r.totGst, totalAmount: acc.totalAmount + r.totalAmount
   }), { poAmount: 0, totGst: 0, totalAmount: 0 });
 
-  const safeDetails = (d) => Array.isArray(d) ? d : [];
+  const safeDetails = (d) => {
+    if (Array.isArray(d)) return d;
+    if (typeof d === "string") {
+      try { return JSON.parse(d); } catch (e) { return []; }
+    }
+    return [];
+  };
   const indentDetailOptions = indents.flatMap(ind => safeDetails(ind.details).map(d => ({
     indentNo: ind.indentNo, detailId: sid(d.id || d._id), itemId: sid(d.itemId), itemName: toTitleCase(d.itemName), uom: d.uom, balQty: d.indentQty, lastRate: d.rate, gstPct: d.gstPct
   })));
@@ -476,15 +491,10 @@ export default function PurchaseOrderPage() {
                   </select>
                 </div>
               </Field>
-              <Field label="GST Type">
-                <select className="inv-input" value={gstType} onChange={e => setGstType(e.target.value)}>
-                  <option value="local">Local (SGST+CGST)</option>
-                  <option value="other">Other State (IGST)</option>
-                </select>
-              </Field>
               <Field label="Reference No"><input className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" /></Field>
               <Field label="Delivery Date"><input className="inv-input" type="date" value={header.deliveryDate} onChange={e => setHeader(h => ({ ...h, deliveryDate: e.target.value }))} /></Field>
-              <Field label="GST No"><input className="inv-input" value={header.supplierGst} onChange={e => setHeader(h => ({ ...h, supplierGst: e.target.value }))} /></Field>
+              <Field label="GST No"><input className="inv-input" value={header.supplierGst} readOnly style={{ background: "#f8fafc" }} /></Field>
+              <Field label="GST Type (Auto)"><input className="inv-input" value={gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)"} readOnly style={{ background: "#f8fafc", color: "#64748b" }} /></Field>
             </FormGrid>
             <div style={{ marginTop: 12 }}>
               <Field label="Address"><textarea className="inv-input" rows={1} value={header.supplierAddress} onChange={e => setHeader(h => ({ ...h, supplierAddress: e.target.value }))} /></Field>
@@ -506,8 +516,7 @@ export default function PurchaseOrderPage() {
                 <thead>
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
-                    <th style={{ width: 120 }}>Indent No</th>
-                    <th style={{ minWidth: 250 }}>Item Description</th>
+                    <th style={{ minWidth: 300 }}>Indent Number & Details</th>
                     <th style={{ width: 80 }}>UOM</th>
                     <th style={{ width: 80, textAlign: "right" }}>Bal</th>
                     <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
@@ -528,12 +537,19 @@ export default function PurchaseOrderPage() {
                     <tr key={row._rowId}>
                       <td style={{ textAlign: "center", color: "#94a3b8", fontWeight: 500 }}>{idx + 1}</td>
                       <td>
-                        <input className="inv-input-cell" value={row.indentNo} readOnly placeholder="Select item..." />
-                      </td>
-                      <td>
-                        <select className="inv-select-cell" value={row.indentDetailId} onChange={e => updateDetail(idx, "indentDetailId", e.target.value)}>
-                          <option value="">— select item —</option>
-                          {indentDetailOptions.map(o => <option key={o.detailId} value={o.detailId}>[{o.indentNo}] {o.itemName}</option>)}
+                        <select className="inv-select-cell" value={row.indentDetailId || row.itemId} onChange={e => {
+                          const val = e.target.value;
+                          const isIndent = indentDetailOptions.some(o => o.detailId === val);
+                          if (isIndent) updateDetail(idx, "indentDetailId", val);
+                          else updateDetail(idx, "itemId", val);
+                        }}>
+                          <option value="">— Select Indent or Direct Item —</option>
+                          <optgroup label="Items from Indents">
+                            {indentDetailOptions.map(o => <option key={o.detailId} value={o.detailId}>[{o.indentNo}] {o.itemName}</option>)}
+                          </optgroup>
+                          <optgroup label="Direct Items (No Indent)">
+                            {items.map(it => <option key={sid(it)} value={sid(it)}>{it.itemName}</option>)}
+                          </optgroup>
                         </select>
                       </td>
                       <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
