@@ -23,6 +23,11 @@ const sid = (v) => {
   return String(v);
 };
 
+const toTitleCase = (str) => {
+  if (!str) return "";
+  return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
 // Always returns a guaranteed array from indent.details (handles null / object / non-array)
 const safeDetails = (details) => {
   if (Array.isArray(details)) return details;
@@ -381,7 +386,7 @@ export default function PurchaseIndentPage() {
 
       if (field === "itemId") {
         const found = items.find((it) => (it.id || it._id) === val);
-        row.itemName = found?.itemDescription || found?.itemName || "";
+        row.itemName = toTitleCase(found?.itemDescription || found?.itemName || "");
         row.uom = found?.uom || "";
       }
 
@@ -795,6 +800,7 @@ export default function PurchaseIndentPage() {
                   <thead>
                     <tr>
                       <th style={{ width: "40px" }}>#</th>
+                      <th style={{ minWidth: "150px" }}>Inventory Head</th>
                       <th style={{ minWidth: "150px" }}>Main Category</th>
                       <th style={{ minWidth: "200px" }}>Item Description</th>
                       <th style={{ width: "80px" }}>UOM</th>
@@ -824,6 +830,20 @@ export default function PurchaseIndentPage() {
                       return (
                         <tr key={row._rowId}>
                           <td style={{ textAlign: "center", color: "#64748b" }}>{idx + 1}</td>
+                          <td>
+                            <select
+                              value={row.inventoryHeadId}
+                              onChange={(e) => updateDetail(idx, "inventoryHeadId", e.target.value)}
+                              style={selectStyle}
+                            >
+                              <option value="">Select Head</option>
+                              {heads.map((h) => (
+                                <option key={h.id || h._id} value={h.id || h._id}>
+                                  {h.headName}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
                           <td>
                             <select
                               value={row.mainCategoryId}
