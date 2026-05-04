@@ -460,7 +460,7 @@ exports.downloadTemplate = async (req, res) => {
     const headers = [
       "headId",
       "head",
-      "group",
+      "category",
       "itemName",
       "uom",
       "make",
@@ -481,7 +481,7 @@ exports.downloadTemplate = async (req, res) => {
     const sampleRow = {
       headId: 1,
       head: "Raw Material",
-      group: "Steel",
+      category: "Steel",
       itemName: "MS Flat Bar 50x6",
       uom: "KG",
       make: "TATA",
@@ -564,6 +564,8 @@ exports.bulkUpload = async (req, res) => {
       if (isRowEmpty) continue;
 
       const groupFromFile = rowField(row, [
+        "category",
+        "categoryName",
         "group",
         "groupName",
         "mainCategory",
@@ -590,6 +592,7 @@ exports.bulkUpload = async (req, res) => {
         inTransitDays: rowField(row, ["inTransitDays", "transitDays"]),
         hsnCode: rowField(row, ["hsnCode", "HSN", "hsn"]),
         gstPercent: rowField(row, ["gstPercent", "gst", "GST"]),
+        gstType: rowField(row, ["gstType", "gst Type"]) || "local",
         rackBinNo: rowField(row, ["rackBinNo", "rack", "bin"]),
       });
 

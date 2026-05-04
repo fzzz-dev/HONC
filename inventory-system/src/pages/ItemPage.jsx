@@ -413,7 +413,7 @@ export default function ItemPage() {
             value={filterGroup}
             onChange={(e) => setFilterGroup(e.target.value)}
           >
-            <option value="">All Groups</option>
+            <option value="">All Categories</option>
             {filterGroupOptions.map((g) => (
               <option key={g} value={g}>
                 {g}
@@ -432,7 +432,7 @@ export default function ItemPage() {
                 <th>Image</th>
                 <th>Item Name</th>
                 <th>Head</th>
-                <th>Group</th>
+                <th>Category</th>
                 <th>UOM</th>
                 <th>Make</th>
                 <th>Spec</th>
@@ -578,13 +578,13 @@ export default function ItemPage() {
                 placeholder="Select head..."
               />
             </Field>
-            <Field label="Group">
+            <Field label="Category">
               <Select
                 value={form.group}
                 onChange={(v) => setForm((f) => ({ ...f, group: v }))}
                 options={modalGroupOptions}
                 placeholder={
-                  form.headId ? "Select group..." : "Select a head first"
+                  form.headId ? "Select category..." : "Select a head first"
                 }
               />
             </Field>

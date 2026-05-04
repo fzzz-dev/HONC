@@ -520,6 +520,7 @@ export default function SupplierPage() {
   const [addressForm, setAddressForm] = useState(null);
   const [typeManagement, setTypeManagement] = useState(false);
   const [showList, setShowList] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [paymentTerms, setPaymentTerms] = useState([]);
   const [mainCategories, setMainCategories] = useState([]);
 
@@ -698,12 +699,11 @@ export default function SupplierPage() {
 
       if (modal.mode === "add") {
         await suppliersAPI.create(payload);
-        showToast("Supplier created");
+        setForm(EMPTY_FORM);
       } else {
         await suppliersAPI.update(modal.id, payload);
-        showToast("Supplier updated");
       }
-      setModal(null);
+      setSaveSuccess(true);
       fetchSuppliers();
     } catch (e) {
       showToast(e.message, "error");
@@ -1004,6 +1004,16 @@ export default function SupplierPage() {
       {deleteConfirm && (
         <Modal title="Confirm delete" onClose={() => setDeleteConfirm(null)} onSave={() => handleDelete(deleteConfirm)} saveLabel={saving ? "Deleting…" : "Delete"}>
           <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>Are you sure you want to delete this supplier? This action cannot be undone.</p>
+        </Modal>
+      )}
+      
+      {saveSuccess && (
+        <Modal title="Success" onClose={() => setSaveSuccess(false)} onSave={() => setSaveSuccess(false)} saveLabel="OK">
+          <div style={{ textAlign: "center", padding: "20px" }}>
+            <div style={{ fontSize: "40px", color: "var(--success)", marginBottom: "10px" }}>✓</div>
+            <p style={{ fontSize: "16px", fontWeight: "600" }}>Supplier Saved Successfully!</p>
+            <p style={{ color: "var(--text-secondary)", marginTop: "8px" }}>The party details have been updated in the master directory.</p>
+          </div>
         </Modal>
       )}
 

@@ -37,11 +37,7 @@ const Field = ({ label, children }) => (
   <div className="inv-field"><label className="inv-label">{label}</label>{children}</div>
 );
 
-function printPurchaseIndent({ header, details: detailRows, company }) {
-  const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const html = `<!DOCTYPE html><html><head><title>Indent ${esc(header.indentNo)}</title><style>body{font-family:Arial;font-size:10px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #000;padding:4px;}.text-right{text-align:right;}</style></head><body><h2 style="text-align:center;">PURCHASE INDENT</h2><table><tr><td><strong>Indent No:</strong> ${esc(header.indentNo)}</td><td><strong>Date:</strong> ${esc(header.date)}</td></tr><tr><td><strong>Dept:</strong> ${esc(header.departmentName)}</td><td><strong>Req By:</strong> ${esc(header.createdBy)}</td></tr></table><br/><table><thead><tr><th>SNo</th><th>Item</th><th>UOM</th><th>Qty</th><th>Due</th><th>Remarks</th></tr></thead><tbody>${detailRows.map((d, i) => `<tr><td>${i + 1}</td><td>${esc(d.itemName)}</td><td>${esc(d.uom)}</td><td class="text-right">${Number(d.indentQty || 0).toFixed(3)}</td><td>${esc(d.dueDate)}</td><td>${esc(d.remarks)}</td></tr>`).join("")}</tbody></table></body></html>`;
-  const w = window.open("", "_blank"); if (w) { w.document.write(html); w.document.close(); w.print(); }
-}
+// Print functionality removed per user request
 
 export default function PurchaseIndentPage() {
   const [departments, setDepartments] = useState([]);
@@ -184,7 +180,6 @@ export default function PurchaseIndentPage() {
         <div style={{ display: "flex", gap: 8 }}>
           <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>Save Indent</button>
           <button className="inv-btn-secondary" onClick={() => setView("list")}>View List</button>
-          <button className="inv-btn-ghost" onClick={() => printPurchaseIndent({ header, details, company })}>Print</button>
         </div>
       </div>
 
@@ -235,7 +230,7 @@ export default function PurchaseIndentPage() {
                 <tbody>
                   {details.map((row, idx) => {
                     const filteredCategories = row.inventoryHeadId ? categories.filter(c => c.headId === row.inventoryHeadId) : categories;
-                    const filteredItems = row.mainCategoryId ? items.filter(it => it.groupId === row.mainCategoryId) : (row.inventoryHeadId ? items.filter(it => it.headId === row.inventoryHeadId) : items);
+                    const filteredItems = row.mainCategoryName ? items.filter(it => it.group === row.mainCategoryName) : (row.inventoryHeadId ? items.filter(it => it.headId === row.inventoryHeadId) : items);
                     return (
                       <tr key={row._rowId}>
                         <td style={{ textAlign: "center", color: "#94a3b8", fontWeight: 500 }}>{idx + 1}</td>

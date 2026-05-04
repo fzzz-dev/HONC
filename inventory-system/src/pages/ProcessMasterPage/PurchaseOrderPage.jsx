@@ -117,10 +117,11 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
   <div class="container">
     <table class="grid-table">
       <tr>
-        <td colspan="2" class="text-center" style="width: 66.66%; border-bottom: 1px solid #000;">
+        <td colspan="2" class="text-center" style="width: 66.66%; border-bottom: 1px solid #000; position: relative;">
+          ${company?.logo ? `<img src="${company.logo}" style="position: absolute; left: 10px; top: 10px; height: 50px; max-width: 100px; object-fit: contain;" />` : ''}
           <div class="bold" style="font-size: 13px;">${esc(company?.companyName || "TEST COMPANY")}</div>
           <div style="font-size: 8.5px; margin-top: 2px;">${esc(company?.address || "Company Address")}</div>
-          <div style="font-size: 8.5px;">Tel: ${esc(company?.tel || "")}, E-Mail: ${esc(company?.email || "")}</div>
+          <div style="font-size: 8.5px;">Tel: ${esc(company?.phone || "")}, E-Mail: ${esc(company?.email || "")}</div>
           <div style="font-size: 8.5px;">GSTIN: ${esc(company?.gstin || "")}</div>
         </td>
         <td style="width: 33.33%; padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
@@ -450,14 +451,21 @@ export default function PurchaseOrderPage() {
               <Field label="PO No (Auto)"><input className="inv-input" value={header.poNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} /></Field>
               <Field label="Date"><input className="inv-input" type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} /></Field>
               <Field label="Supplier">
-                <select className="inv-input" value={header.supplierId} onChange={e => {
-                  const s = suppliers.find(x => sid(x) === e.target.value);
-                  setHeader(h => ({ ...h, supplierId: e.target.value, supplierName: toTitleCase(s?.supplierName || ""), supplierAddress: s?.address || "", supplierGst: s?.gstNo || "" }));
-                  if (s?.gstType) setGstType(s.gstType);
-                }}>
-                  <option value="">Select supplier</option>
-                  {suppliers.map(s => <option key={sid(s)} value={sid(s)}>{s.supplierName}</option>)}
-                </select>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <select className="inv-input" style={{ flex: 1 }} value={header.supplierId} onChange={e => {
+                    const s = suppliers.find(x => sid(x) === e.target.value);
+                    setHeader(h => ({ ...h, supplierId: e.target.value, supplierName: toTitleCase(s?.supplierName || ""), supplierAddress: s?.address || "", supplierGst: s?.gstNo || "" }));
+                    if (s?.gstType) setGstType(s.gstType);
+                  }}>
+                    <option value="">Select supplier</option>
+                    {suppliers.map(s => <option key={sid(s)} value={sid(s)}>{s.supplierName}</option>)}
+                  </select>
+                  <button type="button" className="inv-btn-ghost" style={{ padding: "8px" }} title="View Supplier" onClick={() => {
+                    if (header.supplierId) window.open(`/masters/supplier`, "_blank");
+                    else alert("Select a supplier first");
+                  }}>👁</button>
+                  <button type="button" className="inv-btn-ghost" style={{ padding: "8px" }} title="Add Supplier" onClick={() => window.open(`/masters/supplier`, "_blank")}>+</button>
+                </div>
               </Field>
               <Field label="Address"><textarea className="inv-input" rows={1} value={header.supplierAddress} onChange={e => setHeader(h => ({ ...h, supplierAddress: e.target.value }))} /></Field>
               <Field label="GST No"><input className="inv-input" value={header.supplierGst} onChange={e => setHeader(h => ({ ...h, supplierGst: e.target.value }))} /></Field>
@@ -467,6 +475,8 @@ export default function PurchaseOrderPage() {
                   <option value="other">Other State (IGST)</option>
                 </select>
               </Field>
+              <Field label="Reference No"><input className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" /></Field>
+              <Field label="Delivery Date"><input className="inv-input" type="date" value={header.deliveryDate} onChange={e => setHeader(h => ({ ...h, deliveryDate: e.target.value }))} /></Field>
             </FormGrid>
           </div>
         </div>

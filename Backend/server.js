@@ -32,7 +32,7 @@ async function ensureDatabaseExists() {
 
 const seedData = async () => {
   const { User, Role } = require("./model");
-  
+
   // Seed Roles
   const roles = ["admin", "user", "manager"];
   for (const roleName of roles) {
@@ -94,11 +94,18 @@ async function ensureSchemaEnhancements() {
       ["Items", "hsnCode", "ADD COLUMN `hsnCode` VARCHAR(255) NOT NULL DEFAULT ''"],
       ["Items", "gstPercent", "ADD COLUMN `gstPercent` DECIMAL(5,2) NOT NULL DEFAULT 0"],
       ["Items", "rackBinNo", "ADD COLUMN `rackBinNo` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["Items", "gstType", "ADD COLUMN `gstType` ENUM('local','other') NOT NULL DEFAULT 'local'"],
       ["Suppliers", "shortCode", "ADD COLUMN `shortCode` VARCHAR(5) NULL DEFAULT ''"],
       ["Suppliers", "paymentTermsId", "ADD COLUMN `paymentTermsId` INT NULL"],
       ["Suppliers", "purchaseCategoryIds", "ADD COLUMN `purchaseCategoryIds` JSON NULL"],
+      ["Suppliers", "gstType", "ADD COLUMN `gstType` ENUM('local','other') NOT NULL DEFAULT 'local'"],
       ["PurchaseOrders", "paymentTermsId", "ADD COLUMN `paymentTermsId` INT NULL"],
       ["PurchaseOrders", "paymentTermsName", "ADD COLUMN `paymentTermsName` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["PurchaseOrders", "gstType", "ADD COLUMN `gstType` VARCHAR(20) NOT NULL DEFAULT 'local'"],
+      ["PurchaseOrders", "gstEnabled", "ADD COLUMN `gstEnabled` TINYINT(1) NOT NULL DEFAULT 1"],
+      ["PurchaseOrders", "refNo", "ADD COLUMN `refNo` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["PurchaseOrders", "refDate", "ADD COLUMN `refDate` DATE NULL"],
+      ["PurchaseOrders", "deliveryDate", "ADD COLUMN `deliveryDate` DATE NULL"],
     ];
     for (const [table, col, ddl] of patches) {
       if (!(await columnExists(table, col))) {

@@ -46,7 +46,7 @@ export default function CompanySettingsPage() {
         method: "PUT",
         body: formData,
       });
-      
+
       if (res.ok) {
         const updated = await res.json();
         setCompany(updated);
@@ -78,11 +78,11 @@ export default function CompanySettingsPage() {
       </div>
 
       {msg && (
-        <div className={`inv-error-banner ${msg.includes("successfully") ? "success" : ""}`} style={{ 
-          marginBottom: 16, 
-          background: msg.includes("successfully") ? "#f0fdf4" : undefined, 
-          color: msg.includes("successfully") ? "#166534" : undefined, 
-          borderColor: msg.includes("successfully") ? "#bbf7d0" : undefined 
+        <div className={`inv-error-banner ${msg.includes("successfully") ? "success" : ""}`} style={{
+          marginBottom: 16,
+          background: msg.includes("successfully") ? "#f0fdf4" : undefined,
+          color: msg.includes("successfully") ? "#166534" : undefined,
+          borderColor: msg.includes("successfully") ? "#bbf7d0" : undefined
         }}>
           {msg}
         </div>
@@ -136,18 +136,18 @@ export default function CompanySettingsPage() {
             <Field label="Company Logo">
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 {company.logo && (
-                  <div style={{ 
-                    width: 80, height: 80, 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: 8, 
+                  <div style={{
+                    width: 80, height: 80,
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 8,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: '#f9fafb', overflow: 'hidden'
                   }}>
                     <img src={company.logo} alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%' }} />
                   </div>
                 )}
-                <input 
-                  type="file" 
+                <input
+                  type="file"
                   accept="image/*"
                   onChange={(e) => setLogoFile(e.target.files[0])}
                   style={{ fontSize: 13 }}
