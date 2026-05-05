@@ -54,7 +54,11 @@ const SupplierDetailsModal = ({ supplier, onClose }) => {
       <span style={{ fontWeight: 500, color: "#1e293b" }}>{value}</span>
     </div>
   );
-  const addresses = Array.isArray(supplier.addresses) ? supplier.addresses : [];
+  let addresses = [];
+  try {
+    if (Array.isArray(supplier.addresses)) addresses = supplier.addresses;
+    else if (typeof supplier.addresses === "string") addresses = JSON.parse(supplier.addresses);
+  } catch(e) {}
 
   return (
     <Modal title="Supplier Details" onClose={onClose} onSave={onClose} saveLabel="Close">
@@ -173,12 +177,20 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
   <div class="container">
     <table class="grid-table">
       <tr>
-        <td colspan="2" class="text-center" style="width: 66.66%; border-bottom: 1px solid #000; position: relative;">
-          ${company?.logo ? `<img src="${company.logo}" style="position: absolute; left: 10px; top: 10px; height: 50px; max-width: 100px; object-fit: contain;" />` : ''}
-          <div class="bold" style="font-size: 13px;">${esc(company?.companyName || "TEST COMPANY")}</div>
-          <div style="font-size: 8.5px; margin-top: 2px;">${esc(company?.address || "Company Address")}</div>
-          <div style="font-size: 8.5px;">Tel: ${esc(company?.phone || "")}, E-Mail: ${esc(company?.email || "")}</div>
-          <div style="font-size: 8.5px;">GSTIN: ${esc(company?.gstin || "")}</div>
+        <td colspan="2" style="width: 66.66%; border-bottom: 1px solid #000; padding: 0;">
+          <table style="width: 100%; height: 100%; border: none;">
+            <tr>
+              <td style="width: 30%; border: none; text-align: center; vertical-align: middle; padding: 10px;">
+                ${company?.logo ? `<img src="${company.logo}" style="height: 55px; max-width: 100%; object-fit: contain;" />` : ''}
+              </td>
+              <td class="text-center" style="width: 70%; border: none; vertical-align: middle; padding: 10px 10px 10px 0;">
+                <div class="bold" style="font-size: 14px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+                <div style="font-size: 8.5px; margin-top: 4px;">${esc(company?.address || "Company Address")}</div>
+                <div style="font-size: 8.5px;">Tel: ${esc(company?.phone || "")}, E-Mail: ${esc(company?.email || "")}</div>
+                <div style="font-size: 8.5px;">GSTIN: ${esc(company?.gstin || "")}</div>
+              </td>
+            </tr>
+          </table>
         </td>
         <td style="width: 33.33%; padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
           <table style="height: 100%; border: none;">
@@ -256,6 +268,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
         `).join("")}
         <tr class="last-row">
           <td style="border-left: none;"></td>
+          <td></td>
           <td></td>
           <td></td>
           <td></td>
@@ -380,7 +393,30 @@ export default function PurchaseOrderPage() {
   }
 
   function openEdit(po) {
-    setEditId(sid(po)); setHeader({ ...po, supplierId: sid(po.supplierId), paymentTermsId: sid(po.paymentTermsId) });
+    const sId = sid(po.supplierId);
+    const s = suppliers.find(x => sid(x) === sId);
+    let addrText = "";
+    if (s) {
+      const parsedAddresses = safeDetails(s?.addresses);
+      const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
+      if (primaryAddr) {
+        const parts = [
+          primaryAddr.address || primaryAddr.line1,
+          primaryAddr.cityName,
+          primaryAddr.stateName,
+          primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""
+        ].filter(Boolean);
+        addrText = parts.join(", ");
+      }
+    }
+
+    setEditId(sid(po)); 
+    setHeader({ 
+      ...po, 
+      supplierId: sId, 
+      paymentTermsId: sid(po.paymentTermsId),
+      supplierAddress: po.supplierAddress || addrText
+    });
     setDetails(safeDetails(po.details).map(d => ({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) })));
     setGstType(po.gstType || "local");
     setGstEnabled(po.gstEnabled !== false);
