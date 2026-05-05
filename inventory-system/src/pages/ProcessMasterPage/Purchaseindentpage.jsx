@@ -268,12 +268,6 @@ export default function PurchaseIndentPage() {
                   })}
                 </tbody>
               </table>
-              <div style={{ padding: "16px 20px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Total Quantity</span>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: "#3b6ef8", fontFamily: "'DM Mono', monospace" }}>{fmt(totalQty)}</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -281,11 +275,32 @@ export default function PurchaseIndentPage() {
         <div className="inv-card">
           <div className="inv-card-body">
             <div className="inv-section-label">Summary</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-              <Field label="Remarks"><textarea className="inv-input" rows={2} value={header.remarks} onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))} placeholder="Enter any additional instructions or notes here..." /></Field>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                 <div className="inv-summary-row" style={{ border: "none" }}><span>Total Items</span><span>{details.length} Lines</span></div>
-                 <div className="inv-summary-row grand-total"><span>Total Quantity</span><span>{fmt(totalQty)}</span></div>
+            <div className="inv-summary-grid">
+              <div className="inv-summary-box">
+                <div className="inv-summary-box-label">Department</div>
+                <div className="inv-summary-box-value" style={{ fontSize: 15 }}>
+                  {header.departmentName || "—"}
+                </div>
+              </div>
+              <div className="inv-summary-box">
+                <div className="inv-summary-box-label">Total Line Items</div>
+                <div className="inv-summary-box-value">{details.length}</div>
+              </div>
+              <div className="inv-summary-box">
+                <div className="inv-summary-box-label">Total Indent Qty</div>
+                <div className="inv-summary-box-value">{fmt(totalQty)}</div>
+              </div>
+              <div
+                className="inv-summary-box"
+                style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}
+              >
+                <div className="inv-summary-box-label">Status</div>
+                <div
+                  className="inv-summary-box-value"
+                  style={{ color: "var(--accent)" }}
+                >
+                  {header.status}
+                </div>
               </div>
             </div>
           </div>

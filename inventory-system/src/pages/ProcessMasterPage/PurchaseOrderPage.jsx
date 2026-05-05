@@ -58,7 +58,7 @@ const SupplierDetailsModal = ({ supplier, onClose }) => {
   try {
     if (Array.isArray(supplier.addresses)) addresses = supplier.addresses;
     else if (typeof supplier.addresses === "string") addresses = JSON.parse(supplier.addresses);
-  } catch(e) {}
+  } catch (e) { }
 
   return (
     <Modal title="Supplier Details" onClose={onClose} onSave={onClose} saveLabel="Close">
@@ -410,10 +410,10 @@ export default function PurchaseOrderPage() {
       }
     }
 
-    setEditId(sid(po)); 
-    setHeader({ 
-      ...po, 
-      supplierId: sId, 
+    setEditId(sid(po));
+    setHeader({
+      ...po,
+      supplierId: sId,
       paymentTermsId: sid(po.paymentTermsId),
       supplierAddress: po.supplierAddress || addrText
     });
@@ -432,7 +432,10 @@ export default function PurchaseOrderPage() {
     const gPct = Number(row.gstPct || 0);
     const tax = gstEnabled ? (amt * gPct / 100) : 0;
     return {
-      ...row, poAmount: amt, totGst: tax, totalAmount: amt + tax,
+      ...row,
+      grossAmount: qty * rate,
+      rowDisc: disc,
+      poAmount: amt, totGst: tax, totalAmount: amt + tax,
       sgst: gType === 'local' ? tax / 2 : 0, cgst: gType === 'local' ? tax / 2 : 0, igst: gType === 'other' ? tax : 0
     };
   };
@@ -506,8 +509,17 @@ export default function PurchaseOrderPage() {
   }
 
   const totals = details.reduce((acc, r) => ({
-    poAmount: acc.poAmount + r.poAmount, totGst: acc.totGst + r.totGst, totalAmount: acc.totalAmount + r.totalAmount
-  }), { poAmount: 0, totGst: 0, totalAmount: 0 });
+    grossAmount: acc.grossAmount + (r.grossAmount || 0),
+    discPrice: acc.discPrice + (r.rowDisc || 0),
+    poAmount: acc.poAmount + r.poAmount,
+    totGst: acc.totGst + r.totGst,
+    totalAmount: acc.totalAmount + r.totalAmount,
+    sgst: acc.sgst + (r.sgst || 0),
+    cgst: acc.cgst + (r.cgst || 0),
+    igst: acc.igst + (r.igst || 0)
+  }), { grossAmount: 0, discPrice: 0, poAmount: 0, totGst: 0, totalAmount: 0, sgst: 0, cgst: 0, igst: 0 });
+
+  const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
   const safeDetails = (d) => {
     if (Array.isArray(d)) return d;
@@ -596,7 +608,7 @@ export default function PurchaseOrderPage() {
                     if (s) {
                       const compGst = company?.gstin || "";
                       const suppGst = s.gstNo || "";
-                      
+
                       // Auto-detect based on GSTIN state code (first 2 characters)
                       if (compGst.length >= 2 && suppGst.length >= 2) {
                         newGstType = compGst.substring(0, 2) === suppGst.substring(0, 2) ? "local" : "other";
@@ -604,18 +616,18 @@ export default function PurchaseOrderPage() {
                         // Fallback: check states if GSTINs are not fully available
                         const compState = (company?.state || company?.address || "").toLowerCase();
                         const suppState = (s.state || "").toLowerCase();
-                        
+
                         if (suppState && compState && !compState.includes(suppState) && !suppState.includes(compState)) {
-                           newGstType = "other";
+                          newGstType = "other";
                         } else {
-                           // Final fallback to the supplier's configured gstType
-                           newGstType = s.gstType || "local";
+                          // Final fallback to the supplier's configured gstType
+                          newGstType = s.gstType || "local";
                         }
                       }
                     }
 
                     setGstType(newGstType);
-                    
+
                     const parsedAddresses = safeDetails(s?.addresses);
                     const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
                     let addrText = "";
@@ -756,16 +768,93 @@ export default function PurchaseOrderPage() {
           </div>
         </div>
 
+        {/* ── Summary card ── */}
         <div className="inv-card">
           <div className="inv-card-body">
             <div className="inv-section-label">Summary</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 350px", gap: "40px" }}>
-              <Field label="Remarks"><textarea className="inv-input" rows={4} value={header.remarks} onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))} placeholder="Enter shipping instructions, payment terms, or other notes..." /></Field>
-              <div style={{ display: "flex", flexDirection: "column", background: "#fcfdfe", padding: 16, borderRadius: 8, border: "1px solid #e2e8f0" }}>
-                <div className="inv-summary-row"><span>Gross Amount</span><span>₹{fmt(totals.poAmount)}</span></div>
-                {gstEnabled && <div className="inv-summary-row"><span>Total GST</span><span>₹{fmt(totals.totGst)}</span></div>}
-                <div className="inv-summary-row grand-total"><span>Grand Total</span><span>₹{fmt(totals.totalAmount)}</span></div>
-                <div style={{ fontSize: 11, color: "#64748b", textAlign: "right", marginTop: 12, fontStyle: "italic" }}>{numberToWords(Math.round(totals.totalAmount))}</div>
+            <div className="inv-summary-grid">
+              <div className="inv-summary-box" style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}>
+                <div className="inv-summary-box-label">Gross Amount</div>
+                <div className="inv-summary-box-value" style={{ color: "#64748b" }}>
+                  ₹{fmt(totals.grossAmount)}
+                </div>
+              </div>
+
+              <div
+                className="inv-summary-box"
+                style={{ background: "#fffbeb", borderColor: "#fcd34d", position: "relative", overflow: "hidden" }}
+              >
+                {totals.discPrice > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 6,
+                      right: 0,
+                      background: "#f59e0b",
+                      color: "#fff",
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: "2px 8px 2px 6px",
+                      borderRadius: "4px 0 0 4px",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    SAVINGS
+                  </div>
+                )}
+                <div className="inv-summary-box-label">Total Discount</div>
+                <div className="inv-summary-box-value" style={{ color: "#b45309" }}>
+                  −₹{fmt(totals.discPrice)}
+                </div>
+                <div style={{ fontSize: 11, color: "#92400e", marginTop: 2, fontWeight: 500 }}>
+                  {effectiveDiscPct.toFixed(2)}% effective
+                </div>
+              </div>
+
+              <div className="inv-summary-box">
+                <div className="inv-summary-box-label">PO Amount (after disc, before GST)</div>
+                <div className="inv-summary-box-value">₹{fmt(totals.poAmount)}</div>
+                {totals.discPrice > 0 && (
+                  <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2, fontWeight: 500 }}>
+                    ↓ ₹{fmt(totals.discPrice)} saved vs gross
+                  </div>
+                )}
+              </div>
+
+              {gstEnabled && (
+                <>
+                  <div className="inv-summary-box">
+                    <div className="inv-summary-box-label">Total GST</div>
+                    <div className="inv-summary-box-value">₹{fmt(totals.totGst)}</div>
+                  </div>
+                  {gstType === "local" ? (
+                    <div className="inv-summary-box">
+                      <div className="inv-summary-box-label">SGST + CGST</div>
+                      <div className="inv-summary-box-value">
+                        ₹{fmt(totals.sgst + totals.cgst)}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="inv-summary-box">
+                      <div className="inv-summary-box-label">IGST (Other State)</div>
+                      <div className="inv-summary-box-value" style={{ color: "#7c3aed" }}>
+                        ₹{fmt(totals.igst)}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="inv-summary-box" style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}>
+                <div className="inv-summary-box-label">Grand Total</div>
+                <div className="inv-summary-box-value" style={{ color: "var(--accent)" }}>
+                  ₹{fmt(totals.totalAmount)}
+                </div>
+                {totals.discPrice > 0 && (
+                  <div style={{ fontSize: 11, color: "#1d4ed8", marginTop: 2, fontWeight: 500 }}>
+                    vs gross ₹{fmt(totals.grossAmount + totals.totGst)} — saved ₹{fmt(totals.discPrice)}
+                  </div>
+                )}
               </div>
             </div>
           </div>
