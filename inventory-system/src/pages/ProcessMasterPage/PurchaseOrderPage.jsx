@@ -504,6 +504,7 @@ export default function PurchaseOrderPage() {
     try {
       if (editId) await purchaseOrderApi.update(editId, payload);
       else await purchaseOrderApi.create(payload);
+      await loadPos();
       setSaveSuccessModal(true);
     } catch (err) { setFormError(err.message); } finally { setSaving(false); }
   }
@@ -740,11 +741,11 @@ export default function PurchaseOrderPage() {
                       </td>
                       <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
                       <td><input className="inv-input-cell" value={fmtQty(row.balQty)} readOnly style={{ textAlign: "right" }} /></td>
-                      <td><input className="inv-input-cell" type="number" step="0.01" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} onBlur={e => updateDetail(idx, "poQty", Number(e.target.value).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
-                      <td><input className="inv-input-cell" type="number" step="0.01" value={row.poRate} onChange={e => updateDetail(idx, "poRate", e.target.value)} onBlur={e => updateDetail(idx, "poRate", Number(e.target.value).toFixed(2))} style={{ textAlign: "right" }} /></td>
+                      <td><input className="inv-input-cell" type="number" step="0.01" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} onBlur={e => updateDetail(idx, "poQty", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
+                      <td><input className="inv-input-cell" type="number" step="0.01" value={row.poRate} onChange={e => updateDetail(idx, "poRate", e.target.value)} onBlur={e => updateDetail(idx, "poRate", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right" }} /></td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center" }}>
-                          <input className="inv-input-cell" type="number" step="0.01" value={row.discMode === 'pct' ? row.discPct : row.discPrice} onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} onBlur={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', Number(e.target.value).toFixed(2))} style={{ textAlign: "right", flex: 1 }} />
+                          <input className="inv-input-cell" type="number" step="0.01" value={row.discMode === 'pct' ? row.discPct : row.discPrice} onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} onBlur={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right", flex: 1 }} />
                           <button type="button" onClick={() => toggleDiscMode(idx)} style={{ fontSize: 10, border: "none", background: "#f1f5f9", padding: "4px 6px", cursor: "pointer", color: "#64748b", fontWeight: 700 }}>{row.discMode === 'pct' ? '%' : '₹'}</button>
                         </div>
                       </td>
@@ -807,7 +808,7 @@ export default function PurchaseOrderPage() {
                   −₹{fmt(totals.discPrice)}
                 </div>
                 <div style={{ fontSize: 11, color: "#92400e", marginTop: 2, fontWeight: 500 }}>
-                  {effectiveDiscPct.toFixed(2)}% effective
+                  {Number(effectiveDiscPct || 0).toFixed(2)}% effective
                 </div>
               </div>
 

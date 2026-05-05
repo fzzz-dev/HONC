@@ -257,7 +257,7 @@ export default function PurchaseIndentPage() {
                           </select>
                         </td>
                         <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
-                        <td><input className="inv-input-cell" type="number" step="0.01" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
+                        <td><input className="inv-input-cell" type="number" step="0.01" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
                         <td><input className="inv-input-cell" type="date" value={row.dueDate} onChange={e => updateDetail(idx, "dueDate", e.target.value)} /></td>
                         <td><input className="inv-input-cell" value={row.remarks} onChange={e => updateDetail(idx, "remarks", e.target.value)} placeholder="Notes..." /></td>
                         <td style={{ textAlign: "center" }}>
