@@ -163,7 +163,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
     
     .summary-table td { padding: 3px 5px; border: none; }
     
-    .signature-row td { height: 80px; vertical-align: bottom; border-top: 1px solid #000; border-bottom: none; }
+    .signature-row td { height: 60px; vertical-align: bottom; border-top: 1px solid #000; border-bottom: none; }
   </style>
 </head>
 <body>
@@ -319,9 +319,16 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
         <td style="width: 20%; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">VERIFIED BY</td>
         <td style="width: 30%; padding: 5px 10px 10px 10px;">
           <table style="border: none; width: 100%; margin-bottom: 8px;">
-            <tr><td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 40%; font-size: 9px;">Name:</td><td style="border: none; padding: 2px; border-bottom: 1px dotted #000;"></td></tr>
-            <tr><td style="border: none; padding: 2px; font-weight: bold; text-align: right; font-size: 9px;">Mobile No:</td><td style="border: none; padding: 2px; border-bottom: 1px dotted #000;"></td></tr>
-            <tr><td style="border: none; padding: 2px; font-weight: bold; text-align: right; font-size: 9px;">Sign:</td><td style="border: none; padding: 2px; border-bottom: 1px dotted #000;"></td></tr>
+            <tr>
+              <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 15%; font-size: 9px;">Name:</td>
+              <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 35%;"></td>
+              <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 20%; font-size: 9px;">Mobile:</td>
+              <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 30%;"></td>
+            </tr>
+            <tr>
+              <td style="border: none; padding: 2px; font-weight: bold; text-align: right; font-size: 9px;">Sign:</td>
+              <td colspan="3" style="border: none; padding: 2px; border-bottom: 1px dotted #000;"></td>
+            </tr>
           </table>
           <div style="text-align: right; font-weight: bold; font-size: 9px; padding-right: 5px;">Received By</div>
         </td>
