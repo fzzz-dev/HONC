@@ -10,31 +10,6 @@ const EMPTY = {
   active: true,
 };
 
-function printPaymentTerm(row) {
-  const adv = Number(row.advancePct ?? 0);
-  const days = Number(row.balanceDueDays ?? 0);
-  const w = window.open("", "_blank");
-  if (!w) return;
-  const pairs = [
-    ["Payment Terms Name", row.name || "—"],
-    ["Advance percentage", `${adv}%`],
-    ["Balance due days", `${days} days`],
-  ];
-  w.document.write(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"/><title>${row.name || "Payment Terms"}</title>
-<style>
-  body { font-family: system-ui, sans-serif; padding: 24px; max-width: 560px; margin: 0 auto; }
-  .row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid #e8ecf1; font-size: 14px; }
-  .l { color: #475569; text-align: left; }
-  .v { font-weight: 600; text-align: right; flex: 1; word-break: break-word; }
-  h1 { font-size: 18px; margin: 0 0 20px; }
-</style></head><body>
-<h1>Payment Terms</h1>
-${pairs.map(([l, v]) => `<div class="row"><span class="l">${l}:</span><span class="v">${String(v).replace(/</g, "&lt;")}</span></div>`).join("")}
-<script>window.onload=function(){window.print();}</script>
-</body></html>`);
-  w.document.close();
-}
 
 export default function PaymentTermsPage() {
   const [rows, setRows] = useState([]);
@@ -199,15 +174,6 @@ export default function PaymentTermsPage() {
                     </td>
                     <td>
                       <div className="inv-actions">
-                        <button
-                          type="button"
-                          className="inv-btn-ghost inv-no-print"
-                          style={{ fontSize: 12 }}
-                          title="Print"
-                          onClick={() => printPaymentTerm(r)}
-                        >
-                          Print
-                        </button>
                         <button
                           type="button"
                           className="inv-btn-icon"

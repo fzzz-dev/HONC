@@ -3,7 +3,7 @@ import { purchaseIndentApi, inventoryHeadApi, mainCategoryApi, itemApi, departme
 import Modal from "../../components/Modal";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const today = () => new Date().toISOString().split("T")[0];
 const sid = (v) => {
   if (!v) return "";
@@ -22,7 +22,7 @@ const safeDetails = (details) => {
 
 const emptyDetail = () => ({
   _rowId: Math.random(), inventoryHeadId: "", inventoryHeadName: "", mainCategoryId: "", mainCategoryName: "",
-  itemId: "", itemName: "", uom: "", indentQty: 0, dueDate: "", remarks: ""
+  itemId: "", itemName: "", uom: "", indentQty: "0.00", dueDate: "", remarks: ""
 });
 
 const emptyHeader = () => ({
@@ -130,6 +130,7 @@ export default function PurchaseIndentPage() {
     try {
       if (editId) await purchaseIndentApi.update(editId, payload);
       else await purchaseIndentApi.create(payload);
+      await loadIndents();
       setSaveSuccessModal(true);
     } catch (err) { setFormError(err.message); } finally { setSaving(false); }
   }
@@ -256,7 +257,7 @@ export default function PurchaseIndentPage() {
                           </select>
                         </td>
                         <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
-                        <td><input className="inv-input-cell" type="number" step="0.001" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
+                        <td><input className="inv-input-cell" type="number" step="0.01" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
                         <td><input className="inv-input-cell" type="date" value={row.dueDate} onChange={e => updateDetail(idx, "dueDate", e.target.value)} /></td>
                         <td><input className="inv-input-cell" value={row.remarks} onChange={e => updateDetail(idx, "remarks", e.target.value)} placeholder="Notes..." /></td>
                         <td style={{ textAlign: "center" }}>
