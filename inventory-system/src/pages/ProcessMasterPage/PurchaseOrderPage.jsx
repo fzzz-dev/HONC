@@ -317,17 +317,17 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
       <tr class="signature-row">
         <td style="width: 20%; border-left: none; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">PREPARED BY</td>
         <td style="width: 20%; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">VERIFIED BY</td>
-        <td style="width: 30%; vertical-align: top; padding: 5px;">
-          <table style="border: none; width: 100%;">
-            <tr><td style="border: none; padding: 1px; font-weight: bold; text-align: right; width: 40%;">Name:</td><td style="border: none; padding: 1px;"></td></tr>
-            <tr><td style="border: none; padding: 1px; font-weight: bold; text-align: right;">Mobile No:</td><td style="border: none; padding: 1px;"></td></tr>
-            <tr><td style="border: none; padding: 1px; font-weight: bold; text-align: right;">Sign:</td><td style="border: none; padding: 1px;"></td></tr>
+        <td style="width: 30%; padding: 5px 10px 10px 10px;">
+          <table style="border: none; width: 100%; margin-bottom: 8px;">
+            <tr><td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 40%; font-size: 9px;">Name:</td><td style="border: none; padding: 2px; border-bottom: 1px dotted #000;"></td></tr>
+            <tr><td style="border: none; padding: 2px; font-weight: bold; text-align: right; font-size: 9px;">Mobile No:</td><td style="border: none; padding: 2px; border-bottom: 1px dotted #000;"></td></tr>
+            <tr><td style="border: none; padding: 2px; font-weight: bold; text-align: right; font-size: 9px;">Sign:</td><td style="border: none; padding: 2px; border-bottom: 1px dotted #000;"></td></tr>
           </table>
-          <div style="margin-top: 25px; text-align: right; font-weight: bold; font-size: 9px; padding-right: 5px;">Received By</div>
+          <div style="text-align: right; font-weight: bold; font-size: 9px; padding-right: 5px;">Received By</div>
         </td>
-        <td style="width: 30%; border-right: none; vertical-align: top; text-align: center;">
-          <div class="bold" style="font-size: 9px; margin-top: 5px;">For ${esc(company?.companyName || "TEST COMPANY")}</div>
-          <div style="margin-top: 50px; font-weight: bold; font-size: 9px; font-style: italic;">Authorised Signatory</div>
+        <td style="width: 30%; border-right: none; text-align: center; position: relative; padding-bottom: 10px;">
+          <div class="bold" style="font-size: 9px; position: absolute; top: 5px; left: 0; right: 0;">For ${esc(company?.companyName || "TEST COMPANY")}</div>
+          <div style="font-weight: bold; font-size: 9px; font-style: italic;">Authorised Signatory</div>
         </td>
       </tr>
     </table>
