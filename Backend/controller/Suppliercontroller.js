@@ -67,6 +67,7 @@ function normalizeSupplierPayload(body = {}, fallbackActive = true) {
     emailId2: normalizeOptionalText(body.emailId2),
     mobileNo1: normalizeOptionalText(body.mobileNo1),
     mobileNo2: normalizeOptionalText(body.mobileNo2),
+    gstType: body.gstType || "local",
     paymentTermsId,
     purchaseCategoryIds,
   };
@@ -188,6 +189,7 @@ exports.createSupplier = async (req, res) => {
       emailId2,
       mobileNo1,
       mobileNo2,
+      gstType,
     } = payload;
 
     if (!supplierName || !type) {
@@ -232,6 +234,7 @@ exports.createSupplier = async (req, res) => {
       emailId2,
       mobileNo1,
       mobileNo2,
+      gstType,
       paymentTermsId: payload.paymentTermsId,
       purchaseCategoryIds: payload.purchaseCategoryIds,
     });
@@ -262,6 +265,7 @@ exports.updateSupplier = async (req, res) => {
       emailId2,
       mobileNo1,
       mobileNo2,
+      gstType,
     } = payload;
 
     if (!payload.shortCode || payload.shortCode.length < 1 || payload.shortCode.length > 5) {
@@ -304,6 +308,7 @@ exports.updateSupplier = async (req, res) => {
       emailId2,
       mobileNo1,
       mobileNo2,
+      gstType,
       paymentTermsId: payload.paymentTermsId,
       purchaseCategoryIds: payload.purchaseCategoryIds,
     });

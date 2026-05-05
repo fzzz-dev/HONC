@@ -4,7 +4,7 @@ import Modal from "../../components/Modal";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const today = () => new Date().toISOString().split("T")[0];
 const sid = (v) => {
   if (!v) return "";
@@ -40,9 +40,61 @@ const numberToWords = (num) => {
   return word.trim() + " Only";
 };
 
+const ViewIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const SupplierDetailsModal = ({ supplier, onClose }) => {
+  const Row = ({ label, value }) => !value ? null : (
+    <div style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: "1px solid #f1f5f9", fontSize: "13px" }}>
+      <span style={{ width: 120, color: "#64748b", fontSize: "12px", flexShrink: 0 }}>{label}</span>
+      <span style={{ fontWeight: 500, color: "#1e293b" }}>{value}</span>
+    </div>
+  );
+  const addresses = Array.isArray(supplier.addresses) ? supplier.addresses : [];
+
+  return (
+    <Modal title="Supplier Details" onClose={onClose} onSave={onClose} saveLabel="Close">
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, padding: "12px", background: "#f8fafc", borderRadius: 10 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 10, background: "#3b6ef8", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 18, fontWeight: 700 }}>
+          {supplier.supplierName?.[0]}
+        </div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{supplier.supplierName}</div>
+          <div style={{ fontSize: 11, color: "#3b6ef8", fontWeight: 600, textTransform: "uppercase" }}>{supplier.type}</div>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 4 }}>Contact & Tax</div>
+        <Row label="GST No" value={supplier.gstNo} />
+        <Row label="PAN No" value={supplier.panNo} />
+        <Row label="Email" value={supplier.emailId1} />
+        <Row label="Mobile" value={supplier.mobileNo1} />
+      </div>
+
+      {addresses.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 4 }}>Addresses</div>
+          {addresses.map((addr, i) => (
+            <div key={i} style={{ padding: 10, border: "1px solid #e2e8f0", borderRadius: 8, marginBottom: 8, background: addr.isPrimary ? "#fff" : "#fcfdfe" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: addr.isPrimary ? "#3b6ef8" : "#94a3b8", marginBottom: 4 }}>{addr.isPrimary ? "PRIMARY ADDRESS" : `ADDRESS ${i + 1}`}</div>
+              <div style={{ fontSize: 13, lineHeight: 1.4 }}>{addr.address || addr.line1}</div>
+              <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{addr.cityName}, {addr.stateName} {addr.pinCode}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+};
+
 const emptyDetail = () => ({
   _rowId: Math.random(), indentDetailId: "", indentNo: "", itemId: "", itemName: "", uom: "", balQty: 0,
-  poQty: 0, poRate: 0, discMode: "pct", discPct: 0, discPrice: 0, poAmount: 0,
+  poQty: "0.00", poRate: "0.00", discMode: "pct", discPct: "0.00", discPrice: "0.00", poAmount: 0,
   gstPct: 18, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0
 });
 
@@ -66,7 +118,7 @@ const Field = ({ label, children, horizontal = true }) => (
 
 function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) {
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  
+
   const grossValue = detailRows.reduce((s, d) => s + (Number(d.poQty || 0) * Number(d.poRate || 0)), 0);
   const discountAmount = grossValue - totals.poAmount;
   const igstAmount = detailRows.reduce((s, d) => s + (d.igst || 0), 0);
@@ -178,7 +230,8 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
       <thead>
         <tr>
           <th style="width: 4%; border-left: none;">SNO</th>
-          <th style="width: 36%;">ITEM NAME</th>
+          <th style="width: 12%;">INDENT NO</th>
+          <th style="width: 24%;">ITEM NAME</th>
           <th style="width: 9%;">DISCOUNT%</th>
           <th style="width: 6%;">TAX%</th>
           <th style="width: 7%;">UOM</th>
@@ -191,13 +244,14 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
         ${detailRows.map((d, i) => `
         <tr>
           <td class="text-left" style="border-left: none;">${i + 1}</td>
+          <td class="text-left" style="font-size: 8.5px;">${esc(d.indentNo || "Direct")}</td>
           <td class="text-left" style="font-size: 8.5px;">${esc(d.itemName)}</td>
-          <td class="text-right">${d.discMode === 'pct' ? Number(d.discPct||0).toFixed(2) : ''}</td>
-          <td class="text-right">${Number(d.gstPct||0).toFixed(2)}</td>
+          <td class="text-right">${d.discMode === 'pct' ? Number(d.discPct || 0).toFixed(2) : ''}</td>
+          <td class="text-right">${Number(d.gstPct || 0).toFixed(2)}</td>
           <td class="text-center">${esc(d.uom)}</td>
-          <td class="text-right">${Number(d.poQty||0).toFixed(3)}</td>
-          <td class="text-right">${Number(d.poRate||0).toFixed(2)}</td>
-          <td class="text-right" style="border-right: none;">${Number((d.poQty||0)*(d.poRate||0)).toFixed(2)}</td>
+          <td class="text-right">${Number(d.poQty || 0).toFixed(2)}</td>
+          <td class="text-right">${Number(d.poRate || 0).toFixed(2)}</td>
+          <td class="text-right" style="border-right: none;">${Number((d.poQty || 0) * (d.poRate || 0)).toFixed(2)}</td>
         </tr>
         `).join("")}
         <tr class="last-row">
@@ -287,7 +341,7 @@ export default function PurchaseOrderPage() {
   const [header, setHeader] = useState(emptyHeader());
   const [details, setDetails] = useState([emptyDetail()]);
   const [gstEnabled, setGstEnabled] = useState(true);
-  const [gstType, setGstType] = useState("local");
+  const [gstType, setGstType] = useState("");
   const [loadingList, setLoadingList] = useState(true);
   const [setLoadingSuppliers] = useState(false);
   const [formError, setFormError] = useState(null);
@@ -296,6 +350,7 @@ export default function PurchaseOrderPage() {
   const [pendingSelected, setPendingSelected] = useState(new Set());
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [viewingSupplier, setViewingSupplier] = useState(null);
 
   useEffect(() => {
     loadLookups(); loadPos(); openNew();
@@ -320,19 +375,19 @@ export default function PurchaseOrderPage() {
   }
 
   async function openNew() {
-    setHeader(emptyHeader()); setDetails([emptyDetail()]); setEditId(null); setView("form");
+    setHeader(emptyHeader()); setDetails([emptyDetail()]); setEditId(null); setView("form"); setGstType("");
     try { const res = await purchaseOrderApi.getNextNumber(); if (res?.poNo) setHeader(h => ({ ...h, poNo: res.poNo })); } catch (e) { }
   }
 
   function openEdit(po) {
     setEditId(sid(po)); setHeader({ ...po, supplierId: sid(po.supplierId), paymentTermsId: sid(po.paymentTermsId) });
     setDetails(safeDetails(po.details).map(d => ({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) })));
-    setGstType(po.gstType || "local"); 
-    setGstEnabled(po.gstEnabled !== false); 
+    setGstType(po.gstType || "local");
+    setGstEnabled(po.gstEnabled !== false);
     setView("form");
   }
 
-  const calcRow = (row) => {
+  const calcRow = (row, gType = gstType) => {
     const qty = Number(row.poQty || 0); const rate = Number(row.poRate || 0);
     let disc = 0;
     if (row.discMode === 'pct') disc = (qty * rate) * (Number(row.discPct || 0) / 100);
@@ -342,7 +397,7 @@ export default function PurchaseOrderPage() {
     const tax = gstEnabled ? (amt * gPct / 100) : 0;
     return {
       ...row, poAmount: amt, totGst: tax, totalAmount: amt + tax,
-      sgst: gstType === 'local' ? tax / 2 : 0, cgst: gstType === 'local' ? tax / 2 : 0, igst: gstType === 'other' ? tax : 0
+      sgst: gType === 'local' ? tax / 2 : 0, cgst: gType === 'local' ? tax / 2 : 0, igst: gType === 'other' ? tax : 0
     };
   };
 
@@ -350,16 +405,32 @@ export default function PurchaseOrderPage() {
     setDetails(prev => {
       const rows = [...prev];
       let row = { ...rows[idx], [field]: val };
+
+      if (field === "indentNo") {
+        // Clear item-specific fields if indent source changes
+        if (val !== rows[idx].indentNo) {
+          row.indentDetailId = "";
+          row.itemId = "";
+          row.itemName = "";
+          row.uom = "";
+          row.balQty = 0;
+          row.poRate = 0;
+          row.poAmount = 0;
+          row.totalAmount = 0;
+        }
+      }
+
       if (field === "indentDetailId") {
         const opt = indentDetailOptions.find(o => o.detailId === val);
-        if (opt) { 
+        if (opt) {
           row.indentNo = opt.indentNo;
-          row.itemId = opt.itemId; 
-          row.itemName = opt.itemName; 
-          row.uom = opt.uom; 
-          row.balQty = opt.balQty; 
-          row.poRate = opt.lastRate || 0; 
-          row.gstPct = opt.gstPct || 18; 
+          row.itemId = opt.itemId;
+          row.itemName = opt.itemName;
+          row.uom = opt.uom;
+          row.balQty = opt.balQty;
+          row.poRate = opt.lastRate || 0;
+          row.gstPct = opt.gstPct || 18;
+          row.poQty = opt.balQty;
         } else {
           row.indentNo = ""; row.itemId = ""; row.itemName = ""; row.uom = ""; row.balQty = 0;
         }
@@ -416,6 +487,8 @@ export default function PurchaseOrderPage() {
   const pendingIndentRows = indents.flatMap(ind => safeDetails(ind.details).filter(d => (d.indentQty || 0) > 0).map(d => ({
     rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`, indentNo: ind.indentNo, detailId: sid(d.id || d._id), itemId: sid(d.itemId), itemName: toTitleCase(d.itemName), uom: d.uom, balQty: d.indentQty, rate: d.rate, gstPct: d.gstPct
   })));
+
+  const uniqueIndentNos = [...new Set(indentDetailOptions.map(o => o.indentNo))];
 
   function addPendingLinesToDetails() {
     const selected = pendingIndentRows.filter(r => pendingSelected.has(r.rowId));
@@ -483,18 +556,55 @@ export default function PurchaseOrderPage() {
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                   <select className="inv-input" style={{ flex: 1 }} value={header.supplierId} onChange={e => {
                     const s = suppliers.find(x => sid(x) === e.target.value);
-                    setHeader(h => ({ ...h, supplierId: e.target.value, supplierName: toTitleCase(s?.supplierName || ""), supplierAddress: s?.address || "", supplierGst: s?.gstNo || "" }));
-                    if (s?.gstType) setGstType(s.gstType);
+                    let newGstType = "local";
+                    if (s) {
+                      const compGst = company?.gstin || "";
+                      const suppGst = s.gstNo || "";
+                      
+                      // Auto-detect based on GSTIN state code (first 2 characters)
+                      if (compGst.length >= 2 && suppGst.length >= 2) {
+                        newGstType = compGst.substring(0, 2) === suppGst.substring(0, 2) ? "local" : "other";
+                      } else {
+                        // Fallback: check states if GSTINs are not fully available
+                        const compState = (company?.state || company?.address || "").toLowerCase();
+                        const suppState = (s.state || "").toLowerCase();
+                        
+                        if (suppState && compState && !compState.includes(suppState) && !suppState.includes(compState)) {
+                           newGstType = "other";
+                        } else {
+                           // Final fallback to the supplier's configured gstType
+                           newGstType = s.gstType || "local";
+                        }
+                      }
+                    }
+
+                    setGstType(newGstType);
+                    
+                    const parsedAddresses = safeDetails(s?.addresses);
+                    const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
+                    const addrText = primaryAddr ? (primaryAddr.address || primaryAddr.line1) : "";
+
+                    setHeader(h => ({ ...h, supplierId: e.target.value, supplierName: toTitleCase(s?.supplierName || ""), supplierAddress: addrText, supplierGst: s?.gstNo || "" }));
+                    // Recalculate taxes for all rows when GST type changes
+                    setDetails(prev => prev.map(row => calcRow(row, newGstType)));
                   }}>
                     <option value="">Select supplier</option>
                     {suppliers.map(s => <option key={sid(s)} value={sid(s)}>{s.supplierName}</option>)}
                   </select>
+                  {header.supplierId && (
+                    <button type="button" className="inv-btn-icon" title="View Supplier Details" onClick={() => {
+                      const s = suppliers.find(x => sid(x) === header.supplierId);
+                      if (s) setViewingSupplier(s);
+                    }}>
+                      <ViewIcon />
+                    </button>
+                  )}
                 </div>
               </Field>
               <Field label="Reference No"><input className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" /></Field>
               <Field label="Delivery Date"><input className="inv-input" type="date" value={header.deliveryDate} onChange={e => setHeader(h => ({ ...h, deliveryDate: e.target.value }))} /></Field>
               <Field label="GST No"><input className="inv-input" value={header.supplierGst} readOnly style={{ background: "#f8fafc" }} /></Field>
-              <Field label="GST Type (Auto)"><input className="inv-input" value={gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)"} readOnly style={{ background: "#f8fafc", color: "#64748b" }} /></Field>
+              <Field label="GST Type (Auto)"><input className="inv-input" value={!gstType ? "" : (gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)")} readOnly style={{ background: "#f8fafc", color: "#64748b" }} /></Field>
             </FormGrid>
             <div style={{ marginTop: 12 }}>
               <Field label="Address"><textarea className="inv-input" rows={1} value={header.supplierAddress} onChange={e => setHeader(h => ({ ...h, supplierAddress: e.target.value }))} /></Field>
@@ -516,7 +626,8 @@ export default function PurchaseOrderPage() {
                 <thead>
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
-                    <th style={{ minWidth: 300 }}>Indent Number & Details</th>
+                    <th style={{ width: 140 }}>Indent No</th>
+                    <th style={{ minWidth: 200 }}>Item Details</th>
                     <th style={{ width: 80 }}>UOM</th>
                     <th style={{ width: 80, textAlign: "right" }}>Bal</th>
                     <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
@@ -537,28 +648,46 @@ export default function PurchaseOrderPage() {
                     <tr key={row._rowId}>
                       <td style={{ textAlign: "center", color: "#94a3b8", fontWeight: 500 }}>{idx + 1}</td>
                       <td>
-                        <select className="inv-select-cell" value={row.indentDetailId || row.itemId} onChange={e => {
-                          const val = e.target.value;
-                          const isIndent = indentDetailOptions.some(o => o.detailId === val);
-                          if (isIndent) updateDetail(idx, "indentDetailId", val);
-                          else updateDetail(idx, "itemId", val);
-                        }}>
-                          <option value="">— Select Indent or Direct Item —</option>
-                          <optgroup label="Items from Indents">
-                            {indentDetailOptions.map(o => <option key={o.detailId} value={o.detailId}>[{o.indentNo}] {o.itemName}</option>)}
-                          </optgroup>
-                          <optgroup label="Direct Items (No Indent)">
-                            {items.map(it => <option key={sid(it)} value={sid(it)}>{it.itemName}</option>)}
-                          </optgroup>
+                        <select
+                          className="inv-select-cell"
+                          value={row.indentNo || ""}
+                          onChange={e => updateDetail(idx, "indentNo", e.target.value)}
+                          style={{ color: row.indentNo === 'Direct' ? '#64748b' : '#4f46e5', fontWeight: 600 }}
+                        >
+                          <option value="">— Select —</option>
+                          <option value="Direct">Direct</option>
+                          {uniqueIndentNos.map(no => (
+                            <option key={no} value={no}>{no}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          className="inv-select-cell"
+                          value={row.indentDetailId || row.itemId}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (row.indentNo === "Direct") updateDetail(idx, "itemId", val);
+                            else updateDetail(idx, "indentDetailId", val);
+                          }}
+                        >
+                          <option value="">— Select Item —</option>
+                          {row.indentNo === "Direct" ? (
+                            items.map(it => <option key={sid(it)} value={sid(it)}>{it.itemName}</option>)
+                          ) : (
+                            indentDetailOptions.filter(o => o.indentNo === row.indentNo).map(o => (
+                              <option key={o.detailId} value={o.detailId}>{o.itemName}</option>
+                            ))
+                          )}
                         </select>
                       </td>
                       <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
                       <td><input className="inv-input-cell" value={fmtQty(row.balQty)} readOnly style={{ textAlign: "right" }} /></td>
-                      <td><input className="inv-input-cell" type="number" step="0.001" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
-                      <td><input className="inv-input-cell" type="number" value={row.poRate} onChange={e => updateDetail(idx, "poRate", e.target.value)} style={{ textAlign: "right" }} /></td>
+                      <td><input className="inv-input-cell" type="number" step="0.01" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} onBlur={e => updateDetail(idx, "poQty", Number(e.target.value).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
+                      <td><input className="inv-input-cell" type="number" step="0.01" value={row.poRate} onChange={e => updateDetail(idx, "poRate", e.target.value)} onBlur={e => updateDetail(idx, "poRate", Number(e.target.value).toFixed(2))} style={{ textAlign: "right" }} /></td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center" }}>
-                          <input className="inv-input-cell" type="number" value={row.discMode === 'pct' ? row.discPct : row.discPrice} onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} style={{ textAlign: "right", flex: 1 }} />
+                          <input className="inv-input-cell" type="number" step="0.01" value={row.discMode === 'pct' ? row.discPct : row.discPrice} onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} onBlur={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', Number(e.target.value).toFixed(2))} style={{ textAlign: "right", flex: 1 }} />
                           <button type="button" onClick={() => toggleDiscMode(idx)} style={{ fontSize: 10, border: "none", background: "#f1f5f9", padding: "4px 6px", cursor: "pointer", color: "#64748b", fontWeight: 700 }}>{row.discMode === 'pct' ? '%' : '₹'}</button>
                         </div>
                       </td>
@@ -619,9 +748,17 @@ export default function PurchaseOrderPage() {
       )}
 
       {saveSuccessModal && (
-        <Modal title="Success" onClose={() => setSaveSuccessModal(false)} onSave={() => { setSaveSuccessModal(false); setView("list"); }} saveLabel="Go to List">
-          <div style={{ textAlign: "center", padding: 20 }}><div style={{ fontSize: 48, color: "#10b981" }}>✓</div><h3 style={{ fontSize: 18, fontWeight: 600 }}>Saved Successfully!</h3><p style={{ color: "#64748b" }}>The Purchase Order has been recorded.</p></div>
+        <Modal title="Success" onClose={() => { setSaveSuccessModal(false); setView("list"); }} onSave={() => { setSaveSuccessModal(false); setView("list"); }} saveLabel="OK">
+          <div style={{ textAlign: "center", padding: 20 }}>
+            <div style={{ fontSize: 48, color: "#10b981" }}>✓</div>
+            <h3 style={{ fontSize: 18, fontWeight: 600 }}>Saved Successfully!</h3>
+            <p style={{ color: "#64748b" }}>The Purchase Order has been recorded.</p>
+          </div>
         </Modal>
+      )}
+
+      {viewingSupplier && (
+        <SupplierDetailsModal supplier={viewingSupplier} onClose={() => setViewingSupplier(null)} />
       )}
     </div>
   );

@@ -618,6 +618,7 @@ export default function SupplierPage() {
   function openAdd() {
     setForm({ ...EMPTY_FORM, addresses: [] });
     setModal({ mode: "add" });
+    setShowList(false);
   }
   function openEdit(row) {
     const ids = Array.isArray(row.purchaseCategoryIds)
@@ -632,6 +633,7 @@ export default function SupplierPage() {
       purchaseCategoryIds: ids,
     });
     setModal({ mode: "edit", id: row.id || row._id });
+    setShowList(false);
   }
 
   // ── Address handlers ─────────────────────────────────────────────────────────
@@ -795,36 +797,36 @@ export default function SupplierPage() {
           </div>
 
           <SectionLabel>Basic info</SectionLabel>
-          <FormGrid>
+          <div className="inv-form-row cols-2">
             <Field
               label={
                 <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
                   <span>Party category *</span>
-                  <button type="button" className="inv-btn-ghost" onClick={() => setTypeManagement(true)} style={{ padding: "0 4px", fontSize: "11px", color: "var(--primary)" }}>+ Add New</button>
+                  <button type="button" className="inv-btn-ghost" onClick={() => setTypeManagement(true)} style={{ padding: "0 4px", fontSize: "10px", color: "var(--primary)", border: "none" }}>+ Manage</button>
                 </div>
               }
               required
             >
-              <Select value={form.type} onChange={(v) => setForm((f) => ({ ...f, type: v }))} options={typeOptions} placeholder={typesLoading ? "Loading…" : typeOptions.length === 0 ? "No categories — add one first" : "Select type…"} />
+              <Select value={form.type} onChange={(v) => setForm((f) => ({ ...f, type: v }))} options={typeOptions} placeholder={typesLoading ? "Loading…" : typeOptions.length === 0 ? "No categories" : "Select type…"} />
             </Field>
             <Field label="Short code *">
               <Input value={form.shortCode} onChange={(v) => setForm((f) => ({ ...f, shortCode: v.toUpperCase().slice(0, 5) }))} placeholder="Max 5 chars" maxLength={5} />
             </Field>
-          </FormGrid>
-          <div style={{ marginBottom: 12, maxWidth: 720, width: "100%" }}>
+          </div>
+          <div style={{ marginBottom: 16 }}>
             <Field label="Party name *" required>
               <Input value={form.supplierName} onChange={(v) => setForm((f) => ({ ...f, supplierName: v }))} placeholder="e.g. Steel India Ltd." style={{ width: "100%" }} />
             </Field>
           </div>
 
           <SectionLabel>Business configuration</SectionLabel>
-          <FormGrid>
+          <div className="inv-form-row cols-3">
             <Field label="Payment terms">
               <Select
                 value={form.paymentTermsId}
                 onChange={(v) => setForm((f) => ({ ...f, paymentTermsId: v }))}
                 options={paymentTermOptions}
-                placeholder={paymentTermOptions.length === 0 ? "Add payment terms master first" : "Select payment terms…"}
+                placeholder={paymentTermOptions.length === 0 ? "No payment terms" : "Select…"}
               />
             </Field>
             <Field label="GST Type">
@@ -842,7 +844,7 @@ export default function SupplierPage() {
                 <Toggle value={form.active} onChange={(v) => setForm((f) => ({ ...f, active: v }))} label="Active" />
               </div>
             </Field>
-          </FormGrid>
+          </div>
 
           <SectionLabel>Purchase category mapping</SectionLabel>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 16px", marginBottom: 16, maxHeight: 160, overflowY: "auto", padding: "8px 0" }}>
@@ -891,20 +893,20 @@ export default function SupplierPage() {
           )}
 
           <SectionLabel>Tax info</SectionLabel>
-          <FormGrid>
+          <div className="inv-form-row cols-2">
             <Field label="GST no"><Input value={form.gstNo} onChange={(v) => setForm((f) => ({ ...f, gstNo: v }))} placeholder="e.g. 33AABCU9603R1ZN" /></Field>
             <Field label="PAN no"><Input value={form.panNo} onChange={(v) => setForm((f) => ({ ...f, panNo: v }))} placeholder="e.g. AABCU9603R" /></Field>
-          </FormGrid>
+          </div>
 
-          <SectionLabel>Contact</SectionLabel>
-          <FormGrid>
+          <SectionLabel>Contact details</SectionLabel>
+          <div className="inv-form-row cols-2">
             <Field label="Email ID 1"><Input type="email" value={form.emailId1} onChange={(v) => setForm((f) => ({ ...f, emailId1: v }))} placeholder="primary@email.com" /></Field>
             <Field label="Email ID 2"><Input type="email" value={form.emailId2} onChange={(v) => setForm((f) => ({ ...f, emailId2: v }))} placeholder="secondary@email.com" /></Field>
-          </FormGrid>
-          <FormGrid>
+          </div>
+          <div className="inv-form-row cols-2">
             <Field label="Mobile no 1"><Input value={form.mobileNo1} onChange={(v) => setForm((f) => ({ ...f, mobileNo1: v }))} placeholder="+91 98765 43210" /></Field>
             <Field label="Mobile no 2"><Input value={form.mobileNo2} onChange={(v) => setForm((f) => ({ ...f, mobileNo2: v }))} placeholder="+91 98765 43210" /></Field>
-          </FormGrid>
+          </div>
         </div>
       )}
 

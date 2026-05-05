@@ -37,7 +37,6 @@ const EMPTY = {
   gstPercent: "",
   rackBinNo: "",
   rate: "",
-  gstType: "local",
   active: true,
   image: null, // preview URL (string) or server URL
   imageFile: null, // actual File object for new uploads
@@ -187,7 +186,6 @@ export default function ItemPage() {
       gstPercent: String(row.gstPercent ?? ""),
       rackBinNo: row.rackBinNo || "",
       rate: String(row.rate ?? ""),
-      gstType: row.gstType || "local",
       active: row.active ?? true,
       image: row.image || null,
       imageFile: null,
@@ -242,7 +240,6 @@ export default function ItemPage() {
         fd.append("gstPercent", parseFloat(form.gstPercent) || 0);
         fd.append("rackBinNo", form.rackBinNo);
         fd.append("rate", parseFloat(form.rate) || 0);
-        fd.append("gstType", form.gstType);
         fd.append("active", form.active);
 
         const url =
@@ -703,18 +700,7 @@ export default function ItemPage() {
               />
             </Field>
           </FormGrid>
-
           <FormGrid>
-            <Field label="GST Type">
-              <Select
-                value={form.gstType}
-                onChange={(v) => setForm((f) => ({ ...f, gstType: v }))}
-                options={[
-                  { value: "local", label: "Local (SGST+CGST)" },
-                  { value: "other", label: "Other State (IGST)" },
-                ]}
-              />
-            </Field>
             <Field label="Rate (₹)">
               <Input
                 type="number"
@@ -724,7 +710,6 @@ export default function ItemPage() {
               />
             </Field>
           </FormGrid>
-
           <FormGrid>
             <Field label="Status">
               <div style={{ paddingTop: "6px" }}>
