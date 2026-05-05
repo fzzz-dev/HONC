@@ -347,10 +347,10 @@ export default function ItemPage() {
             Full inventory item catalogue with specifications
           </p>
         </div>
-        <button className="inv-btn-primary" onClick={openAdd}>
-          + Add Item
-        </button>
         <div style={{ display: "flex", gap: 8 }}>
+          <button className="inv-btn-primary" onClick={openAdd}>
+            + Add Item
+          </button>
           <button className="inv-btn-ghost" onClick={handleDownloadTemplate}>
             Download Template
           </button>
