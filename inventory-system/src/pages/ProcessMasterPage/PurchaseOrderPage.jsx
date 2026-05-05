@@ -582,7 +582,16 @@ export default function PurchaseOrderPage() {
                     
                     const parsedAddresses = safeDetails(s?.addresses);
                     const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
-                    const addrText = primaryAddr ? (primaryAddr.address || primaryAddr.line1) : "";
+                    let addrText = "";
+                    if (primaryAddr) {
+                      const parts = [
+                        primaryAddr.address || primaryAddr.line1,
+                        primaryAddr.cityName,
+                        primaryAddr.stateName,
+                        primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""
+                      ].filter(Boolean);
+                      addrText = parts.join(", ");
+                    }
 
                     setHeader(h => ({ ...h, supplierId: e.target.value, supplierName: toTitleCase(s?.supplierName || ""), supplierAddress: addrText, supplierGst: s?.gstNo || "" }));
                     // Recalculate taxes for all rows when GST type changes

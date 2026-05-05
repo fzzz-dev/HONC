@@ -91,7 +91,7 @@ export default function CompanySettingsPage() {
       <div className="inv-card">
         <div className="inv-card-body">
           <div style={{ maxWidth: 600 }}>
-            <Field label="Company name" required>
+            <Field label="Company Name" required>
               <Input
                 value={company.companyName}
                 onChange={(v) => setCompany({ ...company, companyName: v })}
@@ -109,7 +109,7 @@ export default function CompanySettingsPage() {
             </Field>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <Field label="Phone/tel">
+              <Field label="Phone/Tel">
                 <Input
                   value={company.phone}
                   onChange={(v) => setCompany({ ...company, phone: v })}
@@ -125,15 +125,15 @@ export default function CompanySettingsPage() {
               </Field>
             </div>
 
-            <Field label="Gstin">
+            <Field label="GSTIN">
               <Input
                 value={company.gstin}
                 onChange={(v) => setCompany({ ...company, gstin: v })}
-                placeholder="Gst identification number"
+                placeholder="GST Identification Number"
               />
             </Field>
 
-            <Field label="Company logo">
+            <Field label="Company Logo">
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 {company.logo && (
                   <div style={{
