@@ -65,6 +65,8 @@ export default function PurchaseGRNPage() {
   const [indents, setIndents] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState("form");
+  const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [pendingSelected, setPendingSelected] = useState(new Set());
