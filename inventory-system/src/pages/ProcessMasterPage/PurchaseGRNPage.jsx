@@ -7,6 +7,7 @@ import {
   purchaseOrderApi,
   purchaseIndentApi,
 } from "../../services/inventoryApi";
+import Modal from "../../components/Modal";
 
 const emptyDetail = () => ({
   _rowId: Date.now() + Math.random(),
@@ -67,6 +68,8 @@ export default function PurchaseGRNPage() {
   const [view, setView] = useState("form");
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [pendingSelected, setPendingSelected] = useState(new Set());
 
   const [header, setHeader] = useState({
     grnNo: "AUTO",
@@ -75,6 +78,8 @@ export default function PurchaseGRNPage() {
     supplierName: "",
     storeId: "",
     storeName: "",
+    invNo: "",
+    invDate: today,
   });
   const [details, setDetails] = useState([emptyDetail()]);
 
@@ -108,7 +113,7 @@ export default function PurchaseGRNPage() {
   }, [loadData]);
 
   // ── Handlers ──
-  function openNew() {
+  async function openNew() {
     setHeader({
       grnNo: "AUTO",
       date: today,
@@ -116,10 +121,16 @@ export default function PurchaseGRNPage() {
       supplierName: "",
       storeId: "",
       storeName: "",
+      invNo: "",
+      invDate: today,
     });
     setDetails([emptyDetail()]);
     setEditId(null);
     setView("form");
+    try {
+      const res = await grnApi.getNextNumber();
+      if (res?.grnNo) setHeader(h => ({ ...h, grnNo: res.grnNo }));
+    } catch (e) { console.error("Failed to get next GRN number", e); }
   }
 
   function openEdit(rec) {
@@ -130,6 +141,8 @@ export default function PurchaseGRNPage() {
       supplierName: rec.supplierName,
       storeId: rec.storeId,
       storeName: rec.storeName,
+      invNo: rec.invNo || "",
+      invDate: rec.invDate || today,
     });
     setDetails((rec.details || []).map((d) => ({ ...d, _rowId: Math.random() })));
     setEditId(rec.id);
@@ -205,6 +218,52 @@ export default function PurchaseGRNPage() {
     }),
     { grnAmount: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0 },
   );
+
+  const pendingPoRows = pos.flatMap(po => {
+    // If we want to show only rows for selected supplier, we can filter here
+    if (header.supplierId && String(po.supplierId) !== String(header.supplierId)) return [];
+    
+    const poDetails = Array.isArray(po.details) ? po.details : [];
+    return poDetails.map(d => ({
+      rowId: `${po.id}-${d._rowId || d.id || Math.random()}`,
+      poNo: po.poNo,
+      poDate: po.date,
+      itemId: d.itemId,
+      itemName: d.itemName,
+      uom: d.uom,
+      poQty: d.poQty,
+      poRate: d.poRate || d.rate,
+      gstPct: d.gstPct || 18,
+      // In a real app, we'd calculate alGrnQty by checking other GRNs
+      alGrnQty: d.alGrnQty || 0, 
+      balQty: (d.poQty || 0) - (d.alGrnQty || 0)
+    })).filter(d => d.balQty > 0);
+  });
+
+  function addPendingLinesToDetails() {
+    const selected = pendingPoRows.filter(r => pendingSelected.has(r.rowId));
+    const newRows = selected.map(s => calcRow({
+      ...emptyDetail(),
+      poNo: s.poNo,
+      poDate: s.poDate,
+      itemName: s.itemName,
+      uom: s.uom,
+      poQty: s.poQty,
+      alGrnQty: s.alGrnQty,
+      balQty: s.balQty,
+      grnQty: s.balQty,
+      poRate: s.poRate,
+      grnRate: s.poRate,
+      gstPct: s.gstPct
+    }));
+    // Remove the first empty row if it's still empty
+    setDetails(p => {
+      const filtered = p.filter(r => r.itemName || r.poNo);
+      return [...filtered, ...newRows];
+    });
+    setPendingModalOpen(false);
+    setPendingSelected(new Set());
+  }
 
   if (loading && view === "list") return <div className="inv-empty">Loading...</div>;
 
@@ -290,6 +349,57 @@ export default function PurchaseGRNPage() {
         </div>
       </div>
 
+      {pendingModalOpen && (
+        <Modal 
+          title="Pick Pending PO Items" 
+          onClose={() => setPendingModalOpen(false)}
+          onSave={addPendingLinesToDetails}
+          saveLabel="Add Selected"
+        >
+          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <table className="inv-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 40 }}><input type="checkbox" onChange={(e) => {
+                    if (e.target.checked) setPendingSelected(new Set(pendingPoRows.map(r => r.rowId)));
+                    else setPendingSelected(new Set());
+                  }} /></th>
+                  <th>PO No</th>
+                  <th>Item Name</th>
+                  <th>Bal Qty</th>
+                  <th>Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingPoRows.length === 0 && (
+                  <tr><td colSpan={5} className="inv-empty">No pending PO items found {header.supplierId ? "for this supplier" : ""}</td></tr>
+                )}
+                {pendingPoRows.map(r => (
+                  <tr key={r.rowId}>
+                    <td>
+                      <input 
+                        type="checkbox" 
+                        checked={pendingSelected.has(r.rowId)} 
+                        onChange={() => {
+                          const next = new Set(pendingSelected);
+                          if (next.has(r.rowId)) next.delete(r.rowId);
+                          else next.add(r.rowId);
+                          setPendingSelected(next);
+                        }} 
+                      />
+                    </td>
+                    <td>{r.poNo}</td>
+                    <td>{r.itemName}</td>
+                    <td>{r.balQty}</td>
+                    <td>₹{r.poRate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Modal>
+      )}
+
       <div className="inv-card">
         <div className="inv-card-body">
           <div className="inv-section-label">Header</div>
@@ -299,8 +409,8 @@ export default function PurchaseGRNPage() {
               <input className="inv-input" value={header.grnNo} readOnly style={{ background: "#f8f9fa" }} />
             </div>
             <div className="inv-field">
-              <label className="inv-label">Date</label>
-              <input className="inv-input" type="date" value={header.date} onChange={(e) => setHeader(h => ({ ...h, date: e.target.value }))} />
+              <label className="inv-label">GRN Date</label>
+              <input className="inv-input" type="date" value={header.date} readOnly style={{ background: "#f8f9fa" }} />
             </div>
             <div className="inv-field">
               <label className="inv-label">Supplier *</label>
@@ -323,6 +433,16 @@ export default function PurchaseGRNPage() {
               </select>
             </div>
           </div>
+          <div className="inv-form-row cols-4" style={{ marginTop: 12 }}>
+            <div className="inv-field">
+              <label className="inv-label">INV\PDC no</label>
+              <input className="inv-input" value={header.invNo} onChange={(e) => setHeader(h => ({ ...h, invNo: e.target.value }))} placeholder="Enter Invoice Number" />
+            </div>
+            <div className="inv-field">
+              <label className="inv-label">INV\DATE</label>
+              <input className="inv-input" type="date" value={header.invDate} onChange={(e) => setHeader(h => ({ ...h, invDate: e.target.value }))} />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -330,7 +450,10 @@ export default function PurchaseGRNPage() {
         <div className="inv-card-body">
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
             <div className="inv-section-label">Details</div>
-            <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="inv-btn-secondary inv-btn-sm" onClick={() => setPendingModalOpen(true)}>Pending</button>
+              <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
+            </div>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table className="inv-table">
@@ -338,8 +461,11 @@ export default function PurchaseGRNPage() {
                 <tr>
                   <th>#</th>
                   <th>PO No</th>
+                  <th>PO Date</th>
                   <th>Item Name</th>
                   <th>UOM</th>
+                  <th>PO Qty</th>
+                  <th>Bal Qty</th>
                   <th>GRN Qty</th>
                   <th>Rate</th>
                   <th>Amount</th>
@@ -351,21 +477,21 @@ export default function PurchaseGRNPage() {
                   <tr key={row._rowId}>
                     <td>{idx + 1}</td>
                     <td>
-                      <select className="inv-input" style={{ border: "none", width: 120 }} value={row.poNo} onChange={e => updateDetail(idx, "poNo", e.target.value)}>
-                        <option value="">Select PO</option>
-                        {pos.map(po => <option key={po.id} value={po.poNo}>{po.poNo}</option>)}
-                      </select>
+                      <input className="inv-input" style={{ border: "none", width: 100 }} value={row.poNo} readOnly placeholder="PO No" />
                     </td>
+                    <td><input className="inv-input" style={{ border: "none", width: 100 }} value={row.poDate} readOnly /></td>
                     <td>
                       <select className="inv-input" style={{ border: "none", width: 180 }} value={row.itemName} onChange={e => updateDetail(idx, "itemName", e.target.value)}>
                         <option value="">Select item</option>
-                        {items.map(it => <option key={it.id} value={it.itemName}>{it.itemName}</option>)}
+                        {items.map(it => <option key={it.id || it._id} value={it.itemName}>{it.itemName}</option>)}
                       </select>
                     </td>
                     <td>{row.uom || "—"}</td>
-                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.grnQty} onChange={e => updateDetail(idx, "grnQty", e.target.value)} /></td>
-                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.grnRate} onChange={e => updateDetail(idx, "grnRate", e.target.value)} /></td>
-                    <td style={{ textAlign: "right" }}>{fmt(row.totalAmount)}</td>
+                    <td><input className="inv-input" style={{ border: "none", width: 70, textAlign: 'right' }} value={row.poQty} readOnly /></td>
+                    <td><input className="inv-input" style={{ border: "none", width: 70, textAlign: 'right' }} value={row.balQty} readOnly /></td>
+                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80, textAlign: 'right', fontWeight: 600, color: '#3b6ef8' }} value={row.grnQty} onChange={e => updateDetail(idx, "grnQty", e.target.value)} /></td>
+                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80, textAlign: 'right' }} value={row.grnRate} onChange={e => updateDetail(idx, "grnRate", e.target.value)} /></td>
+                    <td style={{ textAlign: "right", paddingRight: 10 }}>{fmt(row.totalAmount)}</td>
                     <td>
                       <button className="inv-btn-icon inv-btn-danger" onClick={() => setDetails(p => p.filter((_, i) => i !== idx))}>✕</button>
                     </td>
