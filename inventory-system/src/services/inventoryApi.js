@@ -153,6 +153,7 @@ export const grnApi = {
   getAll: (p = {}) => request(`/grns${qs(p)}`),
   getOne: (id) => request(`/grns/${id}`),
   getNextNumber: () => request("/grns/next-number"),
+  getPendingPOItems: (supplierId) => request(`/grns/pending-po-items${qs({ supplierId })}`),
   create: (body) => request("/grns", { method: "POST", body: j(body) }),
   update: (id, b) => request(`/grns/${id}`, { method: "PUT", body: j(b) }),
   remove: (id) => request(`/grns/${id}`, { method: "DELETE" }),

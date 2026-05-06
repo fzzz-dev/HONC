@@ -65,11 +65,10 @@ export default function PurchaseGRNPage() {
   const [indents, setIndents] = useState([]);
   
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState("form");
-  const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [pendingSelected, setPendingSelected] = useState(new Set());
+  const [pendingPoRows, setPendingPoRows] = useState([]);
 
   const [header, setHeader] = useState({
     grnNo: "AUTO",
@@ -78,8 +77,8 @@ export default function PurchaseGRNPage() {
     supplierName: "",
     storeId: "",
     storeName: "",
-    invNo: "",
-    invDate: today,
+    invoiceNo: "",
+    invoiceDate: today,
   });
   const [details, setDetails] = useState([emptyDetail()]);
 
@@ -121,15 +120,15 @@ export default function PurchaseGRNPage() {
       supplierName: "",
       storeId: "",
       storeName: "",
-      invNo: "",
-      invDate: today,
+      invoiceNo: "",
+      invoiceDate: today,
     });
     setDetails([emptyDetail()]);
     setEditId(null);
     setView("form");
     try {
       const res = await grnApi.getNextNumber();
-      if (res?.grnNo) setHeader(h => ({ ...h, grnNo: res.grnNo }));
+      if (res?.nextGRNNo) setHeader(h => ({ ...h, grnNo: res.nextGRNNo }));
     } catch (e) { console.error("Failed to get next GRN number", e); }
   }
 
@@ -141,8 +140,8 @@ export default function PurchaseGRNPage() {
       supplierName: rec.supplierName,
       storeId: rec.storeId,
       storeName: rec.storeName,
-      invNo: rec.invNo || "",
-      invDate: rec.invDate || today,
+      invoiceNo: rec.invoiceNo || "",
+      invoiceDate: rec.invoiceDate || today,
     });
     setDetails((rec.details || []).map((d) => ({ ...d, _rowId: Math.random() })));
     setEditId(rec.id);
@@ -207,45 +206,28 @@ export default function PurchaseGRNPage() {
     }
   }
 
-  const totals = details.reduce(
-    (acc, r) => ({
-      grnAmount: acc.grnAmount + r.grnAmount,
-      sgst: acc.sgst + r.sgst,
-      cgst: acc.cgst + r.cgst,
-      igst: acc.igst + r.igst,
-      totGst: acc.totGst + r.totGst,
-      totalAmount: acc.totalAmount + r.totalAmount,
-    }),
     { grnAmount: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0 },
   );
 
-  const pendingPoRows = pos.flatMap(po => {
-    // If we want to show only rows for selected supplier, we can filter here
-    if (header.supplierId && String(po.supplierId) !== String(header.supplierId)) return [];
-    
-    const poDetails = Array.isArray(po.details) ? po.details : [];
-    return poDetails.map(d => ({
-      rowId: `${po.id}-${d._rowId || d.id || Math.random()}`,
-      poNo: po.poNo,
-      poDate: po.date,
-      itemId: d.itemId,
-      itemName: d.itemName,
-      uom: d.uom,
-      poQty: d.poQty,
-      poRate: d.poRate || d.rate,
-      gstPct: d.gstPct || 18,
-      // In a real app, we'd calculate alGrnQty by checking other GRNs
-      alGrnQty: d.alGrnQty || 0, 
-      balQty: (d.poQty || 0) - (d.alGrnQty || 0)
-    })).filter(d => d.balQty > 0);
-  });
+  async function openPendingModal() {
+    if (!header.supplierId) return alert("Please select a supplier first");
+    try {
+      const data = await grnApi.getPendingPOItems(header.supplierId);
+      setPendingPoRows(data || []);
+      setPendingModalOpen(true);
+    } catch (err) {
+      alert("Failed to fetch pending items: " + err.message);
+    }
+  }
 
   function addPendingLinesToDetails() {
-    const selected = pendingPoRows.filter(r => pendingSelected.has(r.rowId));
+    const selected = pendingPoRows.filter(r => pendingSelected.has(r.rowId || `${r.poId}-${r.poDetailId}`));
     const newRows = selected.map(s => calcRow({
       ...emptyDetail(),
+      poId: s.poId,
       poNo: s.poNo,
       poDate: s.poDate,
+      itemId: s.itemId,
       itemName: s.itemName,
       uom: s.uom,
       poQty: s.poQty,
@@ -374,26 +356,29 @@ export default function PurchaseGRNPage() {
                 {pendingPoRows.length === 0 && (
                   <tr><td colSpan={5} className="inv-empty">No pending PO items found {header.supplierId ? "for this supplier" : ""}</td></tr>
                 )}
-                {pendingPoRows.map(r => (
-                  <tr key={r.rowId}>
-                    <td>
-                      <input 
-                        type="checkbox" 
-                        checked={pendingSelected.has(r.rowId)} 
-                        onChange={() => {
-                          const next = new Set(pendingSelected);
-                          if (next.has(r.rowId)) next.delete(r.rowId);
-                          else next.add(r.rowId);
-                          setPendingSelected(next);
-                        }} 
-                      />
-                    </td>
-                    <td>{r.poNo}</td>
-                    <td>{r.itemName}</td>
-                    <td>{r.balQty}</td>
-                    <td>₹{r.poRate}</td>
-                  </tr>
-                ))}
+                {pendingPoRows.map(r => {
+                  const rowId = r.rowId || `${r.poId}-${r.poDetailId}`;
+                  return (
+                    <tr key={rowId}>
+                      <td>
+                        <input 
+                          type="checkbox" 
+                          checked={pendingSelected.has(rowId)} 
+                          onChange={() => {
+                            const next = new Set(pendingSelected);
+                            if (next.has(rowId)) next.delete(rowId);
+                            else next.add(rowId);
+                            setPendingSelected(next);
+                          }} 
+                        />
+                      </td>
+                      <td>{r.poNo}</td>
+                      <td>{r.itemName}</td>
+                      <td>{r.balQty}</td>
+                      <td>₹{r.poRate}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -436,11 +421,11 @@ export default function PurchaseGRNPage() {
           <div className="inv-form-row cols-4" style={{ marginTop: 12 }}>
             <div className="inv-field">
               <label className="inv-label">INV\PDC no</label>
-              <input className="inv-input" value={header.invNo} onChange={(e) => setHeader(h => ({ ...h, invNo: e.target.value }))} placeholder="Enter Invoice Number" />
+              <input className="inv-input" value={header.invoiceNo} onChange={(e) => setHeader(h => ({ ...h, invoiceNo: e.target.value }))} placeholder="Enter Invoice Number" />
             </div>
             <div className="inv-field">
               <label className="inv-label">INV\DATE</label>
-              <input className="inv-input" type="date" value={header.invDate} onChange={(e) => setHeader(h => ({ ...h, invDate: e.target.value }))} />
+              <input className="inv-input" type="date" value={header.invoiceDate} onChange={(e) => setHeader(h => ({ ...h, invoiceDate: e.target.value }))} />
             </div>
           </div>
         </div>
@@ -451,7 +436,7 @@ export default function PurchaseGRNPage() {
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
             <div className="inv-section-label">Details</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="inv-btn-secondary inv-btn-sm" onClick={() => setPendingModalOpen(true)}>Pending</button>
+              <button className="inv-btn-secondary inv-btn-sm" onClick={openPendingModal}>Pending</button>
               <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
             </div>
           </div>
