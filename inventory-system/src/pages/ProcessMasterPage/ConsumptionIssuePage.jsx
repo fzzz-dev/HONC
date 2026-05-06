@@ -36,12 +36,12 @@ export default function ConsumptionIssuePage() {
   const [grns, setGrns] = useState([]);
   
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState("list");
+  const [view, setView] = useState("form");
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const [header, setHeader] = useState({
-    issNo: "",
+    issNo: "AUTO",
     date: today,
     departmentId: "",
     departmentName: "",
@@ -254,7 +254,7 @@ export default function ConsumptionIssuePage() {
           <p className="inv-page-sub">Issue materials from store to department</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-secondary" onClick={() => setView("list")}>← Back</button>
+          <button className="inv-btn-secondary" onClick={() => setView("list")}>View Consumption</button>
           <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save Issue"}</button>
         </div>
       </div>

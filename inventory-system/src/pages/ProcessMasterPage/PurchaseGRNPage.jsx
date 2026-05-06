@@ -64,12 +64,12 @@ export default function PurchaseGRNPage() {
   const [indents, setIndents] = useState([]);
   
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState("list");
+  const [view, setView] = useState("form");
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const [header, setHeader] = useState({
-    grnNo: "",
+    grnNo: "AUTO",
     date: today,
     supplierId: "",
     supplierName: "",
@@ -285,7 +285,7 @@ export default function PurchaseGRNPage() {
           <p className="inv-page-sub">Record goods received against purchase orders</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-secondary" onClick={() => setView("list")}>← Back</button>
+          <button className="inv-btn-secondary" onClick={() => setView("list")}>View GRN</button>
           <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save GRN"}</button>
         </div>
       </div>

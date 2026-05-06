@@ -13,7 +13,7 @@ const UserManagement = () => {
   const [currentUser, setCurrentUser] = useState({ id: null, username: '', role: 'user', password: '', name: '' });
   const [newRole, setNewRole] = useState({ name: '', description: '' });
   const [isEditing, setIsEditing] = useState(false);
-
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
@@ -72,7 +72,7 @@ const UserManagement = () => {
     try {
       const url = isEditing ? `/api/users/${currentUser.id}` : '/api/users';
       const method = isEditing ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -132,7 +132,134 @@ const UserManagement = () => {
       }
     }
   };
+  const CompanySettingsPopup = () => {
+    const [company, setCompany] = useState({
+      companyName: "",
+      address: "",
+      phone: "",
+      email: "",
+      gstin: "",
+      logo: "",
+    });
 
+    const [logoFile, setLogoFile] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [msg, setMsg] = useState("");
+
+    useEffect(() => {
+      fetch("/api/company")
+        .then(res => res.json())
+        .then(data => {
+          setCompany(data);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    }, []);
+
+    const handleSave = async () => {
+      setSaving(true);
+      setMsg("");
+
+      try {
+        const formData = new FormData();
+        Object.keys(company).forEach(key => {
+          formData.append(key, company[key]);
+        });
+
+        if (logoFile) {
+          formData.append("logo", logoFile);
+        }
+
+        const res = await fetch("/api/company", {
+          method: "PUT",
+          body: formData,
+        });
+
+        if (res.ok) {
+          const updated = await res.json();
+          setCompany(updated);
+          setLogoFile(null);
+          setMsg("Saved successfully!");
+        } else {
+          setMsg("Failed to save");
+        }
+      } catch {
+        setMsg("Error saving");
+      }
+
+      setSaving(false);
+    };
+
+    if (loading) {
+      return <div style={{ padding: 20 }}>Loading...</div>;
+    }
+
+    return (
+      <div className="inv-modal-body">
+        {msg && <p style={{ marginBottom: 10 }}>{msg}</p>}
+
+        <div className="inv-field">
+          <label>Company Name</label>
+          <input
+            className="inv-input"
+            value={company.companyName}
+            onChange={(e) => setCompany({ ...company, companyName: e.target.value })}
+          />
+        </div>
+
+        <div className="inv-field">
+          <label>Address</label>
+          <textarea
+            className="inv-input"
+            value={company.address}
+            onChange={(e) => setCompany({ ...company, address: e.target.value })}
+          />
+        </div>
+
+        <div className="inv-field">
+          <label>Phone</label>
+          <input
+            className="inv-input"
+            value={company.phone}
+            onChange={(e) => setCompany({ ...company, phone: e.target.value })}
+          />
+        </div>
+
+        <div className="inv-field">
+          <label>Email</label>
+          <input
+            className="inv-input"
+            value={company.email}
+            onChange={(e) => setCompany({ ...company, email: e.target.value })}
+          />
+        </div>
+
+        <div className="inv-field">
+          <label>GSTIN</label>
+          <input
+            className="inv-input"
+            value={company.gstin}
+            onChange={(e) => setCompany({ ...company, gstin: e.target.value })}
+          />
+        </div>
+
+        <div className="inv-field">
+          <label>Logo</label>
+          <input
+            type="file"
+            onChange={(e) => setLogoFile(e.target.files[0])}
+          />
+        </div>
+
+        <div className="inv-modal-footer">
+          <button className="inv-btn-primary" onClick={handleSave}>
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    );
+  };
   return (
     <div className="inv-page">
       <div className="inv-page-header">
@@ -141,10 +268,20 @@ const UserManagement = () => {
           <p className="inv-page-sub">Create and manage administrative accounts for HONC</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="inv-btn-secondary" onClick={() => setIsRoleModalOpen(true)}>
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ marginRight: '6px' }}><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 00-2 2v1h4v-1a2 2 0 00-2-2zm10 2v1h4v-1a2 2 0 00-2-2h-2z"></path></svg>
+          <button
+            className="inv-btn-secondary"
+            onClick={() => setIsCompanyModalOpen(true)}
+          >
+            Honc Details
+          </button>
+
+          <button
+            className="inv-btn-secondary"
+            onClick={() => setIsRoleModalOpen(true)}
+          >
             Manage Roles
           </button>
+
           <button className="inv-btn-primary" onClick={() => handleOpenModal()}>
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ marginRight: '6px' }}><path d="M12 5v14M5 12h14"></path></svg>
             Add New User
@@ -234,7 +371,23 @@ const UserManagement = () => {
           </table>
         </div>
       </div>
+      {isCompanyModalOpen && (
+        <div className="inv-modal-overlay">
+          <div className="inv-modal" style={{ width: '600px' }}>
+            <div className="inv-modal-header">
+              <h2 className="inv-modal-title">Company Settings</h2>
+              <button
+                className="inv-modal-close"
+                onClick={() => setIsCompanyModalOpen(false)}
+              >
+                &times;
+              </button>
+            </div>
 
+            <CompanySettingsPopup />
+          </div>
+        </div>
+      )}
       {isRoleModalOpen && (
         <div className="inv-modal-overlay">
           <div className="inv-modal" style={{ width: '400px' }}>
@@ -316,8 +469,8 @@ const UserManagement = () => {
                       placeholder="••••••••"
                       required={!isEditing}
                     />
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
                     >

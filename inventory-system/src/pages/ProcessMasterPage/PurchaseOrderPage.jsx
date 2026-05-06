@@ -106,7 +106,8 @@ const emptyHeader = () => ({
   poNo: "", date: today(), supplierId: "", supplierName: "", supplierAddress: "", supplierGst: "",
   purchaseIndentId: "", purchaseIndentNo: "",
   refNo: "", refDate: "", paymentTermsId: "", paymentTermsName: "", deliveryDate: "",
-  createdBy: "Admin", createdOn: today(), status: "Open", remarks: ""
+  createdBy: "Admin", createdOn: today(), status: "Open", remarks: "",
+  poType: ""
 });
 
 const FormGrid = ({ children }) => (
@@ -608,24 +609,39 @@ export default function PurchaseOrderPage() {
             <FormGrid>
               <Field label="PO No (Auto)"><input className="inv-input" value={header.poNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} /></Field>
               <Field label="Date"><input className="inv-input" type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} /></Field>
+              <Field label="PO Type">
+                <select className="inv-input" value={header.poType || ""} onChange={e => setHeader(h => ({ ...h, poType: e.target.value }))}>
+                  <option value="">Select Type</option>
+                  <option value="Consumables">Consumables</option>
+                  <option value="Project">Project</option>
+                  <option value="Capital Goods">Capital Goods</option>
+                </select>
+              </Field>
               <Field label="Supplier">
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                   <select className="inv-input" style={{ flex: 1 }} value={header.supplierId} onChange={e => {
                     const s = suppliers.find(x => sid(x) === e.target.value);
                     let newGstType = "local";
                     if (s) {
-                      const compGst = company?.gstin || "";
-                      const suppGst = s.gstNo || "";
+                      const compGst = (company?.gstin || "").trim();
+                      const suppGst = (s.gstNo || "").trim();
 
-                      // Auto-detect based on GSTIN state code (first 2 characters)
-                      if (compGst.length >= 2 && suppGst.length >= 2) {
-                        newGstType = compGst.substring(0, 2) === suppGst.substring(0, 2) ? "local" : "other";
+                      // Only compare if both start with 2 digits (valid GST state codes)
+                      const compCode = compGst.match(/^\d{2}/)?.[0];
+                      const suppCode = suppGst.match(/^\d{2}/)?.[0];
+
+                      if (compCode && suppCode) {
+                        newGstType = compCode === suppCode ? "local" : "other";
                       } else {
                         // Fallback: check states if GSTINs are not fully available
                         const compState = (company?.state || company?.address || "").toLowerCase();
-                        const suppState = (s.state || "").toLowerCase();
+                        const parsedAddresses = safeDetails(s?.addresses);
+                        const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
+                        const suppState = (s.state || primaryAddr?.stateName || "").toLowerCase();
 
-                        if (suppState && compState && !compState.includes(suppState) && !suppState.includes(compState)) {
+                        if (compState && suppState && (compState.includes(suppState) || suppState.includes(compState))) {
+                          newGstType = "local";
+                        } else if (compState && suppState) {
                           newGstType = "other";
                         } else {
                           // Final fallback to the supplier's configured gstType
@@ -671,9 +687,6 @@ export default function PurchaseOrderPage() {
               <Field label="GST No"><input className="inv-input" value={header.supplierGst} readOnly style={{ background: "#f8fafc" }} /></Field>
               <Field label="GST Type (Auto)"><input className="inv-input" value={!gstType ? "" : (gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)")} readOnly style={{ background: "#f8fafc", color: "#64748b" }} /></Field>
             </FormGrid>
-            <div style={{ marginTop: 12 }}>
-              <Field label="Address"><textarea className="inv-input" rows={1} value={header.supplierAddress} onChange={e => setHeader(h => ({ ...h, supplierAddress: e.target.value }))} /></Field>
-            </div>
           </div>
         </div>
 
@@ -759,7 +772,16 @@ export default function PurchaseOrderPage() {
                       <td><input className="inv-input-cell" value={fmt(row.poAmount)} readOnly style={{ textAlign: "right", color: "#1e293b", fontWeight: 500 }} /></td>
                       {gstEnabled && (
                         <>
-                          <td><input className="inv-input-cell" type="number" value={row.gstPct} onChange={e => updateDetail(idx, "gstPct", e.target.value)} style={{ textAlign: "center" }} /></td>
+                          <td>
+                            <select 
+                              className="inv-input-cell" 
+                              value={row.gstPct} 
+                              onChange={e => updateDetail(idx, "gstPct", e.target.value)}
+                              style={{ textAlign: "center" }}
+                            >
+                              {[0, 5, 12, 18].map(v => <option key={v} value={v}>{v}%</option>)}
+                            </select>
+                          </td>
                           <td><input className="inv-input-cell" value={fmt(gstType === 'other' ? row.igst : row.sgst)} readOnly style={{ textAlign: "right" }} /></td>
                           {gstType === 'local' && <td><input className="inv-input-cell" value={fmt(row.cgst)} readOnly style={{ textAlign: "right" }} /></td>}
                         </>

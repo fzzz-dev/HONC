@@ -42,7 +42,7 @@ const EMPTY = {
   imageFile: null, // actual File object for new uploads
 };
 
-const GST_OPTIONS = [0, 5, 12, 18, 28];
+const GST_OPTIONS = [0, 5, 12, 18];
 
 export default function ItemPage() {
   // ── Data state ───────────────────────────────────────────────────────────────
@@ -685,11 +685,11 @@ export default function ItemPage() {
 
           <FormGrid>
             <Field label="GST %">
-              <Input
-                type="number"
+              <Select
                 value={form.gstPercent}
                 onChange={(v) => setForm((f) => ({ ...f, gstPercent: v }))}
-                placeholder="0.00"
+                options={GST_OPTIONS}
+                placeholder="Select GST %"
               />
             </Field>
             <Field label="Rack – Bin No">
