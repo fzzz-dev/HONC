@@ -27,21 +27,21 @@ async function generatePoNo() {
 
 /** Recalculate computed fields for a single detail row. */
 function calcDetail(d, gstEnabled, gstType) {
-  const baseAmt = (d.poQty || 0) * (d.poRate || 0);
+  const baseAmt = Number(d.poQty || 0) * Number(d.poRate || 0);
 
-  let discPct = d.discPct || 0;
-  let discPrice = d.discPrice || 0;
+  let discPct = 0;
+  let discPrice = 0;
 
   if (d.discMode === "price") {
-    discPrice = d.discPrice || 0;
+    discPrice = Number(d.discPrice || 0);
     discPct = baseAmt > 0 ? (discPrice / baseAmt) * 100 : 0;
   } else {
-    discPct = d.discPct || 0;
+    discPct = Number(d.discPct || 0);
     discPrice = baseAmt * (discPct / 100);
   }
 
   const netAmt = baseAmt - discPrice;
-  const gst = gstEnabled ? netAmt * ((d.gstPct || 0) / 100) : 0;
+  const gst = gstEnabled ? netAmt * (Number(d.gstPct || 0) / 100) : 0;
 
   let sgst = 0, cgst = 0, igst = 0;
   if (gstEnabled) {

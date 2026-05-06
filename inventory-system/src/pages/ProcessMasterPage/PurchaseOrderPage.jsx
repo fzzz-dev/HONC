@@ -98,7 +98,7 @@ const SupplierDetailsModal = ({ supplier, onClose }) => {
 
 const emptyDetail = () => ({
   _rowId: Math.random(), indentDetailId: "", indentNo: "", itemId: "", itemName: "", uom: "", balQty: 0,
-  poQty: "0.00", poRate: "0.00", discMode: "pct", discPct: "0.00", discPrice: "0.00", poAmount: 0,
+  poQty: 0, poRate: 0, discMode: "pct", discPct: 0, discPrice: 0, poAmount: 0,
   gstPct: 18, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0
 });
 
@@ -369,7 +369,7 @@ export default function PurchaseOrderPage() {
   const [setListError] = useState(null);
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [pendingSelected, setPendingSelected] = useState(new Set());
-  const [saveSuccessModal, setSaveSuccessModal] = useState(false);
+  const [saveToast, setSaveToast] = useState("");
   const [saving, setSaving] = useState(false);
   const [viewingSupplier, setViewingSupplier] = useState(null);
 
@@ -509,13 +509,15 @@ export default function PurchaseOrderPage() {
 
   async function handleSave() {
     if (!header.poNo.trim()) return setFormError("PO No is required");
+    setFormError(null);
     setSaving(true);
     const payload = { ...header, gstEnabled, gstType, details: details.map(({ _rowId, ...rest }) => rest) };
     try {
       if (editId) await purchaseOrderApi.update(editId, payload);
       else await purchaseOrderApi.create(payload);
       await loadPos();
-      setSaveSuccessModal(true);
+      setSaveToast(editId ? "Purchase Order updated successfully!" : "Purchase Order saved successfully!");
+      setTimeout(() => setSaveToast(""), 4000);
     } catch (err) { setFormError(err.message); } finally { setSaving(false); }
   }
 
@@ -612,6 +614,20 @@ export default function PurchaseOrderPage() {
       </div>
 
       {formError && <div className="inv-error-banner" style={{ marginBottom: 16 }}>{formError}</div>}
+      {saveToast && (
+        <div style={{
+          position: "fixed", top: 24, right: 24, zIndex: 9999,
+          background: "#10b981", color: "#fff",
+          borderRadius: 10, padding: "14px 24px",
+          boxShadow: "0 4px 24px rgba(16,185,129,0.3)",
+          display: "flex", alignItems: "center", gap: 10,
+          fontSize: 15, fontWeight: 600,
+          animation: "slideIn 0.3s ease"
+        }}>
+          <span style={{ fontSize: 20 }}>✓</span>
+          {saveToast}
+        </div>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         <div className="inv-card">
@@ -783,14 +799,12 @@ export default function PurchaseOrderPage() {
                       {gstEnabled && (
                         <>
                           <td>
-                            <select 
-                              className="inv-input-cell" 
-                              value={row.gstPct} 
-                              onChange={e => updateDetail(idx, "gstPct", Number(e.target.value))}
-                              style={{ textAlign: "center" }}
-                            >
-                              {[0, 5, 12, 18].map(v => <option key={v} value={v}>{v}%</option>)}
-                            </select>
+                            <input
+                              className="inv-input-cell"
+                              value={`${Number(row.gstPct || 0)}%`}
+                              readOnly
+                              style={{ textAlign: "center", background: "#f8fafc", color: "#64748b", fontWeight: 600 }}
+                            />
                           </td>
                           <td><input className="inv-input-cell" value={fmt(gstType === 'other' ? row.igst : row.sgst)} readOnly style={{ textAlign: "right" }} /></td>
                           {gstType === 'local' && <td><input className="inv-input-cell" value={fmt(row.cgst)} readOnly style={{ textAlign: "right" }} /></td>}
@@ -917,16 +931,6 @@ export default function PurchaseOrderPage() {
                 ))}
               </tbody>
             </table>
-          </div>
-        </Modal>
-      )}
-
-      {saveSuccessModal && (
-        <Modal title="Success" onClose={() => { setSaveSuccessModal(false); setView("list"); }} onSave={() => { setSaveSuccessModal(false); setView("list"); }} saveLabel="OK">
-          <div style={{ textAlign: "center", padding: 20 }}>
-            <div style={{ fontSize: 48, color: "#10b981" }}>✓</div>
-            <h3 style={{ fontSize: 18, fontWeight: 600 }}>Saved Successfully!</h3>
-            <p style={{ color: "#64748b" }}>The Purchase Order has been recorded.</p>
           </div>
         </Modal>
       )}

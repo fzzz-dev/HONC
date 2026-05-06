@@ -55,7 +55,7 @@ const fmt = (n) =>
 
 export default function PurchaseGRNPage() {
   const today = new Date().toISOString().split("T")[0];
-  
+
   // ── State ──
   const [grns, setGrns] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -63,7 +63,7 @@ export default function PurchaseGRNPage() {
   const [items, setItems] = useState([]);
   const [pos, setPos] = useState([]);
   const [indents, setIndents] = useState([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
@@ -155,19 +155,19 @@ export default function PurchaseGRNPage() {
         ...rows[idx],
         [field]: isNaN(val) || typeof val === "string" ? val : +val,
       };
-      
+
       if (field === "poNo") {
         const po = pos.find((p) => p.poNo === val);
         if (po) row.poDate = po.date || "";
       }
-      
+
       if (field === "itemName") {
         const found = items.find((it) => it.itemName === val);
         row.uom = found?.uom || "";
         row.poRate = found?.rate || 0;
         row.grnRate = found?.rate || 0;
       }
-      
+
       row = calcRow(row);
       rows[idx] = row;
       return rows;
@@ -177,7 +177,7 @@ export default function PurchaseGRNPage() {
   async function handleSave() {
     if (!header.supplierId) return alert("Supplier is required");
     if (!header.storeId) return alert("Store is required");
-    
+
     try {
       setSaving(true);
       const payload = { ...header, details };
@@ -206,6 +206,15 @@ export default function PurchaseGRNPage() {
     }
   }
 
+  const totals = details.reduce(
+    (acc, r) => ({
+      grnAmount: acc.grnAmount + (r.grnAmount || 0),
+      sgst: acc.sgst + (r.sgst || 0),
+      cgst: acc.cgst + (r.cgst || 0),
+      igst: acc.igst + (r.igst || 0),
+      totGst: acc.totGst + (r.totGst || 0),
+      totalAmount: acc.totalAmount + (r.totalAmount || 0),
+    }),
     { grnAmount: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0 },
   );
 
@@ -283,7 +292,7 @@ export default function PurchaseGRNPage() {
                   {grns.map((rec, i) => {
                     let safeDetails = Array.isArray(rec.details) ? rec.details : [];
                     if (!Array.isArray(rec.details) && typeof rec.details === 'string') {
-                      try { safeDetails = JSON.parse(rec.details); } catch(e) {}
+                      try { safeDetails = JSON.parse(rec.details); } catch (e) { }
                     }
                     const amt = safeDetails.reduce((s, d) => s + Number(d.totalAmount || 0), 0);
                     return (
@@ -332,8 +341,8 @@ export default function PurchaseGRNPage() {
       </div>
 
       {pendingModalOpen && (
-        <Modal 
-          title="Pick Pending PO Items" 
+        <Modal
+          title="Pick Pending PO Items"
           onClose={() => setPendingModalOpen(false)}
           onSave={addPendingLinesToDetails}
           saveLabel="Add Selected"
@@ -361,15 +370,15 @@ export default function PurchaseGRNPage() {
                   return (
                     <tr key={rowId}>
                       <td>
-                        <input 
-                          type="checkbox" 
-                          checked={pendingSelected.has(rowId)} 
+                        <input
+                          type="checkbox"
+                          checked={pendingSelected.has(rowId)}
                           onChange={() => {
                             const next = new Set(pendingSelected);
                             if (next.has(rowId)) next.delete(rowId);
                             else next.add(rowId);
                             setPendingSelected(next);
-                          }} 
+                          }}
                         />
                       </td>
                       <td>{r.poNo}</td>
