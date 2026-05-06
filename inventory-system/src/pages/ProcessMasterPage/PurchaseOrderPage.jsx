@@ -645,17 +645,16 @@ export default function PurchaseOrderPage() {
                         newGstType = compCode === suppCode ? "local" : "other";
                       } else {
                         // Fallback: check states if GSTINs are not fully available
-                        const compState = (company?.state || company?.address || "").toLowerCase();
+                        const compState = (company?.state || company?.address || "").toLowerCase().replace(/\s+/g, '');
                         const parsedAddresses = safeDetails(s?.addresses);
                         const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
-                        const suppState = (s.state || primaryAddr?.stateName || "").toLowerCase();
+                        const suppState = (s.state || primaryAddr?.stateName || "").toLowerCase().replace(/\s+/g, '');
 
                         if (compState && suppState && (compState.includes(suppState) || suppState.includes(compState))) {
                           newGstType = "local";
-                        } else if (compState && suppState) {
-                          newGstType = "other";
                         } else {
-                          // Final fallback to the supplier's configured gstType
+                          // Final fallback to the supplier's configured gstType or default to local
+                          // We don't force "other" unless we have clear evidence (GST codes)
                           newGstType = s.gstType || "local";
                         }
                       }
