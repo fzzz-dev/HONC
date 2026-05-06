@@ -475,8 +475,10 @@ export default function PurchaseOrderPage() {
           row.itemName = opt.itemName;
           row.uom = opt.uom;
           row.balQty = opt.balQty;
-          row.poRate = opt.lastRate || 0;
-          row.gstPct = opt.gstPct || 18;
+          row.balQty = opt.balQty;
+          const itMaster = items.find(i => sid(i) === opt.itemId);
+          row.poRate = opt.lastRate || itMaster?.purchaseRate || 0;
+          row.gstPct = itMaster?.gstPercent || opt.gstPct || 18;
           row.poQty = opt.balQty;
         } else {
           row.indentNo = ""; row.itemId = ""; row.itemName = ""; row.uom = ""; row.balQty = 0;
@@ -537,13 +539,22 @@ export default function PurchaseOrderPage() {
     }
     return [];
   };
-  const indentDetailOptions = indents.flatMap(ind => safeDetails(ind.details).map(d => ({
-    indentNo: ind.indentNo, detailId: sid(d.id || d._id), itemId: sid(d.itemId), itemName: toTitleCase(d.itemName), uom: d.uom, balQty: d.indentQty, lastRate: d.rate, gstPct: d.gstPct
-  })));
+  const indentDetailOptions = indents.flatMap(ind => safeDetails(ind.details).map(d => {
+    const itMaster = items.find(i => sid(i) === sid(d.itemId));
+    return {
+      indentNo: ind.indentNo, detailId: sid(d.id || d._id), itemId: sid(d.itemId), itemName: toTitleCase(d.itemName), 
+      uom: d.uom, balQty: d.indentQty, lastRate: d.rate, gstPct: itMaster?.gstPercent || d.gstPct || 18
+    };
+  }));
 
-  const pendingIndentRows = indents.flatMap(ind => safeDetails(ind.details).filter(d => (d.indentQty || 0) > 0).map(d => ({
-    rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`, indentNo: ind.indentNo, detailId: sid(d.id || d._id), itemId: sid(d.itemId), itemName: toTitleCase(d.itemName), uom: d.uom, balQty: d.indentQty, rate: d.rate, gstPct: d.gstPct
-  })));
+  const pendingIndentRows = indents.flatMap(ind => safeDetails(ind.details).filter(d => (d.indentQty || 0) > 0).map(d => {
+    const itMaster = items.find(i => sid(i) === sid(d.itemId));
+    return {
+      rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`, indentNo: ind.indentNo, detailId: sid(d.id || d._id), 
+      itemId: sid(d.itemId), itemName: toTitleCase(d.itemName), uom: d.uom, balQty: d.indentQty, rate: d.rate, 
+      gstPct: itMaster?.gstPercent || d.gstPct || 18
+    };
+  }));
 
   const uniqueIndentNos = [...new Set(indentDetailOptions.map(o => o.indentNo))];
 
@@ -776,7 +787,7 @@ export default function PurchaseOrderPage() {
                             <select 
                               className="inv-input-cell" 
                               value={row.gstPct} 
-                              onChange={e => updateDetail(idx, "gstPct", e.target.value)}
+                              onChange={e => updateDetail(idx, "gstPct", Number(e.target.value))}
                               style={{ textAlign: "center" }}
                             >
                               {[0, 5, 12, 18].map(v => <option key={v} value={v}>{v}%</option>)}

@@ -31,7 +31,6 @@ import ItemPriceListPage from "./pages/ProcessMasterPage/ItemPriceListPage";
 import PurchaseOrderPage from "./pages/ProcessMasterPage/PurchaseOrderPage";
 import PurchaseGRNPage from "./pages/ProcessMasterPage/PurchaseGRNPage";
 import ConsumptionIssuePage from "./pages/ProcessMasterPage/ConsumptionIssuePage";
-import CompanySettingsPage from "./pages/CompanySettingsPage";
 
 import "./index.css";
 
@@ -68,7 +67,7 @@ export default function App() {
 
                 {/* ── Administration ── */}
                 <Route path="/admin/users" element={<UserManagement />} />
-            <Route path="/admin/permissions" element={<RolePermissions />} />
+                <Route path="/admin/permissions" element={<RolePermissions />} />
 
                 {/* ── Masters ── */}
                 <Route path="/inv-head" element={<InventoryHeadPage />} />
@@ -92,7 +91,6 @@ export default function App() {
                 <Route path="/purchase-order" element={<PurchaseOrderPage />} />
                 <Route path="/purchase-grn" element={<PurchaseGRNPage />} />
                 <Route path="/consumption-issue" element={<ConsumptionIssuePage />} />
-                <Route path="/company-settings" element={<CompanySettingsPage />} />
 
                 <Route path="*" element={<Navigate to="/inv-head" replace />} />
               </Routes>

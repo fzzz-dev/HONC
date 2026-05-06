@@ -687,8 +687,8 @@ export default function ItemPage() {
             <Field label="GST %">
               <Select
                 value={form.gstPercent}
-                onChange={(v) => setForm((f) => ({ ...f, gstPercent: v }))}
-                options={GST_OPTIONS}
+                onChange={(v) => setForm((f) => ({ ...f, gstPercent: Number(v) }))}
+                options={GST_OPTIONS.map(v => ({ value: v, label: `${v}%` }))}
                 placeholder="Select GST %"
               />
             </Field>

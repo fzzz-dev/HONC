@@ -39,7 +39,7 @@ export function Input({
 // options can be: string[] | { value, label }[]
 export function Select({ value, onChange, options = [], placeholder }) {
   const normalised = options.map((o) =>
-    typeof o === "string" ? { value: o, label: o } : o,
+    typeof o !== "object" || o === null ? { value: String(o), label: String(o) } : o,
   );
   return (
     <select
