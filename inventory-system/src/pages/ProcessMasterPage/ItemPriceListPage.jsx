@@ -9,12 +9,11 @@ const emptyDetail = () => ({
   id: nextId(),
   inventoryHeadId: "",
   inventoryHeadName: "",
-  subCategory: "",
   itemId: "",
   itemName: "",
   price: 0,
   discPct: 0,
-  gstPct: 18,
+  gstPct: 0,
   fromDate: "",
   toDate: "",
   freight: 0,
@@ -28,18 +27,7 @@ const fmt = (n) =>
     maximumFractionDigits: 2,
   });
 
-function generatePriceListNo(existing) {
-  const year = new Date().getFullYear();
-  const prefix = `IPL-${year}-`;
-  const nums = existing
-    .map((r) => {
-      const m = r.listNo?.match(/^IPL-\d{4}-(\d+)$/);
-      return m ? parseInt(m[1], 10) : 0;
-    })
-    .filter(Boolean);
-  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
-  return `${prefix}${String(next).padStart(3, "0")}`;
-}
+
 
 export default function ItemPriceListPage() {
   const today = new Date().toISOString().split("T")[0];
@@ -100,10 +88,9 @@ export default function ItemPriceListPage() {
     }
   }
 
-  function openNew() {
-    const autoNo = generatePriceListNo(priceLists);
+  async function openNew() {
     setHeader({
-      listNo: autoNo,
+      listNo: "", // Fetched from backend
       supplierId: "",
       supplierName: "",
       date: today,
@@ -111,6 +98,10 @@ export default function ItemPriceListPage() {
     setDetails([emptyDetail()]);
     setEditId(null);
     setView("form");
+    try {
+      const res = await ItemPriceListAPI.getNextNumber();
+      if (res?.listNo) setHeader(h => ({ ...h, listNo: res.listNo }));
+    } catch (e) { }
   }
 
   async function openEdit(rec) {
@@ -148,13 +139,12 @@ export default function ItemPriceListPage() {
         row.inventoryHeadName = found?.headName || "";
         row.itemId = "";
         row.itemName = "";
-        row.subCategory = "";
       }
       if (field === "itemId") {
         const found = items.find((it) => String(it.id) === String(val));
         row.itemName = found?.itemName || "";
-        row.subCategory = found?.subCategory || "";
         row.price = found?.rate || 0;
+        row.gstPct = found?.gstPercent !== undefined ? found.gstPercent : 0;
       }
       rows[idx] = row;
       return rows;
@@ -420,23 +410,7 @@ export default function ItemPriceListPage() {
           <div className="inv-section-label">Header</div>
           <div className="inv-form-row cols-4">
             <div className="inv-field">
-              <label className="inv-label">
-                List No
-                <span
-                  style={{
-                    marginLeft: 6,
-                    fontSize: 10,
-                    fontWeight: 500,
-                    color: "#6366f1",
-                    background: "#eef2ff",
-                    border: "1px solid #c7d2fe",
-                    borderRadius: 4,
-                    padding: "1px 6px",
-                  }}
-                >
-                  Auto
-                </span>
-              </label>
+              <label className="inv-label">List No (Auto)</label>
               <input
                 className="inv-input"
                 value={header.listNo}
@@ -516,7 +490,6 @@ export default function ItemPriceListPage() {
                 <tr>
                   <th>#</th>
                   <th style={{ minWidth: 140 }}>Item Category</th>
-                  <th style={{ minWidth: 120 }}>Sub Category</th>
                   <th style={{ minWidth: 160 }}>Item Name</th>
                   <th style={{ minWidth: 90 }}>Price</th>
                   <th style={{ minWidth: 70 }}>Disc %</th>
@@ -563,22 +536,7 @@ export default function ItemPriceListPage() {
                           ))}
                         </select>
                       </td>
-                      <td>
-                        <input
-                          value={row.subCategory}
-                          readOnly
-                          style={{
-                            width: 110,
-                            border: "none",
-                            outline: "none",
-                            fontSize: 11.5,
-                            background: "transparent",
-                            color: "var(--text-secondary)",
-                            padding: "2px 4px",
-                          }}
-                          placeholder="—"
-                        />
-                      </td>
+
                       <td>
                         <select
                           value={row.itemId}
@@ -609,6 +567,7 @@ export default function ItemPriceListPage() {
                               updateDetail(idx, f, +e.target.value)
                             }
                             style={{ width: 70, textAlign: "right" }}
+                            readOnly={f === "gstPct"}
                           />
                         </td>
                       ))}

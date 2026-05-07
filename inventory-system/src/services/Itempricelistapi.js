@@ -41,6 +41,16 @@ class ItemPriceListAPI {
   }
 
   /**
+   * GET NEXT NUMBER - Fetch auto-generated list number
+   */
+  static async getNextNumber() {
+    const res = await this.request("/item-price-lists/next-number", {
+      method: "GET",
+    });
+    return res.data || res;
+  }
+
+  /**
    * CREATE - Create new price list
    */
   static async create(data) {

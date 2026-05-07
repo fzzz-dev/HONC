@@ -7,6 +7,11 @@ const ItemPriceListController = require("../controller/Itempricelistcontroller")
 // const { protect } = require("../middleware/authMiddleware");
 
 /**
+ * GET NEXT NUMBER
+ */
+router.get("/next-number", ItemPriceListController.getNextNumber);
+
+/**
  * CREATE
  */
 router.post(

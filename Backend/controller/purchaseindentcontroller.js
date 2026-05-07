@@ -37,24 +37,39 @@ function sanitizeBody(body = {}) {
   };
 }
 
+function getFinancialYear() {
+  const today = new Date();
+  const month = today.getMonth() + 1; // 1-12
+  const year = today.getFullYear();
+  if (month < 4) {
+    return `${year - 1}-${year}`;
+  }
+  return `${year}-${year + 1}`;
+}
+
 // ── Generate next indent number ───────────────────────────────────────────────
 async function generateIndentNo() {
-  const year = new Date().getFullYear();
-  const prefix = `IND-${year}-`;
+  const fy = getFinancialYear();
+  const prefix = "IND/";
+  // Search for any record with the current financial year at the end
   const last = await PurchaseIndent.findOne({
     where: {
-      indentNo: { [Op.like]: `IND-${year}-%` }
+      indentNo: { [Op.like]: `${prefix}%/${fy}` }
     },
     order: [["indentNo", "DESC"]]
   });
 
   let next = 1;
   if (last) {
-    const m = last.indentNo.match(/^IND-\d{4}-(\d+)$/);
-    if (m) next = parseInt(m[1], 10) + 1;
+    // Expected format: IND/0001/2026-2027
+    const parts = last.indentNo.split("/");
+    if (parts.length === 3) {
+      next = parseInt(parts[1], 10) + 1;
+    }
   }
-  return `${prefix}${String(next).padStart(3, "0")}`;
+  return `${prefix}${String(next).padStart(4, "0")}/${fy}`;
 }
+
 
 // ── GET all ───────────────────────────────────────────────────────────────────
 exports.getAll = async (req, res) => {

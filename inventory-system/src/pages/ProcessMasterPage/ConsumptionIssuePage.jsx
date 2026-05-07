@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "../../context/AuthContext";
 import {
   consumptionIssueApi,
   departmentApi,
@@ -14,9 +15,11 @@ const emptyDetail = () => ({
   itemName: "",
   grnNo: "",
   stkQty: 0,
+  stkRate: 0,
   issueQty: 0,
   rate: 0,
   amount: 0,
+  issueRemarks: "",
 });
 
 const fmt = (n) =>
@@ -25,7 +28,16 @@ const fmt = (n) =>
     maximumFractionDigits: 2,
   });
 
+const getFY = () => {
+  const d = new Date();
+  const m = d.getMonth() + 1;
+  const y = d.getFullYear();
+  return m < 4 ? `${y - 1}-${y}` : `${y}-${y + 1}`;
+};
+
+
 export default function ConsumptionIssuePage() {
+  const { user } = useAuth();
   const today = new Date().toISOString().split("T")[0];
   
   // ── State ──
@@ -39,14 +51,19 @@ export default function ConsumptionIssuePage() {
   const [view, setView] = useState("form");
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [header, setHeader] = useState({
-    issNo: "AUTO",
+    issNo: "",
     date: today,
+    issueType: "General",
+    itemId: "",
     departmentId: "",
     departmentName: "",
     storeId: "",
     storeName: "",
+    remarks: "",
+    preparedBy: "",
   });
   const [details, setDetails] = useState([emptyDetail()]);
 
@@ -75,31 +92,50 @@ export default function ConsumptionIssuePage() {
 
   useEffect(() => {
     loadData();
+    openNew();
   }, [loadData]);
 
+
   // ── Handlers ──
-  function openNew() {
+  async function openNew() {
+    let nextNo = "";
+    try {
+      const res = await consumptionIssueApi.getNextNumber();
+      nextNo = res?.issNo || "";
+    } catch (err) {
+      console.error("Failed to get next ISS number", err);
+    }
+
     setHeader({
-      issNo: "AUTO", // Backend should handle numbering or we generate
+      issNo: nextNo,
       date: today,
+      issueType: "General",
+      itemId: "",
       departmentId: "",
       departmentName: "",
       storeId: "",
       storeName: "",
+      remarks: "",
+      preparedBy: user?.name || "Admin",
     });
     setDetails([emptyDetail()]);
     setEditId(null);
     setView("form");
   }
 
+
   function openEdit(rec) {
     setHeader({
       issNo: rec.issNo,
       date: rec.date,
+      issueType: rec.issueType || "General",
+      itemId: rec.itemId || "",
       departmentId: rec.departmentId,
       departmentName: rec.departmentName,
       storeId: rec.storeId,
       storeName: rec.storeName,
+      remarks: rec.remarks || "",
+      preparedBy: rec.preparedBy || "",
     });
     setDetails((rec.details || []).map((d) => ({ ...d, _rowId: Math.random() })));
     setEditId(rec.id);
@@ -111,11 +147,25 @@ export default function ConsumptionIssuePage() {
       const rows = [...prev];
       const row = { ...rows[idx], [field]: val };
 
-      if (field === "itemName") {
-        const found = items.find((it) => it.itemName === val);
-        row.category = found?.head || found?.category || "";
-        row.subCategory = found?.subCategory || "";
-        row.rate = found?.rate || 0;
+      if (field === "itemName" || field === "grnNo") {
+        const targetItem = field === "itemName" ? val : row.itemName;
+        const targetGrn = field === "grnNo" ? val : row.grnNo;
+
+        if (targetItem && targetGrn) {
+          const g = grns.find(x => x.grnNo === targetGrn);
+          if (g) {
+            let gDetails = g.details || [];
+            if (typeof gDetails === 'string') {
+              try { gDetails = JSON.parse(gDetails); } catch (e) { gDetails = []; }
+            }
+            const gd = gDetails.find(d => String(d.itemName).toLowerCase() === String(targetItem).toLowerCase());
+            if (gd) {
+              row.stkQty = gd.grnQty || 0;
+              row.stkRate = gd.grnRate || 0;
+              row.rate = gd.grnRate || 0;
+            }
+          }
+        }
       }
 
       const issQty = field === "issueQty" ? +val : +row.issueQty;
@@ -125,6 +175,85 @@ export default function ConsumptionIssuePage() {
       rows[idx] = row;
       return rows;
     });
+  }
+
+  function printIssue() {
+    const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const company = JSON.parse(localStorage.getItem("company") || "{}");
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Consumption Issue ${esc(header.issNo)}</title>
+  <style>
+    @page { margin: 5mm; size: A5 landscape; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 10px; margin: 0; padding: 0; color: #333; }
+    .bold { font-weight: bold; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .voucher-container { border: 2px solid #000; padding: 10px; min-height: 135mm; position: relative; }
+    .header-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    .header-table td { border: none; vertical-align: middle; }
+    .title-banner { background: #000; color: #fff; padding: 5px; text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 10px; letter-spacing: 2px; }
+    .info-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    .info-table td { border: 1px solid #000; padding: 4px 8px; width: 25%; }
+    .label { font-size: 9px; color: #666; text-transform: uppercase; margin-bottom: 2px; }
+    .value { font-size: 11px; font-weight: bold; }
+    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+    .items-table th { border: 1px solid #000; background: #f0f0f0; padding: 6px; font-size: 10px; }
+    .items-table td { border: 1px solid #000; padding: 6px; }
+    .remarks-box { border: 1px solid #000; padding: 8px; margin-top: 10px; min-height: 40px; }
+    .footer-signatures { margin-top: 30px; display: flex; justify-content: space-between; padding: 0 20px; }
+    .sig-box { text-align: center; border-top: 1px solid #000; width: 120px; padding-top: 5px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="voucher-container">
+    <table class="header-table">
+      <tr>
+        <td style="width: 20%;">${company.logo ? `<img src="${company.logo}" style="max-height: 50px;" />` : `<div style="font-size: 20px; font-weight: bold; color: #666;">LOGO</div>`}</td>
+        <td style="width: 60%; text-align: center;">
+          <div style="font-size: 16px; font-weight: bold;">${esc(company.companyName || "HONC INVENTORY SYSTEM")}</div>
+          <div style="font-size: 9px;">${esc(company.address || "123, Business Park, City, State - 000000")}</div>
+          <div style="font-size: 9px;">GSTIN: ${esc(company.gstin || "33XXXXXXXXXXXXX")}</div>
+        </td>
+        <td style="width: 20%; text-align: right;"><div style="font-size: 8px;">Original Copy</div></td>
+      </tr>
+    </table>
+    <div class="title-banner">CONSUMPTION ISSUE VOUCHER</div>
+    <table class="info-table">
+      <tr>
+        <td><div class="label">Issue Number</div><div class="value">${esc(header.issNo)}</div></td>
+        <td><div class="label">Issue Date</div><div class="value">${esc(new Date(header.date).toLocaleDateString("en-GB"))}</div></td>
+        <td><div class="label">Issue Type</div><div class="value">${esc(header.issueType)}</div></td>
+        <td><div class="label">Financial Year</div><div class="value">${esc(getFY())}</div></td>
+      </tr>
+      <tr>
+        <td colspan="2"><div class="label">Issued To (Department)</div><div class="value">${esc(header.departmentName)}</div></td>
+        <td colspan="2"><div class="label">Issued From (Store)</div><div class="value">${esc(header.storeName)}</div></td>
+      </tr>
+    </table>
+    <table class="items-table">
+      <thead><tr><th style="width: 50px;">S.No</th><th>Item Description</th><th>GRN No</th><th style="width: 80px;">Qty</th><th style="width: 80px;">Rate</th><th style="width: 100px;">Amount</th></tr></thead>
+      <tbody>
+        ${details.map((d, i) => `<tr><td class="text-center">${i + 1}</td><td>${esc(d.itemName)}</td><td class="text-center">${esc(d.grnNo)}</td><td class="text-right">${Number(d.issueQty).toFixed(2)}</td><td class="text-right">${Number(d.rate).toFixed(2)}</td><td class="text-right">${Number(d.amount).toFixed(2)}</td></tr>`).join("")}
+      </tbody>
+      <tfoot><tr class="bold"><td colspan="3" class="text-right">TOTAL</td><td class="text-right">${totals.issueQty.toFixed(2)}</td><td></td><td class="text-right">₹${totals.amount.toFixed(2)}</td></tr></tfoot>
+    </table>
+    <div class="remarks-box"><div class="label">General Remarks:</div><div style="font-size: 10px;">${esc(header.remarks || "No remarks")}</div></div>
+    <div class="footer-signatures">
+      <div class="sig-box"><div style="font-size: 9px; font-weight: normal; margin-bottom: 2px;">Prepared By</div>${esc(header.preparedBy || user?.name || "Admin")}</div>
+      <div class="sig-box"><div style="font-size: 9px; font-weight: normal; margin-bottom: 2px;">Dept. Receiver</div>&nbsp;</div>
+      <div class="sig-box"><div style="font-size: 9px; font-weight: normal; margin-bottom: 2px;">Store In-charge</div>&nbsp;</div>
+    </div>
+  </div>
+  <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); }</script>
+</body>
+</html>`;
+    const w = window.open("", "_blank", "width=800,height=600");
+    w.document.write(html);
+    w.document.close();
   }
 
   async function handleSave() {
@@ -137,10 +266,9 @@ export default function ConsumptionIssuePage() {
       if (editId) {
         await consumptionIssueApi.update(editId, payload);
       } else {
-        // If issNo is "AUTO", let backend generate or just use a timestamp for now
-        if (payload.issNo === "AUTO") payload.issNo = "ISS-" + Date.now();
         await consumptionIssueApi.create(payload);
       }
+
       await loadData();
       setView("list");
     } catch (err) {
@@ -172,6 +300,7 @@ export default function ConsumptionIssuePage() {
 
   /* ── LIST ── */
   if (view === "list") {
+    const filteredIssues = issues.filter(iss => iss.issNo.toLowerCase().includes(searchTerm.toLowerCase()));
     return (
       <div className="inv-page">
         <div className="inv-page-header">
@@ -183,6 +312,21 @@ export default function ConsumptionIssuePage() {
             + New Issue
           </button>
         </div>
+
+        <div className="inv-card" style={{ marginBottom: 16 }}>
+          <div className="inv-card-body">
+            <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
+              <label className="inv-label">Search ISS No</label>
+              <input 
+                className="inv-input" 
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)} 
+                placeholder="Type to search Issue Number..." 
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="inv-card">
           <div className="inv-card-body">
             <div className="inv-table-wrap">
@@ -201,12 +345,10 @@ export default function ConsumptionIssuePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {issues.length === 0 && (
-                    <tr>
-                      <td colSpan={9} className="inv-empty">No records found</td>
-                    </tr>
+                  {filteredIssues.length === 0 && (
+                    <tr><td colSpan={9} className="inv-empty">No records found</td></tr>
                   )}
-                  {issues.map((rec, i) => {
+                  {filteredIssues.map((rec, i) => {
                     let safeDetails = Array.isArray(rec.details) ? rec.details : [];
                     if (!Array.isArray(rec.details) && typeof rec.details === 'string') {
                       try { safeDetails = JSON.parse(rec.details); } catch(e) {}
@@ -255,6 +397,7 @@ export default function ConsumptionIssuePage() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="inv-btn-secondary" onClick={() => setView("list")}>View Consumption</button>
+          <button className="inv-btn-secondary" onClick={printIssue}>Print</button>
           <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save Issue"}</button>
         </div>
       </div>
@@ -264,15 +407,37 @@ export default function ConsumptionIssuePage() {
           <div className="inv-section-label">Header</div>
           <div className="inv-form-row cols-4">
              <div className="inv-field">
-              <label className="inv-label">ISS No</label>
-              <input className="inv-input" value={header.issNo} readOnly style={{ background: "#f8f9fa" }} />
+              <label className="inv-label">ISS No (Auto)</label>
+              <input className="inv-input" value={header.issNo} readOnly style={{ background: "#f8f9fa", color: "#4f46e5", fontWeight: 600 }} />
             </div>
             <div className="inv-field">
-              <label className="inv-label">Date</label>
+              <label className="inv-label">Financial Year</label>
+              <input className="inv-input" value={getFY()} readOnly style={{ background: "#f8f9fa", color: "#64748b" }} />
+            </div>
+            <div className="inv-field">
+              <label className="inv-label">Issue Date</label>
               <input className="inv-input" type="date" value={header.date} onChange={(e) => setHeader(h => ({ ...h, date: e.target.value }))} />
             </div>
+
+            <div className="inv-field">
+              <label className="inv-label">Issue Type</label>
+              <select className="inv-input" value={header.issueType} onChange={(e) => setHeader(h => ({ ...h, issueType: e.target.value }))}>
+                <option value="General">General</option>
+                <option value="Product">Product</option>
+              </select>
+            </div>
+            {header.issueType === "Product" && (
+              <div className="inv-field">
+                <label className="inv-label">Item *</label>
+                <select className="inv-input" value={header.itemId} onChange={(e) => setHeader(h => ({ ...h, itemId: e.target.value }))}>
+                  <option value="">Select item</option>
+                  {items.map(it => <option key={it.id} value={it.id}>{it.itemName}</option>)}
+                </select>
+              </div>
+            )}
             <div className="inv-field">
               <label className="inv-label">Department *</label>
+
               <select className="inv-input" value={header.departmentId} onChange={(e) => {
                 const d = departments.find(x => String(x.id) === e.target.value);
                 setHeader(h => ({ ...h, departmentId: e.target.value, departmentName: d?.name || "" }));
@@ -307,12 +472,13 @@ export default function ConsumptionIssuePage() {
                 <tr>
                   <th>#</th>
                   <th>Item Name</th>
-                  <th>Category</th>
                   <th>GRN No</th>
                   <th>Stk Qty</th>
+                  <th>Stk Rate</th>
                   <th>Issue Qty</th>
                   <th>Rate</th>
                   <th>Amount</th>
+                  <th>Remarks</th>
                   <th></th>
                 </tr>
               </thead>
@@ -326,7 +492,6 @@ export default function ConsumptionIssuePage() {
                         {items.map(it => <option key={it.id} value={it.itemName}>{it.itemName}</option>)}
                       </select>
                     </td>
-                    <td>{row.category || "—"}</td>
                     <td>
                       <select className="inv-input" style={{ border: "none", width: 120 }} value={row.grnNo} onChange={e => updateDetail(idx, "grnNo", e.target.value)}>
                         <option value="">Select GRN</option>
@@ -334,9 +499,11 @@ export default function ConsumptionIssuePage() {
                       </select>
                     </td>
                     <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.stkQty} onChange={e => updateDetail(idx, "stkQty", e.target.value)} /></td>
+                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.stkRate} onChange={e => updateDetail(idx, "stkRate", e.target.value)} /></td>
                     <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.issueQty} onChange={e => updateDetail(idx, "issueQty", e.target.value)} /></td>
                     <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.rate} onChange={e => updateDetail(idx, "rate", e.target.value)} /></td>
                     <td style={{ textAlign: "right" }}>{fmt(row.amount)}</td>
+                    <td><input className="inv-input" style={{ border: "none", width: 120 }} value={row.issueRemarks} onChange={e => updateDetail(idx, "issueRemarks", e.target.value)} placeholder="Item remarks" /></td>
                     <td>
                       <button className="inv-btn-icon inv-btn-danger" onClick={() => setDetails(p => p.filter((_, i) => i !== idx))}>✕</button>
                     </td>
@@ -345,9 +512,10 @@ export default function ConsumptionIssuePage() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={5} style={{ textAlign: "right", fontWeight: 600 }}>Total</td>
-                  <td>{fmt(totals.issueQty)}</td>
-                  <td></td>
+                   <td colSpan={6} style={{ textAlign: "right", fontWeight: 600 }}>Total</td>
+                   <td>{fmt(totals.issueQty)}</td>
+                   <td></td>
+                   <td></td>
                   <td style={{ textAlign: "right", fontWeight: 600 }}>₹{fmt(totals.amount)}</td>
                   <td></td>
                 </tr>
@@ -356,6 +524,33 @@ export default function ConsumptionIssuePage() {
           </div>
         </div>
       </div>
+
+      <div className="inv-card" style={{ marginTop: 20 }}>
+        <div className="inv-card-body">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
+            <div className="inv-field-v">
+              <div className="inv-section-label">Prepared By</div>
+              <input 
+                className="inv-input" 
+                value={header.preparedBy} 
+                onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
+                placeholder="Preparer name"
+              />
+            </div>
+            <div className="inv-field-v">
+              <div className="inv-section-label">Remarks</div>
+              <textarea 
+                className="inv-input" 
+                style={{ height: 40, resize: "none" }} 
+                value={header.remarks} 
+                onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))}
+                placeholder="General remarks..."
+              />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
+

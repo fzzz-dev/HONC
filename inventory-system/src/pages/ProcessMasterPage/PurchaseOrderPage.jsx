@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+
 import { purchaseOrderApi, paymentTermsApi, supplierApi, inventoryHeadApi, mainCategoryApi, itemApi } from "../../services/inventoryApi";
 import Modal from "../../components/Modal";
 
@@ -6,6 +9,13 @@ import Modal from "../../components/Modal";
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const today = () => new Date().toISOString().split("T")[0];
+const getFY = () => {
+  const d = new Date();
+  const m = d.getMonth() + 1;
+  const y = d.getFullYear();
+  return m < 4 ? `${y - 1}-${y}` : `${y}-${y + 1}`;
+};
+
 const sid = (v) => {
   if (!v) return "";
   if (typeof v === "object") return String(v.id || v._id || "");
@@ -99,7 +109,7 @@ const SupplierDetailsModal = ({ supplier, onClose }) => {
 const emptyDetail = () => ({
   _rowId: Math.random(), indentDetailId: "", indentNo: "", itemId: "", itemName: "", uom: "", balQty: 0,
   poQty: 0, poRate: 0, discMode: "pct", discPct: 0, discPrice: 0, poAmount: 0,
-  gstPct: 18, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0
+  gstPct: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0
 });
 
 const emptyHeader = () => ({
@@ -107,7 +117,8 @@ const emptyHeader = () => ({
   purchaseIndentId: "", purchaseIndentNo: "",
   refNo: "", refDate: "", paymentTermsId: "", paymentTermsName: "", deliveryDate: "",
   createdBy: "Admin", createdOn: today(), status: "Open", remarks: "",
-  poType: ""
+  poType: "",
+  preparedBy: ""
 });
 
 const FormGrid = ({ children }) => (
@@ -156,8 +167,8 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
     
     .items-table { border-left: none; border-right: none; border-bottom: none; }
     .items-table th { background: #f0f0f0; border-top: 1px solid #000; }
-    .items-table td { border-top: none; border-bottom: none; height: 18px; }
-    .items-table tr.last-row td { height: 120px; border-bottom: 1px solid #000; } /* Spacer */
+    .items-table td { border-top: none; border-bottom: none; height: 25px; }
+    .items-table tr.last-row td { height: 400px; border-bottom: 1px solid #000; } /* Spacer */
     
     .footer-table { border: none; }
     .footer-table td { border: none; }
@@ -351,6 +362,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
 }
 
 export default function PurchaseOrderPage() {
+  const { user } = useAuth();
   const [suppliers, setSuppliers] = useState([]);
   const [indents, setIndents] = useState([]);
   const [items, setItems] = useState([]);
@@ -372,8 +384,12 @@ export default function PurchaseOrderPage() {
   const [saveToast, setSaveToast] = useState("");
   const [saving, setSaving] = useState(false);
   const [viewingSupplier, setViewingSupplier] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const navigate = useNavigate();
 
   useEffect(() => {
+
     loadLookups(); loadPos(); openNew();
   }, []);
 
@@ -396,7 +412,8 @@ export default function PurchaseOrderPage() {
   }
 
   async function openNew() {
-    setHeader(emptyHeader()); setDetails([emptyDetail()]); setEditId(null); setView("form"); setGstType("");
+    setHeader({ ...emptyHeader(), preparedBy: user?.name || "Admin" }); 
+    setDetails([emptyDetail()]); setEditId(null); setView("form"); setGstType("");
     try { const res = await purchaseOrderApi.getNextNumber(); if (res?.poNo) setHeader(h => ({ ...h, poNo: res.poNo })); } catch (e) { }
   }
 
@@ -478,7 +495,7 @@ export default function PurchaseOrderPage() {
           row.balQty = opt.balQty;
           const itMaster = items.find(i => sid(i) === opt.itemId);
           row.poRate = opt.lastRate || itMaster?.purchaseRate || 0;
-          row.gstPct = itMaster?.gstPercent || opt.gstPct || 18;
+          row.gstPct = itMaster?.gstPercent !== undefined ? itMaster.gstPercent : (opt.gstPct !== undefined ? opt.gstPct : 0);
           row.poQty = opt.balQty;
         } else {
           row.indentNo = ""; row.itemId = ""; row.itemName = ""; row.uom = ""; row.balQty = 0;
@@ -487,8 +504,9 @@ export default function PurchaseOrderPage() {
       if (field === "itemId") {
         const it = items.find(i => sid(i) === val);
         if (it) {
-          row.itemId = val; row.itemName = it.itemName; row.uom = it.uom; row.gstPct = it.gstPercent || 18;
-          row.indentDetailId = ""; row.indentNo = "Direct"; row.balQty = 0;
+          row.itemId = val; row.itemName = it.itemName; row.uom = it.uom; 
+          row.gstPct = it.gstPercent !== undefined ? it.gstPercent : 0;
+          row.indentDetailId = ""; row.indentNo = ""; row.balQty = 0;
         }
       }
       rows[idx] = calcRow(row);
@@ -544,16 +562,17 @@ export default function PurchaseOrderPage() {
   const indentDetailOptions = indents.flatMap(ind => safeDetails(ind.details).map(d => {
     const itMaster = items.find(i => sid(i) === sid(d.itemId));
     return {
-      indentNo: ind.indentNo, detailId: sid(d.id || d._id), itemId: sid(d.itemId), itemName: toTitleCase(d.itemName), 
-      uom: d.uom, balQty: d.indentQty, lastRate: d.rate, gstPct: itMaster?.gstPercent || d.gstPct || 18
+      indentNo: ind.indentNo, detailId: sid(d.id || d._id), itemId: sid(d.itemId), itemName: toTitleCase(d.itemName),
+      uom: d.uom, balQty: d.indentQty, lastRate: d.rate, 
+      gstPct: itMaster?.gstPercent !== undefined ? itMaster.gstPercent : (d.gstPct !== undefined ? d.gstPct : 0)
     };
   }));
 
   const pendingIndentRows = indents.flatMap(ind => safeDetails(ind.details).filter(d => (d.indentQty || 0) > 0).map(d => {
     const itMaster = items.find(i => sid(i) === sid(d.itemId));
     return {
-      rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`, indentNo: ind.indentNo, detailId: sid(d.id || d._id), 
-      itemId: sid(d.itemId), itemName: toTitleCase(d.itemName), uom: d.uom, balQty: d.indentQty, rate: d.rate, 
+      rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`, indentNo: ind.indentNo, detailId: sid(d.id || d._id),
+      itemId: sid(d.itemId), itemName: toTitleCase(d.itemName), uom: d.uom, balQty: d.indentQty, rate: d.rate,
       gstPct: itMaster?.gstPercent || d.gstPct || 18
     };
   }));
@@ -563,34 +582,57 @@ export default function PurchaseOrderPage() {
   function addPendingLinesToDetails() {
     const selected = pendingIndentRows.filter(r => pendingSelected.has(r.rowId));
     const newRows = selected.map(s => calcRow({
-      ...emptyDetail(), indentDetailId: s.detailId, indentNo: s.indentNo, itemId: s.itemId, itemName: s.itemName, uom: s.uom, balQty: s.balQty, poQty: s.balQty, poRate: s.rate || 0, gstPct: s.gstPct || 18
+      ...emptyDetail(), indentDetailId: s.detailId, indentNo: s.indentNo, itemId: s.itemId, itemName: s.itemName, uom: s.uom, balQty: s.balQty, poQty: s.balQty, poRate: s.rate || 0, 
+      gstPct: s.gstPct !== undefined ? s.gstPct : 0
     }));
     setDetails(p => [...p.filter(r => r.itemId), ...newRows]);
     setPendingModalOpen(false); setPendingSelected(new Set());
   }
 
   if (view === "list") {
+    const filteredPos = pos.filter(po => po.poNo.toLowerCase().includes(searchTerm.toLowerCase()));
     return (
       <div className="inv-page">
         <div className="inv-page-header">
           <div><h1 className="inv-page-title">Purchase Orders</h1><p className="inv-page-sub">Manage vendor procurement orders</p></div>
           <button className="inv-btn-primary" onClick={openNew}>+ New Order</button>
         </div>
+        
+        <div className="inv-card" style={{ marginBottom: 16 }}>
+          <div className="inv-card-body">
+            <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
+              <label className="inv-label">Search PO No</label>
+              <input 
+                className="inv-input" 
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)} 
+                placeholder="Type to search PO Number..." 
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="inv-card">
           <table className="inv-table">
             <thead>
-              <tr><th>PO No</th><th>Date</th><th>Supplier</th><th>Status</th><th>Total Amount</th><th>Actions</th></tr>
+              <tr><th>#</th><th>PO No</th><th>Date</th><th>Supplier</th><th>Status</th><th>Total Amount</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {pos.map(po => (
+              {filteredPos.length === 0 && (
+                <tr><td colSpan={7} className="inv-empty">No records found</td></tr>
+              )}
+              {filteredPos.map((po, i) => (
                 <tr key={sid(po)}>
-                  <td>{po.poNo}</td><td>{po.date}</td><td>{po.supplierName}</td>
+                  <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
+                  <td style={{ fontWeight: 600, color: "var(--accent)" }}>{po.poNo}</td>
+                  <td>{po.date}</td>
+                  <td>{po.supplierName}</td>
                   <td><span className={`inv-badge ${po.status === 'Open' ? 'inv-badge-yes' : 'inv-badge-no'}`}>{po.status}</span></td>
                   <td>₹{fmt(safeDetails(po.details).reduce((s, d) => s + (d.totalAmount || 0), 0))}</td>
                   <td>
                     <div className="inv-actions">
                       <button className="inv-btn-icon" onClick={() => openEdit(po)}>Edit</button>
-                      <button className="inv-btn-icon inv-btn-danger">Del</button>
+                      <button className="inv-btn-icon inv-btn-danger" onClick={() => handleDelete(sid(po))}>Del</button>
                     </div>
                   </td>
                 </tr>
@@ -601,6 +643,7 @@ export default function PurchaseOrderPage() {
       </div>
     );
   }
+
 
   return (
     <div className="inv-page">
@@ -635,7 +678,9 @@ export default function PurchaseOrderPage() {
             <div className="inv-section-label">Header</div>
             <FormGrid>
               <Field label="PO No (Auto)"><input className="inv-input" value={header.poNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} /></Field>
+              <Field label="Financial Year"><input className="inv-input" value={getFY()} readOnly style={{ background: "#f8f9fa", color: "#64748b" }} /></Field>
               <Field label="Date"><input className="inv-input" type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} /></Field>
+
               <Field label="PO Type">
                 <select className="inv-input" value={header.poType || ""} onChange={e => setHeader(h => ({ ...h, poType: e.target.value }))}>
                   <option value="">Select Type</option>
@@ -698,14 +743,18 @@ export default function PurchaseOrderPage() {
                     <option value="">Select supplier</option>
                     {suppliers.map(s => <option key={sid(s)} value={sid(s)}>{s.supplierName}</option>)}
                   </select>
-                  {header.supplierId && (
-                    <button type="button" className="inv-btn-icon" title="View Supplier Details" onClick={() => {
-                      const s = suppliers.find(x => sid(x) === header.supplierId);
-                      if (s) setViewingSupplier(s);
-                    }}>
-                      <ViewIcon />
+                    <button type="button" className="inv-btn-icon" title="Add New Supplier" onClick={() => navigate("/supplier")} style={{ color: "#10b981" }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     </button>
-                  )}
+                    {header.supplierId && (
+                      <button type="button" className="inv-btn-icon" title="View Supplier Details" onClick={() => {
+                        const s = suppliers.find(x => sid(x) === header.supplierId);
+                        if (s) setViewingSupplier(s);
+                      }}>
+                        <ViewIcon />
+                      </button>
+                    )}
+
                 </div>
               </Field>
               <Field label="Reference No"><input className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" /></Field>
@@ -756,10 +805,9 @@ export default function PurchaseOrderPage() {
                           className="inv-select-cell"
                           value={row.indentNo || ""}
                           onChange={e => updateDetail(idx, "indentNo", e.target.value)}
-                          style={{ color: row.indentNo === 'Direct' ? '#64748b' : '#4f46e5', fontWeight: 600 }}
+                          style={{ color: '#4f46e5', fontWeight: 600 }}
                         >
                           <option value="">— Select —</option>
-                          <option value="Direct">Direct</option>
                           {uniqueIndentNos.map(no => (
                             <option key={no} value={no}>{no}</option>
                           ))}
@@ -771,18 +819,13 @@ export default function PurchaseOrderPage() {
                           value={row.indentDetailId || row.itemId}
                           onChange={e => {
                             const val = e.target.value;
-                            if (row.indentNo === "Direct") updateDetail(idx, "itemId", val);
-                            else updateDetail(idx, "indentDetailId", val);
+                            updateDetail(idx, "indentDetailId", e.target.value);
                           }}
                         >
                           <option value="">— Select Item —</option>
-                          {row.indentNo === "Direct" ? (
-                            items.map(it => <option key={sid(it)} value={sid(it)}>{it.itemName}</option>)
-                          ) : (
-                            indentDetailOptions.filter(o => o.indentNo === row.indentNo).map(o => (
-                              <option key={o.detailId} value={o.detailId}>{o.itemName}</option>
-                            ))
-                          )}
+                          {indentDetailOptions.filter(o => o.indentNo === row.indentNo).map(o => (
+                            <option key={o.detailId} value={o.detailId}>{o.itemName}</option>
+                          ))}
                         </select>
                       </td>
                       <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
@@ -911,6 +954,31 @@ export default function PurchaseOrderPage() {
                 )}
               </div>
             </div>
+
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
+                <div className="inv-field-v">
+                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
+                  <input 
+                    className="inv-input" 
+                    value={header.preparedBy || ""} 
+                    onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
+                    placeholder="Name of person preparing this PO"
+                  />
+                </div>
+                <div className="inv-field-v">
+                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Remarks & Special Instructions</label>
+                  <textarea
+                    className="inv-input"
+                    style={{ height: 40, resize: "none", fontSize: "13px", padding: "12px" }}
+                    value={header.remarks || ""}
+                    onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))}
+                    placeholder="Enter any specific terms, instructions or internal notes..."
+                  />
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>

@@ -1,10 +1,18 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "../../context/AuthContext";
 import { purchaseIndentApi, inventoryHeadApi, mainCategoryApi, itemApi, departmentApi } from "../../services/inventoryApi";
 import Modal from "../../components/Modal";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const today = () => new Date().toISOString().split("T")[0];
+const getFY = () => {
+  const d = new Date();
+  const m = d.getMonth() + 1;
+  const y = d.getFullYear();
+  return m < 4 ? `${y - 1}-${y}` : `${y}-${y + 1}`;
+};
+
 const sid = (v) => {
   if (!v) return "";
   if (typeof v === "object") return String(v.id || v._id || "");
@@ -26,7 +34,8 @@ const emptyDetail = () => ({
 });
 
 const emptyHeader = () => ({
-  indentNo: "", date: today(), departmentId: "", departmentName: "", createdBy: "Admin", createdOn: today(), status: "Open", remarks: ""
+  indentNo: "", date: today(), departmentId: "", departmentName: "", createdBy: "Admin", createdOn: today(), status: "Open", remarks: "",
+  preparedBy: ""
 });
 
 const FormGrid = ({ children }) => (
@@ -43,6 +52,7 @@ const Field = ({ label, children, horizontal = true }) => (
 // Print functionality removed per user request
 
 export default function PurchaseIndentPage() {
+  const { user } = useAuth();
   const [departments, setDepartments] = useState([]);
   const [heads, setHeads] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -56,6 +66,8 @@ export default function PurchaseIndentPage() {
   const [header, setHeader] = useState(emptyHeader());
   const [details, setDetails] = useState([emptyDetail()]);
   const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -80,7 +92,8 @@ export default function PurchaseIndentPage() {
   }
 
   async function openNew() {
-    setHeader(emptyHeader()); setDetails([emptyDetail()]); setEditId(null); setView("form");
+    setHeader({ ...emptyHeader(), preparedBy: user?.name || "Admin" }); 
+    setDetails([emptyDetail()]); setEditId(null); setView("form");
     try { const { indentNo } = await purchaseIndentApi.getNextNumber(); if (indentNo) setHeader(h => ({ ...h, indentNo })); } catch (e) { }
   }
 
@@ -88,7 +101,8 @@ export default function PurchaseIndentPage() {
     setEditId(sid(indent));
     setHeader({
       indentNo: indent.indentNo, date: indent.date, departmentId: sid(indent.departmentId), departmentName: indent.departmentName,
-      createdBy: indent.createdBy, remarks: indent.remarks || "", status: indent.status || "Open"
+      createdBy: indent.createdBy, remarks: indent.remarks || "", status: indent.status || "Open",
+      preparedBy: indent.preparedBy || ""
     });
     setDetails(safeDetails(indent.details).map(d => ({
       ...d, _rowId: Math.random(), inventoryHeadId: sid(d.inventoryHeadId), mainCategoryId: sid(d.mainCategoryId), itemId: sid(d.itemId)
@@ -143,19 +157,38 @@ export default function PurchaseIndentPage() {
   const totalQty = details.reduce((s, r) => s + Number(r.indentQty || 0), 0);
 
   if (view === "list") {
+    const filteredIndents = indents.filter(ind => ind.indentNo.toLowerCase().includes(searchTerm.toLowerCase()));
     return (
       <div className="inv-page">
         <div className="inv-page-header">
           <div><h1 className="inv-page-title">Purchase Indents</h1><p className="inv-page-sub">Manage material indent requests</p></div>
           <button className="inv-btn-primary" onClick={openNew}>+ New Indent</button>
         </div>
+
+        <div className="inv-card" style={{ marginBottom: 16 }}>
+          <div className="inv-card-body">
+            <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
+              <label className="inv-label">Search Indent No</label>
+              <input 
+                className="inv-input" 
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)} 
+                placeholder="Type to search Indent Number..." 
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="inv-card">
           <table className="inv-table">
             <thead>
               <tr><th>#</th><th>Indent No</th><th>Date</th><th>Department</th><th>Requested By</th><th>Items</th><th>Total Qty</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {indents.map((indent, i) => (
+              {filteredIndents.length === 0 && (
+                <tr><td colSpan={9} className="inv-empty">No records found</td></tr>
+              )}
+              {filteredIndents.map((indent, i) => (
                 <tr key={sid(indent)}>
                   <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
                   <td style={{ fontWeight: 600, color: "var(--accent)" }}>{indent.indentNo}</td><td>{indent.date}</td><td>{indent.departmentName}</td><td>{indent.createdBy}</td>
@@ -177,6 +210,7 @@ export default function PurchaseIndentPage() {
     );
   }
 
+
   return (
     <div className="inv-page">
       <div className="inv-page-header">
@@ -195,7 +229,9 @@ export default function PurchaseIndentPage() {
             <div className="inv-section-label">Header</div>
             <FormGrid>
               <Field label="Indent No (Auto)"><input className="inv-input" value={header.indentNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} /></Field>
+              <Field label="Financial Year"><input className="inv-input" value={getFY()} readOnly style={{ background: "#f8f9fa", color: "#64748b" }} /></Field>
               <Field label="Date"><input className="inv-input" type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} /></Field>
+
               <Field label="Department *">
                 <select className="inv-input" value={header.departmentId} onChange={e => {
                   const d = departments.find(x => sid(x) === e.target.value);
@@ -303,6 +339,31 @@ export default function PurchaseIndentPage() {
                 </div>
               </div>
             </div>
+
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
+                <div className="inv-field-v">
+                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
+                  <input 
+                    className="inv-input" 
+                    value={header.preparedBy || ""} 
+                    onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
+                    placeholder="Name of preparer"
+                  />
+                </div>
+                <div className="inv-field-v">
+                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Indent Remarks</label>
+                  <textarea
+                    className="inv-input"
+                    style={{ height: 40, resize: "none", fontSize: "13px", padding: "12px" }}
+                    value={header.remarks || ""}
+                    onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))}
+                    placeholder="Enter any special notes or justification for this indent..."
+                  />
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>

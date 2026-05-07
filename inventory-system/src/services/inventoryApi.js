@@ -161,7 +161,17 @@ export const grnApi = {
 
 export const consumptionIssueApi = {
   getAll: (p = {}) => request(`/consumption-issues${qs(p)}`),
+  getNextNumber: () => request("/consumption-issues/next-no"),
   create: (body) => request("/consumption-issues", { method: "POST", body: j(body) }),
   update: (id, b) => request(`/consumption-issues/${id}`, { method: "PUT", body: j(b) }),
   remove: (id) => request(`/consumption-issues/${id}`, { method: "DELETE" }),
 };
+
+export const openingStockApi = {
+  getAll: (p = {}) => request(`/opening-stocks${qs(p)}`),
+  getNextNumber: () => request("/opening-stocks/next-number"),
+  create: (body) => request("/opening-stocks", { method: "POST", body: j(body) }),
+  update: (id, b) => request(`/opening-stocks/${id}`, { method: "PUT", body: j(b) }),
+  remove: (id) => request(`/opening-stocks/${id}`, { method: "DELETE" }),
+};
+

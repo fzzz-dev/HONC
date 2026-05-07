@@ -31,6 +31,7 @@ import ItemPriceListPage from "./pages/ProcessMasterPage/ItemPriceListPage";
 import PurchaseOrderPage from "./pages/ProcessMasterPage/PurchaseOrderPage";
 import PurchaseGRNPage from "./pages/ProcessMasterPage/PurchaseGRNPage";
 import ConsumptionIssuePage from "./pages/ProcessMasterPage/ConsumptionIssuePage";
+import OpeningStockPage from "./pages/ProcessMasterPage/OpeningStockPage";
 
 import "./index.css";
 
@@ -91,6 +92,7 @@ export default function App() {
                 <Route path="/purchase-order" element={<PurchaseOrderPage />} />
                 <Route path="/purchase-grn" element={<PurchaseGRNPage />} />
                 <Route path="/consumption-issue" element={<ConsumptionIssuePage />} />
+                <Route path="/opening-stock" element={<OpeningStockPage />} />
 
                 <Route path="*" element={<Navigate to="/inv-head" replace />} />
               </Routes>

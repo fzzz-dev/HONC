@@ -6,24 +6,35 @@ const { Op } = require("sequelize");
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-/** Generate next PO number:  PO-YYYY-001 */
+function getFinancialYear() {
+  const today = new Date();
+  const month = today.getMonth() + 1;
+  const year = today.getFullYear();
+  if (month < 4) return `${year - 1}-${year}`;
+  return `${year}-${year + 1}`;
+}
+
+/** Generate next PO number: PO/0001/2026-2027 */
 async function generatePoNo() {
-  const year = new Date().getFullYear();
-  const prefix = `PO-${year}-`;
+  const fy = getFinancialYear();
+  const prefix = "PO/";
   const last = await PurchaseOrder.findOne({
     where: {
-      poNo: { [Op.like]: `${prefix}%` }
+      poNo: { [Op.like]: `${prefix}%/${fy}` }
     },
     order: [["poNo", "DESC"]]
   });
 
   let seq = 1;
   if (last) {
-    const match = last.poNo.match(/^PO-\d{4}-(\d+)$/);
-    if (match) seq = parseInt(match[1], 10) + 1;
+    const parts = last.poNo.split("/");
+    if (parts.length === 3) {
+      seq = parseInt(parts[1], 10) + 1;
+    }
   }
-  return `${prefix}${String(seq).padStart(3, "0")}`;
+  return `${prefix}${String(seq).padStart(4, "0")}/${fy}`;
 }
+
 
 /** Recalculate computed fields for a single detail row. */
 function calcDetail(d, gstEnabled, gstType) {

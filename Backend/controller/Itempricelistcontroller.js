@@ -21,6 +21,15 @@ class ItemPriceListController {
     return `${prefix}${String(nextNum).padStart(3, "0")}`;
   }
 
+  static async getNextNumber(req, res) {
+    try {
+      const listNo = await ItemPriceListController.generateListNo();
+      res.json({ success: true, data: { listNo } });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
   static async create(req, res) {
     try {
       const { supplierId, date, details, validFrom, validTo, notes } = req.body;
