@@ -376,9 +376,9 @@ export default function PurchaseOrderPage() {
   const [gstEnabled, setGstEnabled] = useState(true);
   const [gstType, setGstType] = useState("");
   const [loadingList, setLoadingList] = useState(true);
-  const [setLoadingSuppliers] = useState(false);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [formError, setFormError] = useState(null);
-  const [setListError] = useState(null);
+  const [listError, setListError] = useState(null);
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [pendingSelected, setPendingSelected] = useState(new Set());
   const [saveToast, setSaveToast] = useState("");

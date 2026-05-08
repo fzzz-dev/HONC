@@ -108,6 +108,11 @@ async function ensureSchemaEnhancements() {
       ["PurchaseOrders", "deliveryDate", "ADD COLUMN `deliveryDate` DATE NULL"],
       ["PurchaseOrders", "purchaseIndentId", "ADD COLUMN `purchaseIndentId` INT NULL"],
       ["PurchaseOrders", "purchaseIndentNo", "ADD COLUMN `purchaseIndentNo` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["PurchaseIndents", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
+      ["PurchaseIndents", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
+      ["PurchaseGRNs", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
+      ["PurchaseGRNs", "totalAmount", "ADD COLUMN `totalAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["PurchaseGRNs", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
     ];
     for (const [table, col, ddl] of patches) {
       if (!(await columnExists(table, col))) {
