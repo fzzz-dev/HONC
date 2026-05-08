@@ -289,7 +289,7 @@ export default function PurchaseGRNPage() {
           <th style="width: 60px;">UOM</th>
           <th style="width: 80px;">PO Qty</th>
           <th style="width: 80px;">Recd Qty</th>
-          <th style="width: 80px;">Rate</th>
+          <th style="width: 80px;">Unit Price</th>
           <th style="width: 100px;">Amount</th>
         </tr>
       </thead>
@@ -690,7 +690,7 @@ export default function PurchaseGRNPage() {
                   <th>PO No</th>
                   <th>Item Name</th>
                   <th>Bal Qty</th>
-                  <th>Rate</th>
+                  <th>Unit Price</th>
                 </tr>
               </thead>
               <tbody>
@@ -814,12 +814,12 @@ export default function PurchaseGRNPage() {
                   {header.grnType !== "General" && <th>Po no</th>}
                   <th>Item Name</th>
                   {header.grnType !== "General" && <th>Po qty</th>}
-                  {header.grnType !== "General" && <th>po rate</th>}
+                  {header.grnType !== "General" && <th>po unit price</th>}
                   <th>GRN qty</th>
                   <th>Batch</th>
                   {header.grnType !== "General" && <th>balance qty</th>}
                   {header.grnType !== "General" && <th>phy qty</th>}
-                  <th>Rate</th>
+                  <th>Unit Price</th>
                   <th>Disc</th>
                   <th>GST%</th>
                   {header.gstType === 'other' ? (

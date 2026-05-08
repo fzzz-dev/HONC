@@ -344,7 +344,7 @@ export default function OpeningStockPage() {
                   <th>Material Category</th>
                   <th>Item Name</th>
                   <th style={{ width: 120 }}>Qty</th>
-                  <th style={{ width: 120 }}>Rate</th>
+                  <th style={{ width: 120 }}>Unit Price</th>
                   <th style={{ width: 140 }}>Amount</th>
                   <th></th>
                 </tr>

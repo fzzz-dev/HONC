@@ -488,7 +488,7 @@ export default function ItemPriceListPage() {
                   <th>#</th>
                   <th style={{ minWidth: 140 }}>Item Category</th>
                   <th style={{ minWidth: 160 }}>Item Name</th>
-                  <th style={{ minWidth: 90 }}>Price</th>
+                  <th style={{ minWidth: 90 }}>Unit Price</th>
                   <th style={{ minWidth: 70 }}>Disc %</th>
                   <th style={{ minWidth: 70 }}>GST %</th>
                   <th style={{ minWidth: 120 }}>From Date</th>

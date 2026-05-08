@@ -496,9 +496,9 @@ export default function ConsumptionIssuePage() {
                   <th>Item Name</th>
                   <th>GRN No</th>
                   <th>Stk Qty</th>
-                  <th>Stk Rate</th>
+                  <th>Stk Unit Price</th>
                   <th>Issue Qty</th>
-                  <th>Rate</th>
+                  <th>Unit Price</th>
                   <th>Amount</th>
                   <th>Remarks</th>
                   <th></th>

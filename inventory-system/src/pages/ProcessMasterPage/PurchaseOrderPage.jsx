@@ -260,7 +260,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
           <th style="width: 6%;">TAX%</th>
           <th style="width: 7%;">UOM</th>
           <th style="width: 10%;">QUANTITY</th>
-          <th style="width: 13%;">RATE</th>
+          <th style="width: 13%;">UNIT PRICE</th>
           <th style="width: 15%; border-right: none;">VALUE</th>
         </tr>
       </thead>
@@ -803,7 +803,7 @@ export default function PurchaseOrderPage() {
                     <th style={{ width: 80 }}>UOM</th>
                     <th style={{ width: 80, textAlign: "right" }}>Bal</th>
                     <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
-                    <th style={{ width: 100, textAlign: "right" }}>Rate</th>
+                    <th style={{ width: 100, textAlign: "right" }}>Unit Price</th>
                     <th style={{ width: 100, textAlign: "right" }}>Disc</th>
                     <th style={{ width: 110, textAlign: "right" }}>PO Amt</th>
                     {gstEnabled && <>

@@ -435,7 +435,7 @@ export default function ItemPage() {
                 <th>Spec</th>
                 <th>Movement</th>
                 <th>Description</th>
-                <th>Rate</th>
+                <th>Unit Price</th>
                 <th>Active</th>
                 <th>Actions</th>
               </tr>
@@ -701,7 +701,7 @@ export default function ItemPage() {
             </Field>
           </FormGrid>
           <FormGrid>
-            <Field label="Rate (₹)">
+            <Field label="Unit Price (₹)">
               <Input
                 type="number"
                 value={form.rate}
