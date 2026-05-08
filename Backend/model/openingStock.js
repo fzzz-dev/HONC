@@ -32,9 +32,17 @@ const OpeningStock = sequelize.define("OpeningStock", {
     type: DataTypes.STRING,
     allowNull: true,
   },
-  details: {
-    type: DataTypes.JSON,
-    defaultValue: [],
+  totalQty: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0,
+  },
+  totalAmount: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0,
+  },
+  totalItems: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
   },
   remarks: {
     type: DataTypes.TEXT,

@@ -1,4 +1,5 @@
 const PurchaseOrder = require("../model/purchaseOrder");
+const PurchaseOrderDetail = require("../model/purchaseOrderDetail");
 const PurchaseIndent = require("../model/purchaseIndent");
 const Supplier = require("../model/supplier");
 const PaymentTerm = require("../model/paymentTerm");
@@ -10,8 +11,8 @@ function getFinancialYear() {
   const today = new Date();
   const month = today.getMonth() + 1;
   const year = today.getFullYear();
-  if (month < 4) return `${year - 1}-${year}`;
-  return `${year}-${year + 1}`;
+  if (month < 4) return `${(year - 1).toString().slice(-2)}-${year.toString().slice(-2)}`;
+  return `${year.toString().slice(-2)}-${(year + 1).toString().slice(-2)}`;
 }
 
 /** Generate next PO number: PO/0001/2026-2027 */
@@ -93,6 +94,7 @@ exports.getIndentsForPO = async (req, res) => {
   try {
     const indents = await PurchaseIndent.findAll({
       where: { status: "Open" },
+      include: ["details"],
       order: [["indentNo", "ASC"]],
     });
     res.json(indents);
@@ -117,6 +119,7 @@ exports.getSuppliersForPO = async (req, res) => {
 exports.getAll = async (req, res) => {
   try {
     const pos = await PurchaseOrder.findAll({
+      include: ["details"],
       order: [["createdAt", "DESC"]],
     });
     res.json(pos);
@@ -128,7 +131,9 @@ exports.getAll = async (req, res) => {
 // ─── GET /api/purchase-orders/:id ────────────────────────────────────────────
 exports.getOne = async (req, res) => {
   try {
-    const po = await PurchaseOrder.findByPk(req.params.id);
+    const po = await PurchaseOrder.findByPk(req.params.id, {
+      include: ["details"]
+    });
     if (!po) return res.status(404).json({ message: "PO not found" });
     res.json(po);
   } catch (err) {
@@ -177,6 +182,20 @@ exports.create = async (req, res) => {
     }
 
     const computedDetails = details.map((d) => calcDetail(d, gstEnabled, gstType));
+    
+    // Calculate summaries
+    let grossAmount = 0, discAmount = 0, poAmount = 0, igstAmount = 0, cgstAmount = 0, sgstAmount = 0, netAmount = 0;
+    computedDetails.forEach(d => {
+      const qty = Number(d.poQty || 0);
+      const rate = Number(d.poRate || 0);
+      grossAmount += qty * rate;
+      discAmount += Number(d.discPrice || 0);
+      poAmount += Number(d.poAmount || 0);
+      igstAmount += Number(d.igst || 0);
+      cgstAmount += Number(d.cgst || 0);
+      sgstAmount += Number(d.sgst || 0);
+      netAmount += Number(d.totalAmount || 0);
+    });
 
     const po = await PurchaseOrder.create({
       poNo,
@@ -191,8 +210,16 @@ exports.create = async (req, res) => {
       createdOn,
       status,
       remarks,
+      grossAmount,
+      discAmount,
+      poAmount,
+      igstAmount,
+      cgstAmount,
+      sgstAmount,
+      netAmount,
+      totalItems: computedDetails.length,
       details: computedDetails,
-    });
+    }, { include: ["details"] });
 
     res.status(201).json(po);
   } catch (err) {
@@ -243,6 +270,19 @@ exports.update = async (req, res) => {
 
     const computedDetails = details.map((d) => calcDetail(d, gstEnabled, gstType));
 
+    let grossAmount = 0, discAmount = 0, poAmount = 0, igstAmount = 0, cgstAmount = 0, sgstAmount = 0, netAmount = 0;
+    computedDetails.forEach(d => {
+      const qty = Number(d.poQty || 0);
+      const rate = Number(d.poRate || 0);
+      grossAmount += qty * rate;
+      discAmount += Number(d.discPrice || 0);
+      poAmount += Number(d.poAmount || 0);
+      igstAmount += Number(d.igst || 0);
+      cgstAmount += Number(d.cgst || 0);
+      sgstAmount += Number(d.sgst || 0);
+      netAmount += Number(d.totalAmount || 0);
+    });
+
     await po.update({
       poNo,
       date,
@@ -256,10 +296,27 @@ exports.update = async (req, res) => {
       createdOn,
       status,
       remarks,
-      details: computedDetails,
+      grossAmount,
+      discAmount,
+      poAmount,
+      igstAmount,
+      cgstAmount,
+      sgstAmount,
+      netAmount,
+      totalItems: computedDetails.length,
     });
-
-    res.json(po);
+    
+    await PurchaseOrderDetail.destroy({ where: { purchaseOrderId: po.id } });
+    if (computedDetails && computedDetails.length > 0) {
+      const detailsToCreate = computedDetails.map(d => {
+        const { id, _id, ...rest } = d;
+        return { ...rest, purchaseOrderId: po.id };
+      });
+      await PurchaseOrderDetail.bulkCreate(detailsToCreate);
+    }
+    
+    const updatedPo = await PurchaseOrder.findByPk(req.params.id, { include: ["details"] });
+    res.json(updatedPo);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

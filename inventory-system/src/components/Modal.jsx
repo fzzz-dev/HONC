@@ -100,19 +100,19 @@ export default function Modal({
           <div style={styles.actions}>
             <button
               type="button"
-              className="inv-btn-primary inv-save-btn"
-              onClick={onSave}
-              disabled={primaryDisabled}
-            >
-              {saving ? "Saving…" : saveLabel}
-            </button>
-            <button
-              type="button"
               className="inv-btn-ghost"
               onClick={onClose}
               disabled={primaryDisabled}
             >
               Cancel
+            </button>
+            <button
+              type="button"
+              className="inv-btn-primary inv-save-btn"
+              onClick={onSave}
+              disabled={primaryDisabled}
+            >
+              {saving ? "Saving…" : saveLabel}
             </button>
             <button
               type="button"

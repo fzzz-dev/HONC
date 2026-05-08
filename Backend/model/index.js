@@ -20,10 +20,16 @@ const PurchaseOrder = require("./purchaseOrder");
 const PurchaseGRN = require("./purchaseGRN");
 const ConsumptionIssue = require("./consumptionIssue");
 const OpeningStock = require("./openingStock");
+const OpeningStockDetail = require("./openingStockDetail");
 const Company = require("./company");
 const User = require("./User");
 const Role = require("./Role");
 const Permission = require("./Permission");
+
+const PurchaseIndentDetail = require("./purchaseIndentDetail");
+const PurchaseOrderDetail = require("./purchaseOrderDetail");
+const PurchaseGRNDetail = require("./purchaseGRNDetail");
+const ConsumptionIssueDetail = require("./consumptionIssueDetail");
 
 // Associations
 State.belongsTo(Country, { foreignKey: "countryId", as: "country" });
@@ -38,12 +44,26 @@ InventoryHead.hasMany(MainCategory, { foreignKey: "headId" });
 Process.belongsTo(Department, { foreignKey: "departmentId", as: "department" });
 Department.hasMany(Process, { foreignKey: "departmentId" });
 
-// PO/Indent/GRN usually use JSON or plain IDs for simplicity in this migration,
-// but we can define some basic ones if needed.
+// Associations for Purchase / Inventory Modules
+PurchaseIndent.hasMany(PurchaseIndentDetail, { as: "details", foreignKey: "purchaseIndentId", onDelete: "CASCADE" });
+PurchaseIndentDetail.belongsTo(PurchaseIndent, { foreignKey: "purchaseIndentId" });
+
+PurchaseOrder.hasMany(PurchaseOrderDetail, { as: "details", foreignKey: "purchaseOrderId", onDelete: "CASCADE" });
+PurchaseOrderDetail.belongsTo(PurchaseOrder, { foreignKey: "purchaseOrderId" });
+
+PurchaseGRN.hasMany(PurchaseGRNDetail, { as: "details", foreignKey: "purchaseGRNId", onDelete: "CASCADE" });
+PurchaseGRNDetail.belongsTo(PurchaseGRN, { foreignKey: "purchaseGRNId" });
+
+ConsumptionIssue.hasMany(ConsumptionIssueDetail, { as: "details", foreignKey: "consumptionIssueId", onDelete: "CASCADE" });
+ConsumptionIssueDetail.belongsTo(ConsumptionIssue, { foreignKey: "consumptionIssueId" });
+
+OpeningStock.hasMany(OpeningStockDetail, { as: "details", foreignKey: "openingStockId", onDelete: "CASCADE" });
+OpeningStockDetail.belongsTo(OpeningStock, { foreignKey: "openingStockId" });
 
 module.exports = {
   sequelize,
   Country, State, City, InventoryHead, Item, Department, Store, Process,
   Uom, Make, Spec, SupplierType, Supplier, MainCategory, ItemPriceList,
-  PurchaseIndent, PurchaseOrder, PaymentTerm, PurchaseGRN, ConsumptionIssue, OpeningStock, User, Role, Permission, Company
+  PurchaseIndent, PurchaseIndentDetail, PurchaseOrder, PurchaseOrderDetail, PaymentTerm, 
+  PurchaseGRN, PurchaseGRNDetail, ConsumptionIssue, ConsumptionIssueDetail, OpeningStock, OpeningStockDetail, User, Role, Permission, Company
 };

@@ -1,4 +1,5 @@
 const PurchaseIndent = require("../model/purchaseIndent");
+const PurchaseIndentDetail = require("../model/purchaseIndentDetail");
 const { Op } = require("sequelize");
 
 const TODAY = () => new Date().toISOString().split("T")[0];
@@ -34,6 +35,8 @@ function sanitizeBody(body = {}) {
     status: ["Open", "Closed", "Cancelled"].includes(body.status) ? body.status : "Open",
     remarks: String(body.remarks || ""),
     details: Array.isArray(body.details) ? body.details.map(sanitizeDetail) : [],
+    totalQty: Array.isArray(body.details) ? body.details.reduce((sum, d) => sum + (Number(d.indentQty) || 0), 0) : 0,
+    totalItems: Array.isArray(body.details) ? body.details.length : 0,
   };
 }
 
@@ -42,9 +45,9 @@ function getFinancialYear() {
   const month = today.getMonth() + 1; // 1-12
   const year = today.getFullYear();
   if (month < 4) {
-    return `${year - 1}-${year}`;
+    return `${(year - 1).toString().slice(-2)}-${year.toString().slice(-2)}`;
   }
-  return `${year}-${year + 1}`;
+  return `${year.toString().slice(-2)}-${(year + 1).toString().slice(-2)}`;
 }
 
 // ── Generate next indent number ───────────────────────────────────────────────
@@ -82,6 +85,7 @@ exports.getAll = async (req, res) => {
 
     const indents = await PurchaseIndent.findAll({
       where,
+      include: ["details"],
       order: [["createdAt", "DESC"]],
     });
     res.json({ success: true, data: indents });
@@ -102,7 +106,9 @@ exports.getNextNumber = async (req, res) => {
 // ── GET one ───────────────────────────────────────────────────────────────────
 exports.getOne = async (req, res) => {
   try {
-    const indent = await PurchaseIndent.findByPk(req.params.id);
+    const indent = await PurchaseIndent.findByPk(req.params.id, {
+      include: ["details"]
+    });
     if (!indent)
       return res.status(404).json({ success: false, message: "Indent not found" });
     res.json({ success: true, data: indent });
@@ -119,7 +125,7 @@ exports.create = async (req, res) => {
     if (!body.departmentId)
       return res.status(400).json({ success: false, message: "Department is required" });
 
-    const indent = await PurchaseIndent.create(body);
+    const indent = await PurchaseIndent.create(body, { include: ["details"] });
     res.status(201).json({ success: true, data: indent });
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError')
@@ -137,8 +143,22 @@ exports.update = async (req, res) => {
       return res.status(404).json({ success: false, message: "Indent not found" });
 
     const body = sanitizeBody(req.body);
+    
+    // Update header
     await indent.update(body);
-    res.json({ success: true, data: indent });
+    
+    // Replace details
+    await PurchaseIndentDetail.destroy({ where: { purchaseIndentId: indent.id } });
+    if (body.details && body.details.length > 0) {
+      const detailsToCreate = body.details.map(d => {
+        const { id, ...rest } = d; // Remove provided ID to let autoIncrement handle it
+        return { ...rest, purchaseIndentId: indent.id };
+      });
+      await PurchaseIndentDetail.bulkCreate(detailsToCreate);
+    }
+
+    const updatedIndent = await PurchaseIndent.findByPk(req.params.id, { include: ["details"] });
+    res.json({ success: true, data: updatedIndent });
   } catch (err) {
     console.error("❌ update indent error:", err);
     res.status(400).json({ success: false, message: err.message });

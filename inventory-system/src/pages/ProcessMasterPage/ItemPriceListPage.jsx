@@ -407,7 +407,7 @@ export default function ItemPriceListPage() {
       {/* Header */}
       <div className="inv-card">
         <div className="inv-card-body">
-          <div className="inv-section-label">Header</div>
+
           <div className="inv-form-row cols-4">
             <div className="inv-field">
               <label className="inv-label">List No (Auto)</label>
@@ -470,13 +470,10 @@ export default function ItemPriceListPage() {
             style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
+              justifyContent: "flex-end",
               marginBottom: 10,
             }}
           >
-            <div className="inv-section-label" style={{ marginBottom: 0 }}>
-              Detail
-            </div>
             <button
               className="inv-btn-secondary inv-btn-sm"
               onClick={() => setDetails((p) => [...p, emptyDetail()])}
@@ -648,7 +645,7 @@ export default function ItemPriceListPage() {
       {/* Summary */}
       <div className="inv-card">
         <div className="inv-card-body">
-          <div className="inv-section-label">Summary</div>
+
           <div className="inv-summary-grid">
             <div className="inv-summary-box">
               <div className="inv-summary-box-label">Supplier</div>

@@ -12,6 +12,14 @@ import {
 } from "../../services/inventoryApi";
 import Modal from "../../components/Modal";
 
+const FormGrid = ({ children }) => <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>{children}</div>;
+const Field = ({ label, children, horizontal = true }) => (
+  <div className={`inv-field ${horizontal ? 'inv-field-h' : ''}`}>
+    <label className="inv-label">{label}</label>
+    <div className="inv-field-content" style={{ flex: 1 }}>{children}</div>
+  </div>
+);
+
 const emptyDetail = () => ({
   _rowId: Date.now() + Math.random(),
   indentNo: "",
@@ -104,6 +112,7 @@ export default function PurchaseGRNPage() {
   const [header, setHeader] = useState({
     grnNo: "",
     date: today,
+    grnType: "Against PO",
     supplierId: "",
     supplierName: "",
     storeId: "",
@@ -157,6 +166,7 @@ export default function PurchaseGRNPage() {
     setHeader({
       grnNo: "",
       date: today,
+      grnType: "Against PO",
       supplierId: "",
       supplierName: "",
       storeId: "",
@@ -180,6 +190,7 @@ export default function PurchaseGRNPage() {
     setHeader({
       grnNo: rec.grnNo,
       date: rec.date,
+      grnType: rec.grnType || "Against PO",
       supplierId: rec.supplierId,
       supplierName: rec.supplierName,
       storeId: rec.storeId,
@@ -262,10 +273,9 @@ export default function PurchaseGRNPage() {
           <div><span class="bold">Invoice Date:</span> ${header.invoiceDate ? new Date(header.invoiceDate).toLocaleDateString("en-GB") : ""}</div>
         </td>
         <td style="width: 50%;">
-          <div style="margin-bottom: 8px;"><span class="bold">GRN Number:</span> <span style="font-size: 12px;" class="bold">${esc(header.grnNo)}</span></div>
-          <div style="margin-bottom: 8px;"><span class="bold">GRN Date:</span> ${new Date(header.date).toLocaleDateString("en-GB")}</div>
-          <div style="margin-bottom: 8px;"><span class="bold">Financial Year:</span> ${getFY()}</div>
-          <div style="margin-bottom: 8px;"><span class="bold">Store / Location:</span> ${esc(header.storeName)}</div>
+          <div style={{ marginBottom: "8px" }}><span className="bold">GRN Number:</span> <span style={{ fontSize: "12px" }} className="bold">{header.grnNo}</span></div>
+          <div style={{ marginBottom: "8px" }}><span className="bold">GRN Date:</span> {new Date(header.date).toLocaleDateString("en-GB")}</div>
+          <div style={{ marginBottom: "8px" }}><span className="bold">Store / Location:</span> {header.storeName}</div>
         </td>
       </tr>
     </table>
@@ -525,6 +535,27 @@ export default function PurchaseGRNPage() {
       return matchesSearch && matchesSupplier && matchesDate;
     });
 
+    const exportToExcel = () => {
+      const headers = ["GRN No", "Date", "Supplier", "Store", "Total Items", "Total Amount"];
+      const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+      const rows = filteredGrns.map(rec => {
+        let sd = Array.isArray(rec.details) ? rec.details : [];
+        if (!Array.isArray(rec.details) && typeof rec.details === 'string') {
+          try { sd = JSON.parse(rec.details); } catch (e) { }
+        }
+        const amt = sd.reduce((s, d) => s + Number(d.totalAmount || 0), 0);
+        return [rec.grnNo, rec.date, rec.supplierName, rec.storeName, sd.length, amt].map(escapeCsv).join(",");
+      });
+      const csvContent = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "purchase_grns.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
     return (
       <div className="inv-page">
         <div className="inv-page-header">
@@ -532,7 +563,10 @@ export default function PurchaseGRNPage() {
             <h1 className="inv-page-title">Purchase GRN</h1>
             <p className="inv-page-sub">Goods receipt note management</p>
           </div>
-          <button className="inv-btn-primary" onClick={openNew}>+ New GRN</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="inv-btn-secondary" onClick={exportToExcel}>Export to Excel</button>
+            <button className="inv-btn-primary" onClick={openNew}>+ New GRN</button>
+          </div>
         </div>
 
         <div className="inv-card" style={{ marginBottom: 16 }}>
@@ -694,23 +728,22 @@ export default function PurchaseGRNPage() {
 
       <div className="inv-card">
         <div className="inv-card-body">
-          <div className="inv-section-label">Header</div>
-          <div className="inv-form-row cols-4">
-            <div className="inv-field">
-              <label className="inv-label">GRN No (Auto)</label>
-              <input className="inv-input" value={header.grnNo} readOnly style={{ background: "#f8f9fa", color: "#4f46e5", fontWeight: 600 }} />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Financial Year</label>
-              <input className="inv-input" value={getFY()} readOnly style={{ background: "#f8f9fa", color: "#64748b" }} />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">GRN Date</label>
-              <input className="inv-input" type="date" value={header.date} readOnly style={{ background: "#f8f9fa" }} />
-            </div>
 
-            <div className="inv-field">
-              <label className="inv-label">Supplier *</label>
+          <FormGrid>
+            <Field label="GRN No (Auto)">
+              <input className="inv-input" value={header.grnNo} readOnly style={{ background: "#f8f9fa", color: "#4f46e5", fontWeight: 600 }} />
+            </Field>
+            <Field label="GRN Date">
+              <input className="inv-input" type="date" value={header.date} readOnly style={{ background: "#f8f9fa" }} />
+            </Field>
+            <Field label="GRN Type *">
+              <select className="inv-input" value={header.grnType} onChange={(e) => setHeader(h => ({ ...h, grnType: e.target.value }))}>
+                <option value="Against PO">Against PO</option>
+                <option value="General">General</option>
+              </select>
+            </Field>
+
+            <Field label="Supplier *">
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                 <select className="inv-input" style={{ flex: 1 }} value={header.supplierId} onChange={(e) => {
                   const rawId = e.target.value;
@@ -727,10 +760,8 @@ export default function PurchaseGRNPage() {
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
               </div>
-
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Store *</label>
+            </Field>
+            <Field label="Store *">
               <select className="inv-input" value={header.storeId} onChange={(e) => {
                 const st = stores.find(x => String(x.id || x._id) === e.target.value);
                 setHeader(h => ({ ...h, storeId: e.target.value, storeName: st?.name || "" }));
@@ -738,43 +769,39 @@ export default function PurchaseGRNPage() {
                 <option value="">Select store</option>
                 {stores.map(st => <option key={st.id || st._id} value={String(st.id || st._id)}>{st.name}</option>)}
               </select>
-            </div>
-          </div>
-          <div className="inv-form-row cols-4" style={{ marginTop: 12 }}>
-            <div className="inv-field">
-              <label className="inv-label">INV\PDC no</label>
+            </Field>
+            <Field label="INV\PDC no">
               <input className="inv-input" value={header.invoiceNo} onChange={(e) => setHeader(h => ({ ...h, invoiceNo: e.target.value }))} placeholder="Enter Invoice Number" />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">INV\DATE</label>
+            </Field>
+            <Field label="INV\DATE">
               <input className="inv-input" type="date" value={header.invoiceDate} onChange={(e) => setHeader(h => ({ ...h, invoiceDate: e.target.value }))} />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">GST Type</label>
+            </Field>
+            <Field label="GST Type">
               <input 
                 className="inv-input" 
                 value={header.gstType === 'other' ? 'Other State (IGST)' : 'Local (SGST+CGST)'} 
                 readOnly 
                 style={{ background: "#f8f9fa", color: header.gstType === 'other' ? "#7c3aed" : "#10b981", fontWeight: 600 }} 
               />
-            </div>
-          </div>
+            </Field>
+          </FormGrid>
         </div>
       </div>
 
       <div className="inv-card">
         <div className="inv-card-body">
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <div className="inv-section-label">Details</div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
             <div style={{ display: "flex", gap: 8 }}>
-              <button 
-                className="inv-btn-secondary inv-btn-sm" 
-                onClick={openPendingModal} 
-                disabled={!header.supplierId}
-                style={{ opacity: !header.supplierId ? 0.5 : 1, cursor: !header.supplierId ? 'not-allowed' : 'pointer' }}
-              >
-                Pending
-              </button>
+              {header.grnType !== "General" && (
+                <button 
+                  className="inv-btn-secondary inv-btn-sm" 
+                  onClick={openPendingModal} 
+                  disabled={!header.supplierId}
+                  style={{ opacity: !header.supplierId ? 0.5 : 1, cursor: !header.supplierId ? 'not-allowed' : 'pointer' }}
+                >
+                  Pending
+                </button>
+              )}
               <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
             </div>
           </div>
@@ -783,15 +810,15 @@ export default function PurchaseGRNPage() {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Indent no</th>
-                  <th>Po no</th>
+                  {header.grnType !== "General" && <th>Indent no</th>}
+                  {header.grnType !== "General" && <th>Po no</th>}
                   <th>Item Name</th>
-                  <th>Po qty</th>
-                  <th>po rate</th>
+                  {header.grnType !== "General" && <th>Po qty</th>}
+                  {header.grnType !== "General" && <th>po rate</th>}
                   <th>GRN qty</th>
                   <th>Batch</th>
-                  <th>balance qty</th>
-                  <th>phy qty</th>
+                  {header.grnType !== "General" && <th>balance qty</th>}
+                  {header.grnType !== "General" && <th>phy qty</th>}
                   <th>Rate</th>
                   <th>Disc</th>
                   <th>GST%</th>
@@ -811,36 +838,40 @@ export default function PurchaseGRNPage() {
                 {details.map((row, idx) => (
                   <tr key={row._rowId}>
                     <td>{idx + 1}</td>
-                    <td>
-                      <select className="inv-input" style={{ border: "none", width: 80 }} value={row.indentNo} onChange={e => updateDetail(idx, "indentNo", e.target.value)}>
-                        <option value="">—</option>
-                        {indents.map(ind => (
-                          <option key={ind.id} value={ind.indentNo}>{ind.indentNo}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <select 
-                        className="inv-input" 
-                        style={{ border: "none", width: 80, cursor: !header.supplierId ? 'not-allowed' : 'pointer' }} 
-                        value={row.poNo} 
-                        onChange={e => updateDetail(idx, "poNo", e.target.value)}
-                        disabled={!header.supplierId}
-                      >
-                        <option value="">—</option>
-                        {pos.filter(po => !header.supplierId || String(po.supplierId) === String(header.supplierId)).map(po => (
-                          <option key={po.id} value={po.poNo}>{po.poNo}</option>
-                        ))}
-                      </select>
-                    </td>
+                    {header.grnType !== "General" && (
+                      <td>
+                        <select className="inv-input" style={{ border: "none", width: 80 }} value={row.indentNo} onChange={e => updateDetail(idx, "indentNo", e.target.value)}>
+                          <option value="">—</option>
+                          {indents.map(ind => (
+                            <option key={ind.id} value={ind.indentNo}>{ind.indentNo}</option>
+                          ))}
+                        </select>
+                      </td>
+                    )}
+                    {header.grnType !== "General" && (
+                      <td>
+                        <select 
+                          className="inv-input" 
+                          style={{ border: "none", width: 80, cursor: !header.supplierId ? 'not-allowed' : 'pointer' }} 
+                          value={row.poNo} 
+                          onChange={e => updateDetail(idx, "poNo", e.target.value)}
+                          disabled={!header.supplierId}
+                        >
+                          <option value="">—</option>
+                          {pos.filter(po => !header.supplierId || String(po.supplierId) === String(header.supplierId)).map(po => (
+                            <option key={po.id} value={po.poNo}>{po.poNo}</option>
+                          ))}
+                        </select>
+                      </td>
+                    )}
                     <td>
                       <select className="inv-input" style={{ border: "none", width: 130 }} value={row.itemName} onChange={e => updateDetail(idx, "itemName", e.target.value)}>
                         <option value="">Select item</option>
                         {items.map(it => <option key={it.id || it._id} value={it.itemName}>{it.itemName}</option>)}
                       </select>
                     </td>
-                    <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.poQty} readOnly /></td>
-                    <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.poRate} readOnly /></td>
+                    {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.poQty} readOnly /></td>}
+                    {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.poRate} readOnly /></td>}
                     <td><input type="number" className="inv-input" style={{ border: "none", width: 60, textAlign: 'right', fontWeight: 600, color: '#3b6ef8' }} value={row.grnQty} onChange={e => updateDetail(idx, "grnQty", e.target.value)} /></td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -875,8 +906,8 @@ export default function PurchaseGRNPage() {
                         )}
                       </div>
                     </td>
-                    <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.balQty} readOnly /></td>
-                    <td><input type="number" className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.phyQty} onChange={e => updateDetail(idx, "phyQty", e.target.value)} /></td>
+                    {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.balQty} readOnly /></td>}
+                    {header.grnType !== "General" && <td><input type="number" className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.phyQty} onChange={e => updateDetail(idx, "phyQty", e.target.value)} /></td>}
                     <td><input type="number" className="inv-input" style={{ border: "none", width: 60, textAlign: 'right' }} value={row.grnRate} onChange={e => updateDetail(idx, "grnRate", e.target.value)} /></td>
                     <td><input type="number" className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.discPct} onChange={e => updateDetail(idx, "discPct", e.target.value)} /></td>
 
@@ -911,7 +942,7 @@ export default function PurchaseGRNPage() {
 
       <div className="inv-card" style={{ marginTop: 20 }}>
         <div className="inv-card-body">
-          <div className="inv-section-label" style={{ textAlign: 'center', fontSize: 14, letterSpacing: 1 }}>SUMMARY</div>
+
           
           <div className="inv-summary-grid">
             <div className="inv-summary-box" style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}>

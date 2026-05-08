@@ -25,6 +25,17 @@ const fmt = (n) =>
     maximumFractionDigits: 2,
   });
 
+const FormGrid = ({ children }) => (
+  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "12px" }}>{children}</div>
+);
+
+const Field = ({ label, children, horizontal = true }) => (
+  <div className={`inv-field ${horizontal ? 'inv-field-h' : ''}`}>
+    <label className="inv-label">{label}</label>
+    <div className="inv-field-content" style={{ flex: 1 }}>{children}</div>
+  </div>
+);
+
 export default function OpeningStockPage() {
   const { user } = useAuth();
   const today = new Date().toISOString().split("T")[0];
@@ -181,6 +192,25 @@ export default function OpeningStockPage() {
 
   if (view === "list") {
     const filtered = records.filter(r => r.openingNo.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const exportToExcel = () => {
+      const headers = ["Opening No", "Entry Date", "As On Date", "Store", "Total Lines", "Total Qty"];
+      const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+      const rows = filtered.map(rec => {
+        const det = Array.isArray(rec.details) ? rec.details : [];
+        const qty = det.reduce((s, d) => s + Number(d.qty || 0), 0);
+        return [rec.openingNo, rec.date, rec.asOnDate, rec.storeName, det.length, qty].map(escapeCsv).join(",");
+      });
+      const csvContent = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "opening_stock.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
     return (
       <div className="inv-page">
         <div className="inv-page-header">
@@ -188,7 +218,10 @@ export default function OpeningStockPage() {
             <h1 className="inv-page-title">Opening Stock</h1>
             <p className="inv-page-sub">Initial inventory setup</p>
           </div>
-          <button className="inv-btn-primary" onClick={openNew}>+ New Entry</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="inv-btn-secondary" onClick={exportToExcel}>Export to Excel</button>
+            <button className="inv-btn-primary" onClick={openNew}>+ New Entry</button>
+          </div>
         </div>
 
         <div className="inv-card" style={{ marginBottom: 16 }}>
@@ -274,22 +307,18 @@ export default function OpeningStockPage() {
 
       <div className="inv-card">
         <div className="inv-card-body">
-          <div className="inv-section-label">Header</div>
-          <div className="inv-form-row cols-4">
-            <div className="inv-field">
-              <label className="inv-label">Opening No (Auto)</label>
+
+          <FormGrid>
+            <Field label="Opening No (Auto)">
               <input className="inv-input" value={header.openingNo} readOnly style={{ background: "#f8f9fa", color: "#4f46e5", fontWeight: 600 }} />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Entry Date</label>
+            </Field>
+            <Field label="Entry Date">
               <input className="inv-input" type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">As On Date</label>
+            </Field>
+            <Field label="As On Date">
               <input className="inv-input" type="date" value={header.asOnDate} onChange={e => setHeader(h => ({ ...h, asOnDate: e.target.value }))} />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Store</label>
+            </Field>
+            <Field label="Store">
               <select className="inv-input" value={header.storeId} onChange={e => {
                 const s = stores.find(x => String(x.id) === e.target.value);
                 setHeader(h => ({ ...h, storeId: e.target.value, storeName: s?.name || "" }));
@@ -297,15 +326,14 @@ export default function OpeningStockPage() {
                 <option value="">Select Store</option>
                 {stores.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
               </select>
-            </div>
-          </div>
+            </Field>
+          </FormGrid>
         </div>
       </div>
 
       <div className="inv-card">
         <div className="inv-card-body">
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <div className="inv-section-label">Item Details</div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
             <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
           </div>
           <div style={{ overflowX: "auto" }}>
@@ -353,7 +381,7 @@ export default function OpeningStockPage() {
 
       <div className="inv-card" style={{ marginTop: 20 }}>
         <div className="inv-card-body">
-          <div className="inv-section-label">Summary & Authorization</div>
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 24 }}>
             <div className="inv-field-v">
               <label className="inv-label">Total Quantity</label>
@@ -364,12 +392,12 @@ export default function OpeningStockPage() {
               <div style={{ fontSize: 20, fontWeight: 700, color: "var(--accent)" }}>₹{fmt(totals.amount)}</div>
             </div>
             <div className="inv-field-v">
-              <div className="inv-section-label">Prepared By</div>
+
               <input className="inv-input" value={header.preparedBy} onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))} placeholder="Name" />
             </div>
           </div>
           <div className="inv-field-v" style={{ marginTop: 16 }}>
-            <div className="inv-section-label">Remarks</div>
+
             <textarea className="inv-input" style={{ height: 40, resize: "none" }} value={header.remarks} onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))} placeholder="Notes..." />
           </div>
         </div>

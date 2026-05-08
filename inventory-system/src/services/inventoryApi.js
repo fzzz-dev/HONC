@@ -108,6 +108,24 @@ export const supplierApi = {
   create: (body) => request("/suppliers", { method: "POST", body: j(body) }),
   update: (id, b) => request(`/suppliers/${id}`, { method: "PUT", body: j(b) }),
   remove: (id) => request(`/suppliers/${id}`, { method: "DELETE" }),
+  downloadTemplate: async () => {
+    const res = await fetch(`${BASE}/suppliers/template`);
+    if (!res.ok) throw new Error("Failed to download template");
+    return res.blob();
+  },
+  bulkUpload: async (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${BASE}/suppliers/bulk`, {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Bulk upload failed");
+    }
+    return data;
+  },
 };
 
 export const paymentTermsApi = {

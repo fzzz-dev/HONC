@@ -7,29 +7,31 @@ const RolePermissions = () => {
     {
       name: "Master Data",
       items: [
-        { path: "/inv-head", label: "Inventory head" },
-        { path: "/main-cat", label: "Main category" },
+        { path: "/inv-head", label: "Inventory Head" },
+        { path: "/main-cat", label: "Main Category" },
         { path: "/item", label: "Item" },
         { path: "/supplier", label: "Supplier" },
+        { path: "/payment-terms", label: "Payment Terms" },
         { path: "/uom", label: "UOM" },
         { path: "/make", label: "Make" },
-        { path: "/spec", label: "Spec name" },
+        { path: "/spec", label: "Spec Name" },
         { path: "/country", label: "Country" },
         { path: "/state", label: "State" },
         { path: "/city", label: "City" },
-        { path: "/store", label: "Store master" },
-        { path: "/department", label: "Department master" },
-        { path: "/process", label: "Process master" },
+        { path: "/store", label: "Store Master" },
+        { path: "/department", label: "Department Master" },
+        { path: "/process", label: "Process Master" },
       ]
     },
     {
       name: "Transactions",
       items: [
-        { path: "/purchase-indent", label: "Purchase indent" },
-        { path: "/item-price-list", label: "Item price list" },
-        { path: "/purchase-order", label: "Purchase order" },
+        { path: "/purchase-indent", label: "Purchase Indent" },
+        { path: "/item-price-list", label: "Item Price List" },
+        { path: "/purchase-order", label: "Purchase Order" },
         { path: "/purchase-grn", label: "Purchase GRN" },
-        { path: "/consumption-issue", label: "Consumption issue" },
+        { path: "/consumption-issue", label: "Consumption Issue" },
+        { path: "/opening-stock", label: "Opening Stock" },
       ]
     },
     {

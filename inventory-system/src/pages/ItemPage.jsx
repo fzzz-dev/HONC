@@ -348,9 +348,6 @@ export default function ItemPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-primary" onClick={openAdd}>
-            + Add Item
-          </button>
           <button className="inv-btn-ghost" onClick={handleDownloadTemplate}>
             Download Template
           </button>
@@ -367,6 +364,9 @@ export default function ItemPage() {
             style={{ display: "none" }}
             onChange={handleBulkFileChange}
           />
+          <button className="inv-btn-primary" onClick={openAdd}>
+            + Add Item
+          </button>
         </div>
       </div>
 

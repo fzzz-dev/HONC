@@ -44,23 +44,16 @@ const PurchaseIndent = sequelize.define("PurchaseIndent", {
     type: DataTypes.TEXT,
     defaultValue: "",
   },
-  details: {
-    type: DataTypes.JSON,
-    defaultValue: [],
+  totalQty: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0,
   },
+  totalItems: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  }
 }, {
   timestamps: true,
-  hooks: {
-    beforeSave: (indent) => {
-      if (indent.details && Array.isArray(indent.details)) {
-        indent.details.forEach(d => {
-          if (!d.alPoQty || d.alPoQty === 0) {
-            d.balQty = d.indentQty || 0;
-          }
-        });
-      }
-    },
-  },
 });
 
 module.exports = PurchaseIndent;

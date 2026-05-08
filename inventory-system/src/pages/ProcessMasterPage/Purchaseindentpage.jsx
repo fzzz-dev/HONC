@@ -39,7 +39,7 @@ const emptyHeader = () => ({
 });
 
 const FormGrid = ({ children }) => (
-  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>{children}</div>
+  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>{children}</div>
 );
 
 const Field = ({ label, children, horizontal = true }) => (
@@ -158,11 +158,33 @@ export default function PurchaseIndentPage() {
 
   if (view === "list") {
     const filteredIndents = indents.filter(ind => ind.indentNo.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const exportToExcel = () => {
+      const headers = ["Indent No", "Date", "Department", "Requested By", "Status", "Total Items", "Total Qty"];
+      const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+      const rows = filteredIndents.map(ind => {
+        const totalItems = safeDetails(ind.details).length;
+        const totalQty = safeDetails(ind.details).reduce((s, d) => s + Number(d.indentQty || 0), 0);
+        return [ind.indentNo, ind.date, ind.departmentName, ind.createdBy, ind.status, totalItems, totalQty].map(escapeCsv).join(",");
+      });
+      const csvContent = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "purchase_indents.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
     return (
       <div className="inv-page">
         <div className="inv-page-header">
           <div><h1 className="inv-page-title">Purchase Indents</h1><p className="inv-page-sub">Manage material indent requests</p></div>
-          <button className="inv-btn-primary" onClick={openNew}>+ New Indent</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="inv-btn-secondary" onClick={exportToExcel}>Export to Excel</button>
+            <button className="inv-btn-primary" onClick={openNew}>+ New Indent</button>
+          </div>
         </div>
 
         <div className="inv-card" style={{ marginBottom: 16 }}>
@@ -216,8 +238,8 @@ export default function PurchaseIndentPage() {
       <div className="inv-page-header">
         <div><h1 className="inv-page-title">{editId ? "Edit Purchase Indent" : "New Purchase Indent"}</h1><p className="inv-page-sub">Header-Detail-Summary layout</p></div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>Save Indent</button>
           <button className="inv-btn-secondary" onClick={() => setView("list")}>View List</button>
+          <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>Save Indent</button>
         </div>
       </div>
 
@@ -226,10 +248,9 @@ export default function PurchaseIndentPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         <div className="inv-card">
           <div className="inv-card-body">
-            <div className="inv-section-label">Header</div>
+
             <FormGrid>
               <Field label="Indent No (Auto)"><input className="inv-input" value={header.indentNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} /></Field>
-              <Field label="Financial Year"><input className="inv-input" value={getFY()} readOnly style={{ background: "#f8f9fa", color: "#64748b" }} /></Field>
               <Field label="Date"><input className="inv-input" type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} /></Field>
 
               <Field label="Department *">
@@ -248,8 +269,7 @@ export default function PurchaseIndentPage() {
 
         <div className="inv-card" style={{ padding: 0, overflow: "hidden" }}>
           <div className="inv-card-body" style={{ minHeight: "400px", padding: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
-              <div className="inv-section-label" style={{ marginBottom: 0, padding: 0 }}>Item Details</div>
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "16px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
               <button className="inv-btn-primary inv-btn-sm" onClick={addRow} style={{ borderRadius: 4, padding: "5px 12px" }}>+ Add Row</button>
             </div>
             <div style={{ overflowX: "auto" }}>
@@ -310,7 +330,7 @@ export default function PurchaseIndentPage() {
 
         <div className="inv-card">
           <div className="inv-card-body">
-            <div className="inv-section-label">Summary</div>
+
             <div className="inv-summary-grid">
               <div className="inv-summary-box">
                 <div className="inv-summary-box-label">Department</div>

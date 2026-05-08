@@ -16,6 +16,10 @@ const PurchaseGRN = sequelize.define("PurchaseGRN", {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  grnType: {
+    type: DataTypes.STRING,
+    defaultValue: "Against PO",
+  },
   supplierId: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -92,10 +96,9 @@ const PurchaseGRN = sequelize.define("PurchaseGRN", {
     type: DataTypes.TEXT,
     defaultValue: "",
   },
-  details: {
-    type: DataTypes.JSON,
-    defaultValue: [],
-  },
+  totalQty: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+  totalAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  totalItems: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, {
   timestamps: true,
   hooks: {

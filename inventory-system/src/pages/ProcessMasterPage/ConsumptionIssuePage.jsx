@@ -8,6 +8,14 @@ import {
   grnApi,
 } from "../../services/inventoryApi";
 
+const FormGrid = ({ children }) => <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>{children}</div>;
+const Field = ({ label, children, horizontal = true }) => (
+  <div className={`inv-field ${horizontal ? 'inv-field-h' : ''}`}>
+    <label className="inv-label">{label}</label>
+    <div className="inv-field-content" style={{ flex: 1 }}>{children}</div>
+  </div>
+);
+
 const emptyDetail = () => ({
   _rowId: Date.now() + Math.random(),
   category: "",
@@ -301,6 +309,29 @@ export default function ConsumptionIssuePage() {
   /* ── LIST ── */
   if (view === "list") {
     const filteredIssues = issues.filter(iss => iss.issNo.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const exportToExcel = () => {
+      const headers = ["ISS No", "Date", "Department", "Store", "Total Items", "Total Qty", "Total Amount"];
+      const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+      const rows = filteredIssues.map(rec => {
+        let sd = Array.isArray(rec.details) ? rec.details : [];
+        if (!Array.isArray(rec.details) && typeof rec.details === 'string') {
+          try { sd = JSON.parse(rec.details); } catch(e) {}
+        }
+        const qty = sd.reduce((s, d) => s + Number(d.issueQty || 0), 0);
+        const amt = sd.reduce((s, d) => s + Number(d.amount || 0), 0);
+        return [rec.issNo, rec.date, rec.departmentName, rec.storeName, sd.length, qty, amt].map(escapeCsv).join(",");
+      });
+      const csvContent = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "consumption_issues.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
     return (
       <div className="inv-page">
         <div className="inv-page-header">
@@ -308,9 +339,12 @@ export default function ConsumptionIssuePage() {
             <h1 className="inv-page-title">Consumption Issue</h1>
             <p className="inv-page-sub">Manage material issue to departments</p>
           </div>
-          <button className="inv-btn-primary" onClick={openNew}>
-            + New Issue
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="inv-btn-secondary" onClick={exportToExcel}>Export to Excel</button>
+            <button className="inv-btn-primary" onClick={openNew}>
+              + New Issue
+            </button>
+          </div>
         </div>
 
         <div className="inv-card" style={{ marginBottom: 16 }}>
@@ -404,40 +438,30 @@ export default function ConsumptionIssuePage() {
 
       <div className="inv-card">
         <div className="inv-card-body">
-          <div className="inv-section-label">Header</div>
-          <div className="inv-form-row cols-4">
-             <div className="inv-field">
-              <label className="inv-label">ISS No (Auto)</label>
-              <input className="inv-input" value={header.issNo} readOnly style={{ background: "#f8f9fa", color: "#4f46e5", fontWeight: 600 }} />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Financial Year</label>
-              <input className="inv-input" value={getFY()} readOnly style={{ background: "#f8f9fa", color: "#64748b" }} />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Issue Date</label>
-              <input className="inv-input" type="date" value={header.date} onChange={(e) => setHeader(h => ({ ...h, date: e.target.value }))} />
-            </div>
 
-            <div className="inv-field">
-              <label className="inv-label">Issue Type</label>
+          <FormGrid>
+            <Field label="ISS No (Auto)">
+              <input className="inv-input" value={header.issNo} readOnly style={{ background: "#f8f9fa", color: "#4f46e5", fontWeight: 600 }} />
+            </Field>
+            <Field label="Issue Date">
+              <input className="inv-input" type="date" value={header.date} onChange={(e) => setHeader(h => ({ ...h, date: e.target.value }))} />
+            </Field>
+
+            <Field label="Issue Type">
               <select className="inv-input" value={header.issueType} onChange={(e) => setHeader(h => ({ ...h, issueType: e.target.value }))}>
                 <option value="General">General</option>
                 <option value="Product">Product</option>
               </select>
-            </div>
+            </Field>
             {header.issueType === "Product" && (
-              <div className="inv-field">
-                <label className="inv-label">Item *</label>
+              <Field label="Item *">
                 <select className="inv-input" value={header.itemId} onChange={(e) => setHeader(h => ({ ...h, itemId: e.target.value }))}>
                   <option value="">Select item</option>
                   {items.map(it => <option key={it.id} value={it.id}>{it.itemName}</option>)}
                 </select>
-              </div>
+              </Field>
             )}
-            <div className="inv-field">
-              <label className="inv-label">Department *</label>
-
+            <Field label="Department *">
               <select className="inv-input" value={header.departmentId} onChange={(e) => {
                 const d = departments.find(x => String(x.id) === e.target.value);
                 setHeader(h => ({ ...h, departmentId: e.target.value, departmentName: d?.name || "" }));
@@ -445,9 +469,8 @@ export default function ConsumptionIssuePage() {
                 <option value="">Select department</option>
                 {departments.map(d => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
               </select>
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">Store *</label>
+            </Field>
+            <Field label="Store *">
               <select className="inv-input" value={header.storeId} onChange={(e) => {
                 const s = stores.find(x => String(x.id) === e.target.value);
                 setHeader(h => ({ ...h, storeId: e.target.value, storeName: s?.name || "" }));
@@ -455,15 +478,14 @@ export default function ConsumptionIssuePage() {
                 <option value="">Select store</option>
                 {stores.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
               </select>
-            </div>
-          </div>
+            </Field>
+          </FormGrid>
         </div>
       </div>
 
       <div className="inv-card">
         <div className="inv-card-body">
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <div className="inv-section-label">Details</div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
             <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
           </div>
           <div style={{ overflowX: "auto" }}>
@@ -529,7 +551,7 @@ export default function ConsumptionIssuePage() {
         <div className="inv-card-body">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
             <div className="inv-field-v">
-              <div className="inv-section-label">Prepared By</div>
+
               <input 
                 className="inv-input" 
                 value={header.preparedBy} 
@@ -538,7 +560,7 @@ export default function ConsumptionIssuePage() {
               />
             </div>
             <div className="inv-field-v">
-              <div className="inv-section-label">Remarks</div>
+
               <textarea 
                 className="inv-input" 
                 style={{ height: 40, resize: "none" }} 

@@ -583,12 +583,12 @@ exports.bulkUpload = async (req, res) => {
 
       const payload = normalizePayload({
         headId: rowField(row, ["headId", "head_id"]),
-        head: rowField(row, HEAD_NAME_ALIASES),
-        group: groupFromFile,
+        head: rowField(row, HEAD_NAME_ALIASES) || "General",
+        group: groupFromFile || "General",
         itemName: rowField(row, ["itemName", "item", "Item Name", "Item", "item_name", "item name", "Description", "description", "Item Description"]),
-        uom: rowField(row, ["uom", "UOM", "unit", "Uom", "Unit"]),
-        make: rowField(row, ["make", "Make", "brand", "Brand", "Manufacturer"]),
-        spec: rowField(row, ["spec", "Spec", "specification", "Specification", "Size"]),
+        uom: rowField(row, ["uom", "UOM", "unit", "Uom", "Unit"]) || "General",
+        make: rowField(row, ["make", "Make", "brand", "Brand", "Manufacturer"]) || "General",
+        spec: rowField(row, ["spec", "Spec", "specification", "Specification", "Size"]) || "General",
         rate: rowField(row, ["rate", "Rate", "price", "Price", "Unit Rate"]),
         active: (() => {
           const a = rowField(row, ["active", "Active"]);

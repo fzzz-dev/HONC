@@ -5,6 +5,19 @@ const Country = require("../model/country");
 const SupplierType = require("../model/supplierType");
 const PaymentTerm = require("../model/paymentTerm");
 const { Op } = require("sequelize");
+const multer = require("multer");
+const XLSX = require("xlsx");
+const path = require("path");
+
+const bulkUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    if (ext === ".xlsx" || ext === ".xls") cb(null, true);
+    else cb(new Error("Only .xlsx or .xls files are allowed"), false);
+  },
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 const PINCODE_IN = /^\d{6}$/;
 
@@ -427,5 +440,169 @@ exports.getSuppliersByType = async (req, res) => {
     res.status(200).json({ success: true, count: suppliers.length, data: suppliers });
   } catch (error) {
     handleError(res, error, "fetching suppliers by type");
+  }
+};
+
+exports.bulkUploadMiddleware = bulkUpload;
+
+exports.downloadTemplate = async (req, res) => {
+  try {
+    const headers = [
+      "supplierName",
+      "shortCode",
+      "type",
+      "active",
+      "gstNo",
+      "panNo",
+      "emailId1",
+      "emailId2",
+      "mobileNo1",
+      "mobileNo2",
+      "gstType",
+      "addressLine1",
+      "addressLine2",
+      "city",
+      "state",
+      "country",
+      "pinCode",
+    ];
+
+    const sampleRow = {
+      supplierName: "Acme Corp",
+      shortCode: "ACME1",
+      type: "Wholesaler",
+      active: "true",
+      gstNo: "29ABCDE1234F1Z5",
+      panNo: "ABCDE1234F",
+      emailId1: "contact@acme.com",
+      emailId2: "",
+      mobileNo1: "9876543210",
+      mobileNo2: "",
+      gstType: "local",
+      addressLine1: "123 Business Rd",
+      addressLine2: "Suite 100",
+      city: "Bangalore",
+      state: "Karnataka",
+      country: "India",
+      pinCode: "560001",
+    };
+
+    const ws = XLSX.utils.json_to_sheet([sampleRow], { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "SuppliersTemplate");
+
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="supplier-bulk-template.xlsx"',
+    );
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Bulk Upload Suppliers
+exports.bulkUploadSuppliers = async (req, res) => {
+  const transaction = await Supplier.sequelize.transaction();
+  try {
+    if (!req.file || !req.file.buffer) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: "Excel file is required" });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false, blankrows: false });
+
+    if (!rows.length) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: "No data rows found in file" });
+    }
+
+    const createdSuppliers = [];
+    const errors = [];
+    
+    for (let idx = 0; idx < rows.length; idx += 1) {
+      const row = rows[idx];
+      const rowNumber = idx + 2;
+      
+      // If missing, default to General
+      if (!row.supplierName) row.supplierName = "General";
+      if (!row.type) row.type = "General";
+
+      // Reconstruct addresses if flat fields are present
+      const addresses = [];
+      if (row.addressLine1 || row.city || row.state) {
+        addresses.push({
+          addressType: "Billing",
+          attention: row.supplierName,
+          address: [row.addressLine1, row.addressLine2].filter(Boolean).join(", "),
+          line1: row.addressLine1 || "",
+          line2: row.addressLine2 || "",
+          cityId: null,
+          cityName: row.city || "",
+          stateId: null,
+          stateName: row.state || "",
+          countryId: null,
+          countryName: row.country || "India",
+          pinCode: row.pinCode || "",
+          phone1: row.mobileNo1 || "",
+          phone2: row.mobileNo2 || "",
+          isPrimary: true,
+        });
+      }
+      row.addresses = addresses;
+
+      const payload = normalizeSupplierPayload(row);
+      const {
+        supplierName, type, active, addresses: payloadAddresses, gstNo, panNo, emailId1, emailId2, mobileNo1, mobileNo2, gstType
+      } = payload;
+      
+      const sc = payload.shortCode || String(supplierName).substring(0, 5).toUpperCase();
+
+      try {
+        const created = await Supplier.create({
+          supplierName,
+          shortCode: sc,
+          type,
+          active: active !== undefined ? active : true,
+          addresses: payloadAddresses || [],
+          gstNo,
+          panNo,
+          emailId1,
+          emailId2,
+          mobileNo1,
+          mobileNo2,
+          gstType,
+        }, { transaction });
+        createdSuppliers.push(created);
+      } catch (err) {
+        errors.push({ row: rowNumber, message: err.message });
+      }
+    }
+
+    if (createdSuppliers.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: "No valid suppliers to import", errors });
+    }
+
+    await transaction.commit();
+    res.status(201).json({ 
+      success: true, 
+      message: `${createdSuppliers.length} suppliers imported successfully`, 
+      insertedCount: createdSuppliers.length,
+      failedCount: errors.length,
+      errors,
+      data: createdSuppliers 
+    });
+  } catch (error) {
+    await transaction.rollback();
+    handleError(res, error, "bulk uploading suppliers");
   }
 };

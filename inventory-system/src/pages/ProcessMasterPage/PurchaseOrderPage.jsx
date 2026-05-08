@@ -122,7 +122,7 @@ const emptyHeader = () => ({
 });
 
 const FormGrid = ({ children }) => (
-  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>{children}</div>
+  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>{children}</div>
 );
 
 const Field = ({ label, children, horizontal = true }) => (
@@ -591,11 +591,32 @@ export default function PurchaseOrderPage() {
 
   if (view === "list") {
     const filteredPos = pos.filter(po => po.poNo.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const exportToExcel = () => {
+      const headers = ["PO No", "Date", "Supplier", "Status", "Total Amount"];
+      const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+      const rows = filteredPos.map(po => {
+        const totalAmt = safeDetails(po.details).reduce((s, d) => s + (d.totalAmount || 0), 0);
+        return [po.poNo, po.date, po.supplierName, po.status, totalAmt].map(escapeCsv).join(",");
+      });
+      const csvContent = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "purchase_orders.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
     return (
       <div className="inv-page">
         <div className="inv-page-header">
           <div><h1 className="inv-page-title">Purchase Orders</h1><p className="inv-page-sub">Manage vendor procurement orders</p></div>
-          <button className="inv-btn-primary" onClick={openNew}>+ New Order</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="inv-btn-secondary" onClick={exportToExcel}>Export to Excel</button>
+            <button className="inv-btn-primary" onClick={openNew}>+ New Order</button>
+          </div>
         </div>
         
         <div className="inv-card" style={{ marginBottom: 16 }}>
@@ -650,9 +671,9 @@ export default function PurchaseOrderPage() {
       <div className="inv-page-header">
         <div><h1 className="inv-page-title">{editId ? "Edit Purchase Order" : "New Purchase Order"}</h1><p className="inv-page-sub">Header-Detail-Summary layout</p></div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>Save Order</button>
           <button className="inv-btn-secondary" onClick={() => setView("list")}>View List</button>
           <button className="inv-btn-ghost" onClick={() => printPurchaseOrder({ header, details, totals, gstEnabled, gstType, company })}>Print</button>
+          <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>Save Order</button>
         </div>
       </div>
 
@@ -675,10 +696,9 @@ export default function PurchaseOrderPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         <div className="inv-card">
           <div className="inv-card-body">
-            <div className="inv-section-label">Header</div>
+
             <FormGrid>
               <Field label="PO No (Auto)"><input className="inv-input" value={header.poNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} /></Field>
-              <Field label="Financial Year"><input className="inv-input" value={getFY()} readOnly style={{ background: "#f8f9fa", color: "#64748b" }} /></Field>
               <Field label="Date"><input className="inv-input" type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} /></Field>
 
               <Field label="PO Type">
@@ -767,8 +787,7 @@ export default function PurchaseOrderPage() {
 
         <div className="inv-card" style={{ padding: 0, overflow: "hidden" }}>
           <div className="inv-card-body" style={{ minHeight: "400px", padding: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
-              <div className="inv-section-label" style={{ marginBottom: 0, padding: 0 }}>Item Details</div>
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "16px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="inv-btn-secondary inv-btn-sm" onClick={() => setPendingModalOpen(true)} style={{ borderRadius: 4 }}>+ Pick Indent</button>
                 <button className="inv-btn-primary inv-btn-sm" onClick={addRow} style={{ borderRadius: 4 }}>+ Add Row</button>
@@ -868,7 +887,7 @@ export default function PurchaseOrderPage() {
         {/* ── Summary card ── */}
         <div className="inv-card">
           <div className="inv-card-body">
-            <div className="inv-section-label">Summary</div>
+
             <div className="inv-summary-grid">
               <div className="inv-summary-box" style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}>
                 <div className="inv-summary-box-label">Gross Amount</div>

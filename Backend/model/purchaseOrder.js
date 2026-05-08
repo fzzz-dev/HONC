@@ -72,10 +72,14 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
     type: DataTypes.TEXT,
     defaultValue: "",
   },
-  details: {
-    type: DataTypes.JSON,
-    defaultValue: [],
-  },
+  grossAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  discAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  poAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  igstAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  cgstAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  sgstAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  netAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  totalItems: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, {
   timestamps: true,
   hooks: {

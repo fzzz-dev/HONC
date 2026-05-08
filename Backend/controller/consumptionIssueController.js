@@ -1,12 +1,13 @@
 const ConsumptionIssue = require("../model/consumptionIssue");
+const ConsumptionIssueDetail = require("../model/consumptionIssueDetail");
 const { Op } = require("sequelize");
 
 function getFinancialYear() {
   const today = new Date();
   const month = today.getMonth() + 1;
   const year = today.getFullYear();
-  if (month < 4) return `${year - 1}-${year}`;
-  return `${year}-${year + 1}`;
+  if (month < 4) return `${(year - 1).toString().slice(-2)}-${year.toString().slice(-2)}`;
+  return `${year.toString().slice(-2)}-${(year + 1).toString().slice(-2)}`;
 }
 
 async function generateIssNo() {
@@ -33,6 +34,7 @@ async function generateIssNo() {
 exports.getAllConsumptionIssues = async (req, res) => {
   try {
     const issues = await ConsumptionIssue.findAll({
+      include: ["details"],
       order: [["createdAt", "DESC"]]
     });
     res.json({ success: true, data: issues });
@@ -52,7 +54,9 @@ exports.getNextNumber = async (req, res) => {
 
 exports.getConsumptionIssueById = async (req, res) => {
   try {
-    const issue = await ConsumptionIssue.findByPk(req.params.id);
+    const issue = await ConsumptionIssue.findByPk(req.params.id, {
+      include: ["details"]
+    });
     if (!issue) return res.status(404).json({ success: false, message: "Issue not found" });
     res.json({ success: true, data: issue });
   } catch (error) {
@@ -64,7 +68,20 @@ exports.createConsumptionIssue = async (req, res) => {
   try {
     const body = { ...req.body };
     if (!body.issNo) body.issNo = await generateIssNo();
-    const issue = await ConsumptionIssue.create(body);
+    
+    let totalQty = 0;
+    let totalAmount = 0;
+    if (body.details && Array.isArray(body.details)) {
+      body.details.forEach(d => {
+        totalQty += Number(d.issueQty || 0);
+        totalAmount += Number(d.amount || 0);
+      });
+      body.totalItems = body.details.length;
+    }
+    body.totalQty = totalQty;
+    body.totalAmount = totalAmount;
+
+    const issue = await ConsumptionIssue.create(body, { include: ["details"] });
     res.status(201).json({ success: true, data: issue });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
@@ -75,8 +92,35 @@ exports.updateConsumptionIssue = async (req, res) => {
   try {
     const issue = await ConsumptionIssue.findByPk(req.params.id);
     if (!issue) return res.status(404).json({ success: false, message: "Issue not found" });
-    await issue.update(req.body);
-    res.json({ success: true, data: issue });
+    
+    const body = { ...req.body };
+    let totalQty = 0;
+    let totalAmount = 0;
+    if (body.details && Array.isArray(body.details)) {
+      body.details.forEach(d => {
+        totalQty += Number(d.issueQty || 0);
+        totalAmount += Number(d.amount || 0);
+      });
+      body.totalItems = body.details.length;
+    }
+    body.totalQty = totalQty;
+    body.totalAmount = totalAmount;
+
+    await issue.update(body);
+
+    if (body.details) {
+      await ConsumptionIssueDetail.destroy({ where: { consumptionIssueId: issue.id } });
+      const detailsToCreate = body.details.map(d => {
+        const { id, _id, ...rest } = d;
+        return { ...rest, consumptionIssueId: issue.id };
+      });
+      if (detailsToCreate.length > 0) {
+        await ConsumptionIssueDetail.bulkCreate(detailsToCreate);
+      }
+    }
+
+    const updatedIssue = await ConsumptionIssue.findByPk(req.params.id, { include: ["details"] });
+    res.json({ success: true, data: updatedIssue });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }

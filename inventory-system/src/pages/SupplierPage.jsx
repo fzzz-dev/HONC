@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCountries } from "../slices/countrySlice";
 import { fetchStates } from "../slices/stateSlice";
@@ -75,6 +75,19 @@ const suppliersAPI = {
   update: (id, body) =>
     apiFetch(`/suppliers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   delete: (id) => apiFetch(`/suppliers/${id}`, { method: "DELETE" }),
+  downloadTemplate: async () => {
+    const res = await fetch(`${API}/suppliers/template`);
+    if (!res.ok) throw new Error("Failed to download template");
+    return res.blob();
+  },
+  bulkUpload: async (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${API}/suppliers/bulk`, { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || "Bulk upload failed");
+    return data;
+  }
 };
 
 export const typesAPI = {
@@ -523,7 +536,9 @@ export default function SupplierPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [paymentTerms, setPaymentTerms] = useState([]);
   const [mainCategories, setMainCategories] = useState([]);
+  const [bulkUploadResult, setBulkUploadResult] = useState(null);
 
+  const bulkFileRef = useRef();
   const dispatch = useDispatch();
   const countries = useSelector((s) => s.countries?.data || []);
   const states = useSelector((s) => s.states?.data || []);
@@ -762,6 +777,36 @@ export default function SupplierPage() {
     }
   }
 
+  // ── Bulk Upload ──────────────────────────────────────────────────────────────
+  async function handleDownloadTemplate() {
+    try {
+      const blob = await suppliersAPI.downloadTemplate();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "supplier-bulk-template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast(err.message || "Template download failed", "error");
+    }
+  }
+
+  async function handleBulkFileChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const result = await suppliersAPI.bulkUpload(file);
+      fetchSuppliers();
+      setBulkUploadResult(result);
+    } catch (err) {
+      showToast(err.message || "Bulk upload failed", "error");
+    }
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="inv-page">
@@ -771,6 +816,10 @@ export default function SupplierPage() {
           <p className="inv-page-sub">Suppliers and customers — directory and contacts</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          <button className="inv-btn-ghost" onClick={handleDownloadTemplate}>Download Template</button>
+          <button className="inv-btn-ghost" onClick={() => bulkFileRef.current?.click()}>Bulk Upload</button>
+          <input ref={bulkFileRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={handleBulkFileChange} />
+          
           <button className="inv-btn-secondary" onClick={() => setShowList(!showList)}>
             {showList ? "Hide History" : "View Suppliers"}
           </button>
@@ -779,6 +828,28 @@ export default function SupplierPage() {
           )}
         </div>
       </div>
+
+      {bulkUploadResult && (
+        <Modal title="Bulk Upload Summary" onClose={() => setBulkUploadResult(null)} onSave={() => setBulkUploadResult(null)} saveLabel="Close">
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ padding: "12px", background: "#f0fdf4", color: "#166534", borderRadius: "6px", marginBottom: "10px", fontWeight: "500" }}>
+              Successfully imported {bulkUploadResult.insertedCount} parties.
+            </div>
+            {bulkUploadResult.failedCount > 0 && (
+              <div style={{ padding: "12px", background: "#fef2f2", color: "#991b1b", borderRadius: "6px", marginBottom: "10px" }}>
+                <div style={{ fontWeight: "600", marginBottom: "6px" }}>Failed to import {bulkUploadResult.failedCount} rows:</div>
+                <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "13px" }}>
+                  {bulkUploadResult.errors.map((e, idx) => (
+                    <li key={idx} style={{ marginBottom: "4px" }}>
+                      Row {e.row}: {e.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
 
       {modal && !showList && (
         <div className="inv-card" style={{ marginBottom: 20 }}>
