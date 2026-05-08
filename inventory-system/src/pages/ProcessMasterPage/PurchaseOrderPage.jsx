@@ -500,7 +500,7 @@ export default function PurchaseOrderPage() {
         if (opt) {
           row.indentNo = opt.indentNo;
           row.itemId = opt.itemId;
-          row.itemName = opt.itemName;
+          row.itemName = opt.itemDescription || opt.itemName;
           row.uom = opt.uom;
           row.balQty = opt.balQty;
           row.balQty = opt.balQty;
@@ -515,7 +515,7 @@ export default function PurchaseOrderPage() {
       if (field === "itemId") {
         const it = items.find(i => sid(i) === val);
         if (it) {
-          row.itemId = val; row.itemName = it.itemName; row.uom = it.uom; 
+          row.itemId = val; row.itemName = it.itemDescription || it.itemName; row.uom = it.uom; 
           row.gstPct = it.gstPercent !== undefined ? it.gstPercent : 0;
           row.indentDetailId = ""; row.indentNo = ""; row.balQty = 0;
         }
@@ -573,7 +573,9 @@ export default function PurchaseOrderPage() {
   const indentDetailOptions = indents.flatMap(ind => safeDetails(ind.details).map(d => {
     const itMaster = items.find(i => sid(i) === sid(d.itemId));
     return {
-      indentNo: ind.indentNo, detailId: sid(d.id || d._id), itemId: sid(d.itemId), itemName: toTitleCase(d.itemName),
+      indentNo: ind.indentNo, detailId: sid(d.id || d._id), itemId: sid(d.itemId), 
+      itemDescription: toTitleCase(d.itemDescription || d.itemName),
+      itemName: toTitleCase(d.itemName),
       uom: d.uom, balQty: d.indentQty, lastRate: d.rate, 
       gstPct: itMaster?.gstPercent !== undefined ? itMaster.gstPercent : (d.gstPct !== undefined ? d.gstPct : 0)
     };
@@ -583,7 +585,7 @@ export default function PurchaseOrderPage() {
     const itMaster = items.find(i => sid(i) === sid(d.itemId));
     return {
       rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`, indentNo: ind.indentNo, detailId: sid(d.id || d._id),
-      itemId: sid(d.itemId), itemName: toTitleCase(d.itemName), uom: d.uom, balQty: d.indentQty, rate: d.rate,
+      itemId: sid(d.itemId), itemName: toTitleCase(d.itemDescription || d.itemName), uom: d.uom, balQty: d.indentQty, rate: d.rate,
       gstPct: itMaster?.gstPercent || d.gstPct || 18
     };
   }));
@@ -854,7 +856,7 @@ export default function PurchaseOrderPage() {
                         >
                           <option value="">— Select Item Description —</option>
                           {indentDetailOptions.filter(o => o.indentNo === row.indentNo).map(o => (
-                            <option key={o.detailId} value={o.detailId}>{o.itemName}</option>
+                            <option key={o.detailId} value={o.detailId}>{o.itemDescription || o.itemName}</option>
                           ))}
                         </select>
                       </td>

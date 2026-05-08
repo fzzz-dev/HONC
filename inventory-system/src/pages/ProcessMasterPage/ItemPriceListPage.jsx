@@ -550,7 +550,7 @@ export default function ItemPriceListPage() {
                           </option>
                           {filteredItems.map((it) => (
                             <option key={it.id} value={String(it.id)}>
-                              {it.itemName}
+                              {it.itemDescription || it.itemName}
                             </option>
                           ))}
                         </select>

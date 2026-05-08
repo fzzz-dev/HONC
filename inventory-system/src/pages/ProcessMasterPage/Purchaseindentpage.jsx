@@ -120,7 +120,7 @@ export default function PurchaseIndentPage() {
       }
       if (field === "itemId") {
         const found = items.find(it => sid(it) === val);
-        row.itemName = toTitleCase(found?.itemName || ""); row.uom = found?.uom || "";
+        row.itemName = toTitleCase(found?.itemDescription || found?.itemName || ""); row.uom = found?.uom || "";
       }
       rows[idx] = row;
       return rows;
@@ -297,7 +297,7 @@ export default function PurchaseIndentPage() {
                           <td>
                             <select className="inv-select-cell" value={row.itemId} onChange={e => updateDetail(idx, "itemId", e.target.value)}>
                               <option value="">Select Item Description</option>
-                              {filteredItems.map(it => <option key={sid(it)} value={sid(it)}>{it.itemName}</option>)}
+                              {filteredItems.map(it => <option key={sid(it)} value={sid(it)}>{it.itemDescription || it.itemName}</option>)}
                             </select>
                           </td>
                           <td><input className="inv-input-cell" value={row.uom} readOnly /></td>

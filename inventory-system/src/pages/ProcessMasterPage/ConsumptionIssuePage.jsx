@@ -166,7 +166,7 @@ export default function ConsumptionIssuePage() {
             if (typeof gDetails === 'string') {
               try { gDetails = JSON.parse(gDetails); } catch (e) { gDetails = []; }
             }
-            const gd = gDetails.find(d => String(d.itemName).toLowerCase() === String(targetItem).toLowerCase());
+            const gd = gDetails.find(d => String(d.itemDescription || d.itemName).toLowerCase() === String(targetItem).toLowerCase() || String(d.itemName).toLowerCase() === String(targetItem).toLowerCase());
             if (gd) {
               row.stkQty = gd.grnQty || 0;
               row.stkRate = gd.grnRate || 0;
@@ -511,7 +511,7 @@ export default function ConsumptionIssuePage() {
                     <td>
                       <select className="inv-input" style={{ border: "none", width: 200 }} value={row.itemName} onChange={e => updateDetail(idx, "itemName", e.target.value)}>
                         <option value="">Select Item Description</option>
-                        {items.map(it => <option key={it.id} value={it.itemName}>{it.itemName}</option>)}
+                        {items.map(it => <option key={it.id} value={it.itemDescription || it.itemName}>{it.itemDescription || it.itemName}</option>)}
                       </select>
                     </td>
                     <td>

@@ -427,7 +427,7 @@ export default function ItemPage() {
             <thead>
               <tr>
                 <th>Image</th>
-                <th>Item Description</th>
+                <th>Item </th>
                 <th>Head</th>
                 <th>Category</th>
                 <th>UOM</th>
@@ -588,7 +588,7 @@ export default function ItemPage() {
           </FormGrid>
 
           <FormGrid className="inv-form-grid--item-uom">
-            <Field label="Item Description" required>
+            <Field label="Item" required>
               <Input
                 value={form.itemName}
                 onChange={(v) => setForm((f) => ({ ...f, itemName: v }))}

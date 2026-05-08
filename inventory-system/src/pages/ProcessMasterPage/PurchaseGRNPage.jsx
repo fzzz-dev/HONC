@@ -389,7 +389,7 @@ export default function PurchaseGRNPage() {
       }
 
       if (field === "itemName") {
-        const found = items.find((it) => it.itemName === val);
+        const found = items.find((it) => (it.itemDescription || it.itemName) === val || it.itemName === val);
         row.itemId = found?.id || found?._id || "";
         row.uom = found?.uom || "";
         row.poRate = found?.purchaseRate || found?.rate || 0;
@@ -867,7 +867,7 @@ export default function PurchaseGRNPage() {
                     <td>
                       <select className="inv-input" style={{ border: "none", width: 130 }} value={row.itemName} onChange={e => updateDetail(idx, "itemName", e.target.value)}>
                         <option value="">Select Item Description</option>
-                        {items.map(it => <option key={it.id || it._id} value={it.itemName}>{it.itemName}</option>)}
+                        {items.map(it => <option key={it.id || it._id} value={it.itemDescription || it.itemName}>{it.itemDescription || it.itemName}</option>)}
                       </select>
                     </td>
                     {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.poQty} readOnly /></td>}
