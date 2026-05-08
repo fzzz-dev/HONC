@@ -75,10 +75,12 @@ const ensureItemMovementTypeColumn = async () => {
 };
 
 async function columnExists(tableName, columnName) {
-  const dbName = process.env.DB_NAME || "inventory_db";
+  const dbName = sequelize.config.database;
   const [rows] = await sequelize.query(
-    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = :db AND TABLE_NAME = :tbl AND COLUMN_NAME = :col LIMIT 1`,
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+     WHERE TABLE_SCHEMA = :db 
+     AND LOWER(TABLE_NAME) = LOWER(:tbl) 
+     AND LOWER(COLUMN_NAME) = LOWER(:col) LIMIT 1`,
     { replacements: { db: dbName, tbl: tableName, col: columnName } },
   );
   return rows.length > 0;
@@ -87,54 +89,58 @@ async function columnExists(tableName, columnName) {
 async function ensureSchemaEnhancements() {
   try {
     const patches = [
-      ["Items", "minimumStock", "ADD COLUMN `minimumStock` DECIMAL(12,2) NOT NULL DEFAULT 0"],
-      ["Items", "minimumOrderQty", "ADD COLUMN `minimumOrderQty` DECIMAL(12,2) NOT NULL DEFAULT 0"],
-      ["Items", "leadDays", "ADD COLUMN `leadDays` INT NOT NULL DEFAULT 0"],
-      ["Items", "inTransitDays", "ADD COLUMN `inTransitDays` INT NOT NULL DEFAULT 0"],
-      ["Items", "hsnCode", "ADD COLUMN `hsnCode` VARCHAR(255) NOT NULL DEFAULT ''"],
-      ["Items", "gstPercent", "ADD COLUMN `gstPercent` DECIMAL(5,2) NOT NULL DEFAULT 0"],
-      ["Items", "rackBinNo", "ADD COLUMN `rackBinNo` VARCHAR(255) NOT NULL DEFAULT ''"],
-      ["Items", "gstType", "ADD COLUMN `gstType` ENUM('local','other') NOT NULL DEFAULT 'local'"],
-      ["Suppliers", "shortCode", "ADD COLUMN `shortCode` VARCHAR(5) NULL DEFAULT ''"],
-      ["Suppliers", "paymentTermsId", "ADD COLUMN `paymentTermsId` INT NULL"],
-      ["Suppliers", "purchaseCategoryIds", "ADD COLUMN `purchaseCategoryIds` JSON NULL"],
-      ["Suppliers", "gstType", "ADD COLUMN `gstType` ENUM('local','other') NOT NULL DEFAULT 'local'"],
-      ["PurchaseOrders", "paymentTermsId", "ADD COLUMN `paymentTermsId` INT NULL"],
-      ["PurchaseOrders", "paymentTermsName", "ADD COLUMN `paymentTermsName` VARCHAR(255) NOT NULL DEFAULT ''"],
-      ["PurchaseOrders", "gstType", "ADD COLUMN `gstType` VARCHAR(20) NOT NULL DEFAULT 'local'"],
-      ["PurchaseOrders", "gstEnabled", "ADD COLUMN `gstEnabled` TINYINT(1) NOT NULL DEFAULT 1"],
-      ["PurchaseOrders", "refNo", "ADD COLUMN `refNo` VARCHAR(255) NOT NULL DEFAULT ''"],
-      ["PurchaseOrders", "refDate", "ADD COLUMN `refDate` DATE NULL"],
-      ["PurchaseOrders", "deliveryDate", "ADD COLUMN `deliveryDate` DATE NULL"],
-      ["PurchaseOrders", "purchaseIndentId", "ADD COLUMN `purchaseIndentId` INT NULL"],
-      ["PurchaseOrders", "purchaseIndentNo", "ADD COLUMN `purchaseIndentNo` VARCHAR(255) NOT NULL DEFAULT ''"],
-      ["PurchaseOrders", "grossAmount", "ADD COLUMN `grossAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
-      ["PurchaseOrders", "discAmount", "ADD COLUMN `discAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
-      ["PurchaseOrders", "poAmount", "ADD COLUMN `poAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
-      ["PurchaseOrders", "igstAmount", "ADD COLUMN `igstAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
-      ["PurchaseOrders", "cgstAmount", "ADD COLUMN `cgstAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
-      ["PurchaseOrders", "sgstAmount", "ADD COLUMN `sgstAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
-      ["PurchaseOrders", "netAmount", "ADD COLUMN `netAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
-      ["PurchaseOrders", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
-      ["PurchaseIndents", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
-      ["PurchaseIndents", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
-      ["PurchaseGRNs", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
-      ["PurchaseGRNs", "totalAmount", "ADD COLUMN `totalAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
-      ["PurchaseGRNs", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
-      ["PurchaseGRNs", "grnType", "ADD COLUMN `grnType` VARCHAR(50) NOT NULL DEFAULT 'Against PO'"],
-      ["PurchaseGRNs", "verifiedBy", "ADD COLUMN `verifiedBy` VARCHAR(255) NOT NULL DEFAULT ''"],
-      ["PurchaseGRNs", "verifiedOn", "ADD COLUMN `verifiedOn` VARCHAR(255) NOT NULL DEFAULT ''"],
-      ["ConsumptionIssues", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
-      ["ConsumptionIssues", "totalAmount", "ADD COLUMN `totalAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
-      ["ConsumptionIssues", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
-      ["OpeningStocks", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
-      ["OpeningStocks", "totalAmount", "ADD COLUMN `totalAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
-      ["OpeningStocks", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
+      ["items", "minimumStock", "ADD COLUMN `minimumStock` DECIMAL(12,2) NOT NULL DEFAULT 0"],
+      ["items", "minimumOrderQty", "ADD COLUMN `minimumOrderQty` DECIMAL(12,2) NOT NULL DEFAULT 0"],
+      ["items", "leadDays", "ADD COLUMN `leadDays` INT NOT NULL DEFAULT 0"],
+      ["items", "inTransitDays", "ADD COLUMN `inTransitDays` INT NOT NULL DEFAULT 0"],
+      ["items", "hsnCode", "ADD COLUMN `hsnCode` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["items", "gstPercent", "ADD COLUMN `gstPercent` DECIMAL(5,2) NOT NULL DEFAULT 0"],
+      ["items", "rackBinNo", "ADD COLUMN `rackBinNo` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["items", "gstType", "ADD COLUMN `gstType` ENUM('local','other') NOT NULL DEFAULT 'local'"],
+      ["suppliers", "shortCode", "ADD COLUMN `shortCode` VARCHAR(5) NULL DEFAULT ''"],
+      ["suppliers", "paymentTermsId", "ADD COLUMN `paymentTermsId` INT NULL"],
+      ["suppliers", "purchaseCategoryIds", "ADD COLUMN `purchaseCategoryIds` JSON NULL"],
+      ["suppliers", "gstType", "ADD COLUMN `gstType` ENUM('local','other') NOT NULL DEFAULT 'local'"],
+      ["purchaseorders", "paymentTermsId", "ADD COLUMN `paymentTermsId` INT NULL"],
+      ["purchaseorders", "paymentTermsName", "ADD COLUMN `paymentTermsName` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["purchaseorders", "gstType", "ADD COLUMN `gstType` VARCHAR(20) NOT NULL DEFAULT 'local'"],
+      ["purchaseorders", "gstEnabled", "ADD COLUMN `gstEnabled` TINYINT(1) NOT NULL DEFAULT 1"],
+      ["purchaseorders", "refNo", "ADD COLUMN `refNo` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["purchaseorders", "refDate", "ADD COLUMN `refDate` DATE NULL"],
+      ["purchaseorders", "deliveryDate", "ADD COLUMN `deliveryDate` DATE NULL"],
+      ["purchaseorders", "purchaseIndentId", "ADD COLUMN `purchaseIndentId` INT NULL"],
+      ["purchaseorders", "purchaseIndentNo", "ADD COLUMN `purchaseIndentNo` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["purchaseorders", "grossAmount", "ADD COLUMN `grossAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["purchaseorders", "discAmount", "ADD COLUMN `discAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["purchaseorders", "poAmount", "ADD COLUMN `poAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["purchaseorders", "igstAmount", "ADD COLUMN `igstAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["purchaseorders", "cgstAmount", "ADD COLUMN `cgstAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["purchaseorders", "sgstAmount", "ADD COLUMN `sgstAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["purchaseorders", "netAmount", "ADD COLUMN `netAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["purchaseorders", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
+      ["purchaseindents", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
+      ["purchaseindents", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
+      ["purchasegrns", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
+      ["purchasegrns", "totalAmount", "ADD COLUMN `totalAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["purchasegrns", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
+      ["purchasegrns", "grnType", "ADD COLUMN `grnType` VARCHAR(50) NOT NULL DEFAULT 'Against PO'"],
+      ["purchasegrns", "verifiedBy", "ADD COLUMN `verifiedBy` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["purchasegrns", "verifiedOn", "ADD COLUMN `verifiedOn` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["consumptionissues", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
+      ["consumptionissues", "totalAmount", "ADD COLUMN `totalAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["consumptionissues", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
+      ["openingstocks", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
+      ["openingstocks", "totalAmount", "ADD COLUMN `totalAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["openingstocks", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
     ];
     for (const [table, col, ddl] of patches) {
-      if (!(await columnExists(table, col))) {
-        await sequelize.query(`ALTER TABLE \`${table}\` ${ddl}`);
-        console.log(`Schema: added ${table}.${col}`);
+      try {
+        if (!(await columnExists(table, col))) {
+          await sequelize.query(`ALTER TABLE \`${table}\` ${ddl}`);
+          console.log(`Schema: added ${table}.${col}`);
+        }
+      } catch (innerErr) {
+        console.warn(`Patch failed for ${table}.${col}:`, innerErr.message);
       }
     }
   } catch (e) {
@@ -147,7 +153,7 @@ ensureDatabaseExists()
   .then(() => sequelize.authenticate())
   .then(async () => {
     console.log("SQL Database Connected");
-    return sequelize.sync({ alter: true });
+    return sequelize.sync();
   })
   .then(async () => {
     console.log("Database Synced");
