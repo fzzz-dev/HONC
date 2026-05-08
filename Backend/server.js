@@ -183,8 +183,8 @@ app.use("/api/countries", require("./routes/countryRoutes"));
 app.use("/api/states", require("./routes/stateRoutes"));
 app.use("/api/cities", require("./routes/cityRoutes"));
 app.use("/api/inventory-heads", require("./routes/InventoryRoutes"));
-app.use("/api/stores", require("./routes/storeRoutes"));
-app.use("/api/departments", require("./routes/departmentRoutes"));
+app.use("/api/stores", require("./routes/Storeroutes"));
+app.use("/api/departments", require("./routes/Departmentroutes"));
 app.use("/api/processes", require("./routes/Processroutes"));
 app.use("/api/makes", require("./routes/makeRoutes"));
 app.use("/api/specs", require("./routes/specRoutes"));
@@ -203,6 +203,7 @@ app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/roles", require("./routes/roleRoutes"));
 app.use("/api/permissions", require("./routes/permissionRoutes"));
+app.use("/api/factories", require("./routes/factoryRoutes"));
 
 // Health check
 app.get("/health", (req, res) => {

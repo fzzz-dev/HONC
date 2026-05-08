@@ -266,7 +266,7 @@ export default function PurchaseGRNPage() {
     <table class="header-info">
       <tr>
         <td style="width: 50%;">
-          <div class="bold" style="font-size: 11px; text-decoration: underline; margin-bottom: 5px;">SUPPLIER DETAILS</div>
+          <div class="bold" style="font-size: 11px; text-decoration: underline; margin-bottom: 5px;">Supplier Details</div>
           <div class="bold">${esc(header.supplierName)}</div>
           <div style="margin-top: 3px;">GST: ${esc(header.supplierGst || "N/A")}</div>
           <div style="margin-top: 10px;"><span class="bold">Invoice No:</span> ${esc(header.invoiceNo)}</div>
@@ -312,16 +312,16 @@ export default function PurchaseGRNPage() {
       </tbody>
       <tfoot>
         <tr class="bold" style="background: #f9fafb;">
-          <td colspan="5" class="text-right">TOTAL RECEIVED QUANTITY</td>
+          <td colspan="5" class="text-right">Total Received Quantity</td>
           <td class="text-right" style="font-size: 11px;">${totals.grnQty.toFixed(2)}</td>
-          <td class="text-right">GRAND TOTAL</td>
+          <td class="text-right">Grand Total</td>
           <td class="text-right" style="font-size: 12px;">₹${totals.totalAmount.toFixed(2)}</td>
         </tr>
       </tfoot>
     </table>
 
     <div style="padding: 10px; border-top: 1px solid #000;">
-      <div class="bold" style="font-size: 9px; margin-bottom: 5px;">REMARKS / NOTES:</div>
+      <div class="bold" style="font-size: 9px; margin-bottom: 5px;">Remarks / Notes:</div>
       <div style="min-height: 40px;">${esc(header.remarks || "No additional remarks.")}</div>
     </div>
 
@@ -688,7 +688,7 @@ export default function PurchaseGRNPage() {
                     else setPendingSelected(new Set());
                   }} /></th>
                   <th>PO No</th>
-                  <th>Item Name</th>
+                  <th>Item Description</th>
                   <th>Bal Qty</th>
                   <th>Unit Price</th>
                 </tr>
@@ -770,10 +770,10 @@ export default function PurchaseGRNPage() {
                 {stores.map(st => <option key={st.id || st._id} value={String(st.id || st._id)}>{st.name}</option>)}
               </select>
             </Field>
-            <Field label="INV\PDC no">
+            <Field label="Inv/Pdc No">
               <input className="inv-input" value={header.invoiceNo} onChange={(e) => setHeader(h => ({ ...h, invoiceNo: e.target.value }))} placeholder="Enter Invoice Number" />
             </Field>
-            <Field label="INV\DATE">
+            <Field label="Inv Date">
               <input className="inv-input" type="date" value={header.invoiceDate} onChange={(e) => setHeader(h => ({ ...h, invoiceDate: e.target.value }))} />
             </Field>
             <Field label="GST Type">
@@ -810,15 +810,15 @@ export default function PurchaseGRNPage() {
               <thead>
                 <tr>
                   <th>#</th>
-                  {header.grnType !== "General" && <th>Indent no</th>}
-                  {header.grnType !== "General" && <th>Po no</th>}
-                  <th>Item Name</th>
-                  {header.grnType !== "General" && <th>Po qty</th>}
-                  {header.grnType !== "General" && <th>po unit price</th>}
-                  <th>GRN qty</th>
+                  {header.grnType !== "General" && <th>Indent No</th>}
+                  {header.grnType !== "General" && <th>PO No</th>}
+                  <th>Item Description</th>
+                  {header.grnType !== "General" && <th>PO Qty</th>}
+                  {header.grnType !== "General" && <th>PO Unit Price</th>}
+                  <th>GRN Qty</th>
                   <th>Batch</th>
-                  {header.grnType !== "General" && <th>balance qty</th>}
-                  {header.grnType !== "General" && <th>phy qty</th>}
+                  {header.grnType !== "General" && <th>Balance Qty</th>}
+                  {header.grnType !== "General" && <th>Phy Qty</th>}
                   <th>Unit Price</th>
                   <th>Disc</th>
                   <th>GST%</th>
@@ -866,7 +866,7 @@ export default function PurchaseGRNPage() {
                     )}
                     <td>
                       <select className="inv-input" style={{ border: "none", width: 130 }} value={row.itemName} onChange={e => updateDetail(idx, "itemName", e.target.value)}>
-                        <option value="">Select item</option>
+                        <option value="">Select Item Description</option>
                         {items.map(it => <option key={it.id || it._id} value={it.itemName}>{it.itemName}</option>)}
                       </select>
                     </td>

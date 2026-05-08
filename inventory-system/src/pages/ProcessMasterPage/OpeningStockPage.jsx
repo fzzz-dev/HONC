@@ -342,7 +342,7 @@ export default function OpeningStockPage() {
                 <tr>
                   <th>#</th>
                   <th>Material Category</th>
-                  <th>Item Name</th>
+                  <th>Item Description</th>
                   <th style={{ width: 120 }}>Qty</th>
                   <th style={{ width: 120 }}>Unit Price</th>
                   <th style={{ width: 140 }}>Amount</th>
@@ -361,7 +361,7 @@ export default function OpeningStockPage() {
                     </td>
                     <td>
                       <select className="inv-input" style={{ border: "none", width: 250 }} value={row.itemId} onChange={e => updateDetail(idx, "itemId", e.target.value)}>
-                        <option value="">Select Item</option>
+                        <option value="">Select Item Description</option>
                         {items.filter(i => String(i.headId) === row.categoryId).map(i => <option key={i.id} value={String(i.id)}>{i.itemName}</option>)}
                       </select>
                     </td>

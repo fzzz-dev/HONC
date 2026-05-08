@@ -29,7 +29,7 @@ const safeDetails = (details) => {
 };
 
 const emptyDetail = () => ({
-  _rowId: Math.random(), inventoryHeadId: "", inventoryHeadName: "", mainCategoryId: "", mainCategoryName: "",
+  _rowId: Math.random(), mainCategoryId: "", mainCategoryName: "",
   itemId: "", itemName: "", uom: "", indentQty: "0.00", dueDate: "", remarks: ""
 });
 
@@ -105,7 +105,7 @@ export default function PurchaseIndentPage() {
       preparedBy: indent.preparedBy || ""
     });
     setDetails(safeDetails(indent.details).map(d => ({
-      ...d, _rowId: Math.random(), inventoryHeadId: sid(d.inventoryHeadId), mainCategoryId: sid(d.mainCategoryId), itemId: sid(d.itemId)
+      ...d, _rowId: Math.random(), mainCategoryId: sid(d.mainCategoryId), itemId: sid(d.itemId)
     })));
     setView("form");
   }
@@ -114,10 +114,6 @@ export default function PurchaseIndentPage() {
     setDetails(prev => {
       const rows = [...prev];
       const row = { ...rows[idx], [field]: val };
-      if (field === "inventoryHeadId") {
-        const found = heads.find(h => sid(h) === val);
-        row.inventoryHeadName = found?.headName || ""; row.mainCategoryId = ""; row.mainCategoryName = ""; row.itemId = ""; row.itemName = ""; row.uom = "";
-      }
       if (field === "mainCategoryId") {
         const found = categories.find(c => sid(c) === val);
         row.mainCategoryName = found?.groupName || ""; row.itemId = ""; row.itemName = ""; row.uom = "";
@@ -277,9 +273,8 @@ export default function PurchaseIndentPage() {
                 <thead>
                   <tr>
                     <th style={{ width: 50, textAlign: "center" }}>#</th>
-                    <th>Head</th>
                     <th>Category</th>
-                    <th>Item</th>
+                    <th>Item Description</th>
                     <th style={{ width: 80 }}>UOM</th>
                     <th style={{ width: 100, textAlign: "right" }}>Qty</th>
                     <th style={{ width: 140 }}>Due Date</th>
@@ -288,40 +283,33 @@ export default function PurchaseIndentPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {details.map((row, idx) => {
-                    const filteredCategories = row.inventoryHeadId ? categories.filter(c => c.headId === row.inventoryHeadId) : categories;
-                    const filteredItems = row.mainCategoryName ? items.filter(it => it.group === row.mainCategoryName) : (row.inventoryHeadId ? items.filter(it => it.headId === row.inventoryHeadId) : items);
-                    return (
-                      <tr key={row._rowId}>
-                        <td style={{ textAlign: "center", color: "#94a3b8", fontWeight: 500 }}>{idx + 1}</td>
-                        <td>
-                          <select className="inv-select-cell" value={row.inventoryHeadId} onChange={e => updateDetail(idx, "inventoryHeadId", e.target.value)}>
-                            <option value="">Select Head</option>
-                            {heads.map(h => <option key={sid(h)} value={sid(h)}>{h.headName}</option>)}
-                          </select>
-                        </td>
-                        <td>
-                          <select className="inv-select-cell" value={row.mainCategoryId} onChange={e => updateDetail(idx, "mainCategoryId", e.target.value)}>
-                            <option value="">Select Category</option>
-                            {filteredCategories.map(c => <option key={sid(c)} value={sid(c)}>{c.groupName}</option>)}
-                          </select>
-                        </td>
-                        <td>
-                          <select className="inv-select-cell" value={row.itemId} onChange={e => updateDetail(idx, "itemId", e.target.value)}>
-                            <option value="">Select Item</option>
-                            {filteredItems.map(it => <option key={sid(it)} value={sid(it)}>{it.itemName}</option>)}
-                          </select>
-                        </td>
-                        <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
-                        <td><input className="inv-input-cell" type="number" step="0.01" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
-                        <td><input className="inv-input-cell" type="date" value={row.dueDate} onChange={e => updateDetail(idx, "dueDate", e.target.value)} /></td>
-                        <td><input className="inv-input-cell" value={row.remarks} onChange={e => updateDetail(idx, "remarks", e.target.value)} placeholder="Notes..." /></td>
-                        <td style={{ textAlign: "center" }}>
-                          <button className="inv-btn-icon inv-btn-danger" onClick={() => removeRow(idx)} style={{ border: "none", background: "transparent" }}>✕</button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                    {details.map((row, idx) => {
+                      const filteredItems = row.mainCategoryName ? items.filter(it => it.group === row.mainCategoryName) : items;
+                      return (
+                        <tr key={row._rowId}>
+                          <td style={{ textAlign: "center", color: "#94a3b8", fontWeight: 500 }}>{idx + 1}</td>
+                          <td>
+                            <select className="inv-select-cell" value={row.mainCategoryId} onChange={e => updateDetail(idx, "mainCategoryId", e.target.value)}>
+                              <option value="">Select Category</option>
+                              {categories.map(c => <option key={sid(c)} value={sid(c)}>{c.groupName}</option>)}
+                            </select>
+                          </td>
+                          <td>
+                            <select className="inv-select-cell" value={row.itemId} onChange={e => updateDetail(idx, "itemId", e.target.value)}>
+                              <option value="">Select Item Description</option>
+                              {filteredItems.map(it => <option key={sid(it)} value={sid(it)}>{it.itemName}</option>)}
+                            </select>
+                          </td>
+                          <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
+                          <td><input className="inv-input-cell" type="number" step="0.01" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
+                          <td><input className="inv-input-cell" type="date" value={row.dueDate} onChange={e => updateDetail(idx, "dueDate", e.target.value)} /></td>
+                          <td><input className="inv-input-cell" value={row.remarks} onChange={e => updateDetail(idx, "remarks", e.target.value)} placeholder="Notes..." /></td>
+                          <td style={{ textAlign: "center" }}>
+                            <button className="inv-btn-icon inv-btn-danger" onClick={() => removeRow(idx)} style={{ border: "none", background: "transparent" }}>✕</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>

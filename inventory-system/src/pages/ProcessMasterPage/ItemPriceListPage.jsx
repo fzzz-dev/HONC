@@ -487,7 +487,7 @@ export default function ItemPriceListPage() {
                 <tr>
                   <th>#</th>
                   <th style={{ minWidth: 140 }}>Item Category</th>
-                  <th style={{ minWidth: 160 }}>Item Name</th>
+                  <th style={{ minWidth: 160 }}>Item Description</th>
                   <th style={{ minWidth: 90 }}>Unit Price</th>
                   <th style={{ minWidth: 70 }}>Disc %</th>
                   <th style={{ minWidth: 70 }}>GST %</th>
@@ -503,9 +503,9 @@ export default function ItemPriceListPage() {
                 {details.map((row, idx) => {
                   const filteredItems = row.inventoryHeadId
                     ? items.filter(
-                        (it) =>
-                          String(it.headId) === String(row.inventoryHeadId),
-                      )
+                      (it) =>
+                        String(it.headId) === String(row.inventoryHeadId),
+                    )
                     : items;
                   return (
                     <tr key={row.id}>
@@ -545,7 +545,7 @@ export default function ItemPriceListPage() {
                         >
                           <option value="">
                             {row.inventoryHeadId
-                              ? "Select item"
+                              ? "Select Item Description"
                               : "Select category first"}
                           </option>
                           {filteredItems.map((it) => (

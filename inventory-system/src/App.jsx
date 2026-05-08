@@ -6,6 +6,7 @@ import LoadingScreen from "./components/LoadingScreen";
 
 // Pages
 import LoginPage from "./pages/LoginPage";
+import HomePage from "./pages/HomePage";
 import UserManagement from "./pages/UserManagement";
 import RolePermissions from "./pages/RolePermissions";
 import InventoryHeadPage from "./pages/InventoryHeadPage";
@@ -64,7 +65,7 @@ export default function App() {
           element={
             <AuthenticatedLayout>
               <Routes>
-                <Route path="/" element={<Navigate to="/inv-head" replace />} />
+                <Route path="/" element={<HomePage />} />
 
                 {/* ── Administration ── */}
                 <Route path="/admin/users" element={<UserManagement />} />

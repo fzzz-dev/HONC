@@ -212,7 +212,7 @@ export default function ItemPage() {
 
   // ── Save ─────────────────────────────────────────────────────────────────────
   async function handleSave() {
-    if (!form.itemName.trim()) return alert("Item Name is required");
+    if (!form.itemName.trim()) return alert("Item Description is required");
     if (!form.headId || !form.head) return alert("Head is required");
 
     setSaving(true);
@@ -427,7 +427,7 @@ export default function ItemPage() {
             <thead>
               <tr>
                 <th>Image</th>
-                <th>Item Name</th>
+                <th>Item Description</th>
                 <th>Head</th>
                 <th>Category</th>
                 <th>UOM</th>
@@ -588,7 +588,7 @@ export default function ItemPage() {
           </FormGrid>
 
           <FormGrid className="inv-form-grid--item-uom">
-            <Field label="Item Name" required>
+            <Field label="Item Description" required>
               <Input
                 value={form.itemName}
                 onChange={(v) => setForm((f) => ({ ...f, itemName: v }))}
@@ -725,7 +725,7 @@ export default function ItemPage() {
             <Textarea
               value={computedItemDescription}
               readOnly
-              placeholder="Derived from Item Name, Spec, and Make"
+              placeholder="Derived from Item Description, Spec, and Make"
               rows={2}
               style={{ background: "var(--surface-muted, #f8fafc)" }}
             />

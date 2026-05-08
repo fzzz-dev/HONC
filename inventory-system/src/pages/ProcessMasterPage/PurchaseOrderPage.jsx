@@ -78,12 +78,12 @@ const SupplierDetailsModal = ({ supplier, onClose }) => {
         </div>
         <div>
           <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{supplier.supplierName}</div>
-          <div style={{ fontSize: 11, color: "#3b6ef8", fontWeight: 600, textTransform: "uppercase" }}>{supplier.type}</div>
+          <div style={{ fontSize: 11, color: "#3b6ef8", fontWeight: 600 }}>{supplier.type}</div>
         </div>
       </div>
 
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 4 }}>Contact & Tax</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", marginBottom: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 4 }}>Contact & Tax</div>
         <Row label="GST No" value={supplier.gstNo} />
         <Row label="PAN No" value={supplier.panNo} />
         <Row label="Email" value={supplier.emailId1} />
@@ -92,10 +92,10 @@ const SupplierDetailsModal = ({ supplier, onClose }) => {
 
       {addresses.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 4 }}>Addresses</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", marginBottom: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 4 }}>Addresses</div>
           {addresses.map((addr, i) => (
             <div key={i} style={{ padding: 10, border: "1px solid #e2e8f0", borderRadius: 8, marginBottom: 8, background: addr.isPrimary ? "#fff" : "#fcfdfe" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: addr.isPrimary ? "#3b6ef8" : "#94a3b8", marginBottom: 4 }}>{addr.isPrimary ? "PRIMARY ADDRESS" : `ADDRESS ${i + 1}`}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: addr.isPrimary ? "#3b6ef8" : "#94a3b8", marginBottom: 4 }}>{addr.isPrimary ? "Primary Address" : `Address ${i + 1}`}</div>
               <div style={{ fontSize: 13, lineHeight: 1.4 }}>{addr.address || addr.line1}</div>
               <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{addr.cityName}, {addr.stateName} {addr.pinCode}</div>
             </div>
@@ -181,7 +181,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
 <body>
   <table style="border: none; margin-bottom: 2px;">
     <tr>
-      <td class="no-border text-center bold" style="font-size: 15px; width: 80%; vertical-align: middle;">PURCHASE ORDER</td>
+      <td class="no-border text-center bold" style="font-size: 15px; width: 80%; vertical-align: middle;">Purchase Order</td>
       <td class="no-border text-right bold" style="width: 20%; vertical-align: middle; font-size: 9px;">Page 1 of 1</td>
     </tr>
   </table>
@@ -207,8 +207,8 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
         <td style="width: 33.33%; padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
           <table style="height: 100%; border: none;">
             <tr>
-              <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-left: none; width: 50%; font-size: 9px;">PO NUMBER</td>
-              <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-right: none; width: 50%; font-size: 9px;">PO DATE</td>
+              <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-left: none; width: 50%; font-size: 9px;">PO Number</td>
+              <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-right: none; width: 50%; font-size: 9px;">PO Date</td>
             </tr>
             <tr>
               <td class="text-center bold" style="border-left: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(header.poNo)}</td>
@@ -232,17 +232,17 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
       </tr>
       <tr>
         <td style="width: 33.33%; border-bottom: none;">
-          <div class="bold" style="text-transform: uppercase;">PLACE OF DELIVERY</div>
+          <div class="bold">Place of Delivery</div>
           <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
           <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
           <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
         </td>
         <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
-          <div class="bold" style="text-transform: uppercase;">TRANSPORTED</div>
+          <div class="bold">Transported</div>
           <div style="margin-top: 4px;"></div>
         </td>
         <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
-          <div class="bold" style="text-transform: uppercase;">INVOICE TO BE SENT TO</div>
+          <div class="bold">Invoice to be Sent to</div>
           <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
           <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
           <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
@@ -253,15 +253,15 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
     <table class="items-table">
       <thead>
         <tr>
-          <th style="width: 4%; border-left: none;">SNO</th>
-          <th style="width: 12%;">INDENT NO</th>
-          <th style="width: 24%;">ITEM NAME</th>
-          <th style="width: 9%;">DISCOUNT%</th>
-          <th style="width: 6%;">TAX%</th>
-          <th style="width: 7%;">UOM</th>
-          <th style="width: 10%;">QUANTITY</th>
-          <th style="width: 13%;">UNIT PRICE</th>
-          <th style="width: 15%; border-right: none;">VALUE</th>
+          <th style="width: 4%; border-left: none;">S.No</th>
+          <th style="width: 12%;">Indent No</th>
+          <th style="width: 24%;">Item Description</th>
+          <th style="width: 9%;">Discount%</th>
+          <th style="width: 6%;">Tax%</th>
+          <th style="width: 7%;">Uom</th>
+          <th style="width: 10%;">Quantity</th>
+          <th style="width: 13%;">Unit Price</th>
+          <th style="width: 15%; border-right: none;">Value</th>
         </tr>
       </thead>
       <tbody>
@@ -298,13 +298,13 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
           <table style="border: none; width: 100%; height: 100%;">
             <tr>
               <td style="border: none; border-bottom: 1px solid #000; height: 100px; vertical-align: top; padding: 5px;">
-                <div class="bold" style="font-size: 8.5px; margin-bottom: 4px;">REMARKS</div>
+                <div class="bold" style="font-size: 8.5px; margin-bottom: 4px;">Remarks</div>
                 <div style="font-size: 9px;">${esc(header.remarks || "")}</div>
               </td>
             </tr>
             <tr>
               <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
-                <span class="bold" style="font-size: 8px;">VALUE IN WORDS</span> <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(Math.round(totals.totalAmount))}</span>
+                <span class="bold" style="font-size: 8px;">Value in Words</span> <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(Math.round(totals.totalAmount))}</span>
               </td>
             </tr>
           </table>
@@ -327,8 +327,8 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
 
     <table style="border: none; width: 100%; margin-top: -1px;">
       <tr class="signature-row">
-        <td style="width: 20%; border-left: none; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">PREPARED BY</td>
-        <td style="width: 20%; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">VERIFIED BY</td>
+        <td style="width: 20%; border-left: none; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">Prepared By</td>
+        <td style="width: 20%; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">Verified By</td>
         <td style="width: 30%; padding: 5px 10px 10px 10px;">
           <table style="border: none; width: 100%; margin-bottom: 8px;">
             <tr>
@@ -810,7 +810,7 @@ export default function PurchaseOrderPage() {
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
                     <th style={{ width: 140 }}>Indent No</th>
-                    <th style={{ minWidth: 200 }}>Item Details</th>
+                    <th style={{ minWidth: 200 }}>Item Description</th>
                     <th style={{ width: 80 }}>UOM</th>
                     <th style={{ width: 80, textAlign: "right" }}>Bal</th>
                     <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
@@ -852,7 +852,7 @@ export default function PurchaseOrderPage() {
                             updateDetail(idx, "indentDetailId", e.target.value);
                           }}
                         >
-                          <option value="">— Select Item —</option>
+                          <option value="">— Select Item Description —</option>
                           {indentDetailOptions.filter(o => o.indentNo === row.indentNo).map(o => (
                             <option key={o.detailId} value={o.detailId}>{o.itemName}</option>
                           ))}
@@ -926,7 +926,7 @@ export default function PurchaseOrderPage() {
                       letterSpacing: "0.05em",
                     }}
                   >
-                    SAVINGS
+                    Savings
                   </div>
                 )}
                 <div className="inv-summary-box-label">Total Discount</div>
@@ -1018,7 +1018,7 @@ export default function PurchaseOrderPage() {
           <div style={{ maxHeight: "400px", overflowY: "auto" }}>
             <table className="inv-table">
               <thead>
-                <tr><th><input type="checkbox" onChange={e => { if (e.target.checked) setPendingSelected(new Set(pendingIndentRows.map(r => r.rowId))); else setPendingSelected(new Set()); }} /></th><th>Indent</th><th>Item</th><th>Bal Qty</th></tr>
+                <tr><th><input type="checkbox" onChange={e => { if (e.target.checked) setPendingSelected(new Set(pendingIndentRows.map(r => r.rowId))); else setPendingSelected(new Set()); }} /></th><th>Indent</th><th>Item Description</th><th>Bal Qty</th></tr>
               </thead>
               <tbody>
                 {pendingIndentRows.map(r => (

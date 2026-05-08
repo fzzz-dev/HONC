@@ -47,14 +47,14 @@ const getFY = () => {
 export default function ConsumptionIssuePage() {
   const { user } = useAuth();
   const today = new Date().toISOString().split("T")[0];
-  
+
   // ── State ──
   const [issues, setIssues] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [stores, setStores] = useState([]);
   const [items, setItems] = useState([]);
   const [grns, setGrns] = useState([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("form");
   const [editId, setEditId] = useState(null);
@@ -206,7 +206,7 @@ export default function ConsumptionIssuePage() {
     .title-banner { background: #000; color: #fff; padding: 5px; text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 10px; letter-spacing: 2px; }
     .info-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
     .info-table td { border: 1px solid #000; padding: 4px 8px; width: 25%; }
-    .label { font-size: 9px; color: #666; text-transform: uppercase; margin-bottom: 2px; }
+    .label { font-size: 9px; color: #666; margin-bottom: 2px; }
     .value { font-size: 11px; font-weight: bold; }
     .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
     .items-table th { border: 1px solid #000; background: #f0f0f0; padding: 6px; font-size: 10px; }
@@ -267,7 +267,7 @@ export default function ConsumptionIssuePage() {
   async function handleSave() {
     if (!header.departmentId) return alert("Department is required");
     if (!header.storeId) return alert("Store is required");
-    
+
     try {
       setSaving(true);
       const payload = { ...header, details };
@@ -316,7 +316,7 @@ export default function ConsumptionIssuePage() {
       const rows = filteredIssues.map(rec => {
         let sd = Array.isArray(rec.details) ? rec.details : [];
         if (!Array.isArray(rec.details) && typeof rec.details === 'string') {
-          try { sd = JSON.parse(rec.details); } catch(e) {}
+          try { sd = JSON.parse(rec.details); } catch (e) { }
         }
         const qty = sd.reduce((s, d) => s + Number(d.issueQty || 0), 0);
         const amt = sd.reduce((s, d) => s + Number(d.amount || 0), 0);
@@ -351,11 +351,11 @@ export default function ConsumptionIssuePage() {
           <div className="inv-card-body">
             <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
               <label className="inv-label">Search ISS No</label>
-              <input 
-                className="inv-input" 
-                value={searchTerm} 
-                onChange={e => setSearchTerm(e.target.value)} 
-                placeholder="Type to search Issue Number..." 
+              <input
+                className="inv-input"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Type to search Issue Number..."
               />
             </div>
           </div>
@@ -372,7 +372,7 @@ export default function ConsumptionIssuePage() {
                     <th>Date</th>
                     <th>Department</th>
                     <th>Store</th>
-                    <th>Items</th>
+                    <th>Item Description</th>
                     <th>Total Qty</th>
                     <th>Total Amt</th>
                     <th>Actions</th>
@@ -385,7 +385,7 @@ export default function ConsumptionIssuePage() {
                   {filteredIssues.map((rec, i) => {
                     let safeDetails = Array.isArray(rec.details) ? rec.details : [];
                     if (!Array.isArray(rec.details) && typeof rec.details === 'string') {
-                      try { safeDetails = JSON.parse(rec.details); } catch(e) {}
+                      try { safeDetails = JSON.parse(rec.details); } catch (e) { }
                     }
                     const qty = safeDetails.reduce((s, d) => s + Number(d.issueQty || 0), 0);
                     const amt = safeDetails.reduce((s, d) => s + Number(d.amount || 0), 0);
@@ -454,9 +454,9 @@ export default function ConsumptionIssuePage() {
               </select>
             </Field>
             {header.issueType === "Product" && (
-              <Field label="Item *">
+              <Field label="Item Description *">
                 <select className="inv-input" value={header.itemId} onChange={(e) => setHeader(h => ({ ...h, itemId: e.target.value }))}>
-                  <option value="">Select item</option>
+                  <option value="">Select Item Description</option>
                   {items.map(it => <option key={it.id} value={it.id}>{it.itemName}</option>)}
                 </select>
               </Field>
@@ -493,7 +493,7 @@ export default function ConsumptionIssuePage() {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Item Name</th>
+                  <th>Item</th>
                   <th>GRN No</th>
                   <th>Stk Qty</th>
                   <th>Stk Unit Price</th>
@@ -510,7 +510,7 @@ export default function ConsumptionIssuePage() {
                     <td>{idx + 1}</td>
                     <td>
                       <select className="inv-input" style={{ border: "none", width: 200 }} value={row.itemName} onChange={e => updateDetail(idx, "itemName", e.target.value)}>
-                        <option value="">Select item</option>
+                        <option value="">Select Item Description</option>
                         {items.map(it => <option key={it.id} value={it.itemName}>{it.itemName}</option>)}
                       </select>
                     </td>
@@ -534,10 +534,10 @@ export default function ConsumptionIssuePage() {
               </tbody>
               <tfoot>
                 <tr>
-                   <td colSpan={6} style={{ textAlign: "right", fontWeight: 600 }}>Total</td>
-                   <td>{fmt(totals.issueQty)}</td>
-                   <td></td>
-                   <td></td>
+                  <td colSpan={6} style={{ textAlign: "right", fontWeight: 600 }}>Total</td>
+                  <td>{fmt(totals.issueQty)}</td>
+                  <td></td>
+                  <td></td>
                   <td style={{ textAlign: "right", fontWeight: 600 }}>₹{fmt(totals.amount)}</td>
                   <td></td>
                 </tr>
@@ -552,19 +552,19 @@ export default function ConsumptionIssuePage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
             <div className="inv-field-v">
 
-              <input 
-                className="inv-input" 
-                value={header.preparedBy} 
+              <input
+                className="inv-input"
+                value={header.preparedBy}
                 onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
                 placeholder="Preparer name"
               />
             </div>
             <div className="inv-field-v">
 
-              <textarea 
-                className="inv-input" 
-                style={{ height: 40, resize: "none" }} 
-                value={header.remarks} 
+              <textarea
+                className="inv-input"
+                style={{ height: 40, resize: "none" }}
+                value={header.remarks}
                 onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))}
                 placeholder="General remarks..."
               />
