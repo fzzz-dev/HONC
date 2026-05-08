@@ -3,7 +3,7 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
 // ✅ FIX: relative path — same fix as countrySlice
-const BASE_URL = "/api/states";
+const BASE_URL = (import.meta.env.VITE_API_URL || "/api") + "/states";
 
 export const fetchStates = createAsyncThunk(
   "states/fetch",

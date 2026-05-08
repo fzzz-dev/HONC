@@ -103,7 +103,8 @@ export default function Sidebar() {
   useEffect(() => {
     const fetchPerms = async () => {
       try {
-        const res = await fetch('/api/permissions');
+        const BASE_URL = import.meta.env.VITE_API_URL || "/api";
+        const res = await fetch(`${BASE_URL}/permissions`);
         const data = await res.json();
         setPermissions(data);
       } catch (err) {

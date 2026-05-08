@@ -108,11 +108,28 @@ async function ensureSchemaEnhancements() {
       ["PurchaseOrders", "deliveryDate", "ADD COLUMN `deliveryDate` DATE NULL"],
       ["PurchaseOrders", "purchaseIndentId", "ADD COLUMN `purchaseIndentId` INT NULL"],
       ["PurchaseOrders", "purchaseIndentNo", "ADD COLUMN `purchaseIndentNo` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["PurchaseOrders", "grossAmount", "ADD COLUMN `grossAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["PurchaseOrders", "discAmount", "ADD COLUMN `discAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["PurchaseOrders", "poAmount", "ADD COLUMN `poAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["PurchaseOrders", "igstAmount", "ADD COLUMN `igstAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["PurchaseOrders", "cgstAmount", "ADD COLUMN `cgstAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["PurchaseOrders", "sgstAmount", "ADD COLUMN `sgstAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["PurchaseOrders", "netAmount", "ADD COLUMN `netAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["PurchaseOrders", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
       ["PurchaseIndents", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
       ["PurchaseIndents", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
       ["PurchaseGRNs", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
       ["PurchaseGRNs", "totalAmount", "ADD COLUMN `totalAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
       ["PurchaseGRNs", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
+      ["PurchaseGRNs", "grnType", "ADD COLUMN `grnType` VARCHAR(50) NOT NULL DEFAULT 'Against PO'"],
+      ["PurchaseGRNs", "verifiedBy", "ADD COLUMN `verifiedBy` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["PurchaseGRNs", "verifiedOn", "ADD COLUMN `verifiedOn` VARCHAR(255) NOT NULL DEFAULT ''"],
+      ["ConsumptionIssues", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
+      ["ConsumptionIssues", "totalAmount", "ADD COLUMN `totalAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["ConsumptionIssues", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
+      ["OpeningStocks", "totalQty", "ADD COLUMN `totalQty` DECIMAL(10,2) NOT NULL DEFAULT 0"],
+      ["OpeningStocks", "totalAmount", "ADD COLUMN `totalAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
+      ["OpeningStocks", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
     ];
     for (const [table, col, ddl] of patches) {
       if (!(await columnExists(table, col))) {
@@ -130,7 +147,7 @@ ensureDatabaseExists()
   .then(() => sequelize.authenticate())
   .then(async () => {
     console.log("SQL Database Connected");
-    return sequelize.sync();
+    return sequelize.sync({ alter: true });
   })
   .then(async () => {
     console.log("Database Synced");

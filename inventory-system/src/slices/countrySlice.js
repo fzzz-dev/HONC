@@ -5,7 +5,7 @@ import axios from "axios";
 // ✅ FIX: Use relative path so Vite proxy handles it in dev
 //         and the deployed origin handles it in prod.
 //         NEVER hardcode http://localhost:5000 — breaks in any other environment.
-const BASE_URL = "/api/countries";
+const BASE_URL = (import.meta.env.VITE_API_URL || "/api") + "/countries";
 
 export const fetchCountries = createAsyncThunk(
   "countries/fetch",

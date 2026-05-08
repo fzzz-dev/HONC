@@ -397,7 +397,7 @@ export default function PurchaseOrderPage() {
     try {
       const [supps, inds, its, pterms, comp] = await Promise.all([
         purchaseOrderApi.getSuppliers(), purchaseOrderApi.getIndents(), itemApi.getAll(), paymentTermsApi.getAll(),
-        fetch("/api/company").then(res => res.json()).catch(() => null)
+        fetch((import.meta.env.VITE_API_URL || "/api") + "/company").then(res => res.json()).catch(() => null)
       ]);
       setSuppliers(Array.isArray(supps) ? supps : []);
       setIndents(Array.isArray(inds) ? inds : []);

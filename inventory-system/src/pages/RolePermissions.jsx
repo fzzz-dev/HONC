@@ -55,11 +55,12 @@ const RolePermissions = () => {
     }));
   };
 
+  const BASE_URL = import.meta.env.VITE_API_URL || "/api";
   const fetchData = async () => {
     try {
       const [rolesRes, permsRes] = await Promise.all([
-        fetch('/api/roles'),
-        fetch('/api/permissions')
+        fetch(`${BASE_URL}/roles`),
+        fetch(`${BASE_URL}/permissions`)
       ]);
       const rolesData = await rolesRes.json();
       const permsData = await permsRes.json();
@@ -86,7 +87,7 @@ const RolePermissions = () => {
     const newValue = explicitValue !== null ? explicitValue : !currentAccess;
 
     try {
-      await fetch('/api/permissions', {
+      await fetch(`${BASE_URL}/permissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roleName, resourcePath, canAccess: newValue }),

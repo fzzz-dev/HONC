@@ -79,7 +79,7 @@ export default function PurchaseIndentPage() {
     try {
       const [depts, headsData, catsData, itemsData, comp] = await Promise.all([
         departmentApi.getAll(), inventoryHeadApi.getAll(), mainCategoryApi.getAll(), itemApi.getAll(),
-        fetch("/api/company").then(res => res.json()).catch(() => null)
+        fetch((import.meta.env.VITE_API_URL || "/api") + "/company").then(res => res.json()).catch(() => null)
       ]);
       setDepartments(depts || []); setHeads(headsData || []); setCompany(comp);
       setCategories((catsData || []).map(c => ({ ...c, id: sid(c), headId: sid(c.headId) })));

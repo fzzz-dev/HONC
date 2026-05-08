@@ -14,10 +14,11 @@ const UserManagement = () => {
   const [newRole, setNewRole] = useState({ name: '', description: '' });
   const [isEditing, setIsEditing] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const BASE_URL = import.meta.env.VITE_API_URL || "/api";
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/users');
+      const response = await fetch(`${BASE_URL}/users`);
       const data = await response.json();
       if (Array.isArray(data)) {
         setUsers(data);
@@ -32,7 +33,7 @@ const UserManagement = () => {
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch('/api/roles');
+      const response = await fetch(`${BASE_URL}/roles`);
       const data = await response.json();
       if (Array.isArray(data)) {
         setRoles(data);
@@ -70,7 +71,7 @@ const UserManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const url = isEditing ? `/api/users/${currentUser.id}` : '/api/users';
+      const url = isEditing ? `${BASE_URL}/users/${currentUser.id}` : `${BASE_URL}/users`;
       const method = isEditing ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -94,7 +95,7 @@ const UserManagement = () => {
   const handleAddRole = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/roles', {
+      const response = await fetch(`${BASE_URL}/roles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRole),
@@ -112,7 +113,7 @@ const UserManagement = () => {
   const handleDeleteRole = async (id) => {
     if (window.confirm('Delete this role? This might affect users assigned to it.')) {
       try {
-        await fetch(`/api/roles/${id}`, { method: 'DELETE' });
+        await fetch(`${BASE_URL}/roles/${id}`, { method: 'DELETE' });
         fetchRoles();
       } catch (error) {
         console.error('Error deleting role:', error);
@@ -123,7 +124,7 @@ const UserManagement = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
-        const response = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+        const response = await fetch(`${BASE_URL}/users/${id}`, { method: 'DELETE' });
         if (response.ok) {
           fetchUsers();
         }
@@ -148,7 +149,7 @@ const UserManagement = () => {
     const [msg, setMsg] = useState("");
 
     useEffect(() => {
-      fetch("/api/company")
+      fetch(`${BASE_URL}/company`)
         .then(res => res.json())
         .then(data => {
           setCompany(data);
@@ -171,7 +172,7 @@ const UserManagement = () => {
           formData.append("logo", logoFile);
         }
 
-        const res = await fetch("/api/company", {
+        const res = await fetch(`${BASE_URL}/company`, {
           method: "PUT",
           body: formData,
         });
