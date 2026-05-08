@@ -89,8 +89,8 @@ async function columnExists(tableName, columnName) {
 async function ensureSchemaEnhancements() {
   try {
     const [tables] = await sequelize.query("SHOW TABLES");
-    const dbTables = tables.map(t => Object.values(t)[0].toLowerCase());
-    console.log("Database tables found:", dbTables.join(", "));
+    const dbTables = tables.map(t => Object.values(t)[0]); // Keep actual casing
+    console.log("Database tables found (actual casing):", dbTables.join(", "));
 
     const patches = [
       ["items", "minimumStock", "ADD COLUMN `minimumStock` DECIMAL(12,2) NOT NULL DEFAULT 0"],
@@ -140,9 +140,9 @@ async function ensureSchemaEnhancements() {
 
     for (const [table, col, ddl] of patches) {
       const targetTable = dbTables.find(t => 
-        t === table.toLowerCase() || 
-        t === table.toLowerCase() + "s" || 
-        (table.toLowerCase().endsWith("s") && t === table.toLowerCase().slice(0, -1))
+        t.toLowerCase() === table.toLowerCase() || 
+        t.toLowerCase() === table.toLowerCase() + "s" || 
+        (table.toLowerCase().endsWith("s") && t.toLowerCase() === table.toLowerCase().slice(0, -1))
       );
       
       if (targetTable) {
@@ -166,12 +166,12 @@ ensureDatabaseExists()
   .then(() => sequelize.authenticate())
   .then(async () => {
     console.log("SQL Database Connected");
+    await ensureSchemaEnhancements();
     return sequelize.sync();
   })
   .then(async () => {
     console.log("Database Synced");
     await ensureItemMovementTypeColumn();
-    await ensureSchemaEnhancements();
     await seedData();
   })
   .catch((err) => {
