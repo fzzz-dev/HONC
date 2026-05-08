@@ -408,7 +408,18 @@ export default function PurchaseOrderPage() {
   }
 
   async function loadPos() {
-    setLoadingList(true); try { const data = await purchaseOrderApi.getAll(); setPos(Array.isArray(data) ? data : []); } catch (err) { setListError(err.message); } finally { setLoadingList(false); }
+    setLoadingList(true);
+    try {
+      const data = await purchaseOrderApi.getAll();
+      setPos(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load POs:", err);
+      if (typeof setListError === "function") {
+        setListError(err.message);
+      }
+    } finally {
+      setLoadingList(false);
+    }
   }
 
   async function openNew() {

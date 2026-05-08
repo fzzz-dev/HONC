@@ -88,6 +88,10 @@ async function columnExists(tableName, columnName) {
 
 async function ensureSchemaEnhancements() {
   try {
+    const [tables] = await sequelize.query("SHOW TABLES");
+    const dbTables = tables.map(t => Object.values(t)[0].toLowerCase());
+    console.log("Database tables found:", dbTables.join(", "));
+
     const patches = [
       ["items", "minimumStock", "ADD COLUMN `minimumStock` DECIMAL(12,2) NOT NULL DEFAULT 0"],
       ["items", "minimumOrderQty", "ADD COLUMN `minimumOrderQty` DECIMAL(12,2) NOT NULL DEFAULT 0"],
@@ -133,14 +137,23 @@ async function ensureSchemaEnhancements() {
       ["openingstocks", "totalAmount", "ADD COLUMN `totalAmount` DECIMAL(15,2) NOT NULL DEFAULT 0"],
       ["openingstocks", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
     ];
+
     for (const [table, col, ddl] of patches) {
-      try {
-        if (!(await columnExists(table, col))) {
-          await sequelize.query(`ALTER TABLE \`${table}\` ${ddl}`);
-          console.log(`Schema: added ${table}.${col}`);
+      const targetTable = dbTables.find(t => 
+        t === table.toLowerCase() || 
+        t === table.toLowerCase() + "s" || 
+        (table.toLowerCase().endsWith("s") && t === table.toLowerCase().slice(0, -1))
+      );
+      
+      if (targetTable) {
+        try {
+          await sequelize.query(`ALTER TABLE \`${targetTable}\` ${ddl}`);
+          console.log(`Schema Enhancement: added ${targetTable}.${col}`);
+        } catch (innerErr) {
+          if (!innerErr.message.includes("Duplicate column name")) {
+            console.warn(`Patch failed for ${targetTable}.${col}:`, innerErr.message);
+          }
         }
-      } catch (innerErr) {
-        console.warn(`Patch failed for ${table}.${col}:`, innerErr.message);
       }
     }
   } catch (e) {
