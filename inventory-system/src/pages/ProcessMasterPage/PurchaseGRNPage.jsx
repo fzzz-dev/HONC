@@ -13,6 +13,11 @@ import {
 import Modal from "../../components/Modal";
 import { SearchSelect } from "../../components/FormFields";
 
+const toTitleCase = (str) => {
+  if (!str) return "";
+  return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
 const FormGrid = ({ children }) => <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>{children}</div>;
 const Field = ({ label, children, horizontal = true }) => (
   <div className={`inv-field ${horizontal ? 'inv-field-h' : ''}`}>
@@ -151,10 +156,16 @@ export default function PurchaseGRNPage() {
         purchaseOrderApi.getAll(),
         purchaseIndentApi.getAll(),
       ]);
+      const sid = (v) => {
+        if (!v) return "";
+        if (typeof v === "object") return String(v.id || v._id || "");
+        return String(v);
+      };
+
       setGrns(grnData || []);
-      setSuppliers(suppData || []);
-      setStores(storeData || []);
-      setItems(itemData || []);
+      setSuppliers((suppData || []).map(s => ({ ...s, id: sid(s) })));
+      setStores((storeData || []).map(s => ({ ...s, id: sid(s) })));
+      setItems((itemData || []).map(it => ({ ...it, id: sid(it), headId: sid(it.headId), groupId: sid(it.groupId) })));
       setPos(poData || []);
       setIndents(indData || []);
     } catch (err) {
@@ -363,7 +374,7 @@ export default function PurchaseGRNPage() {
       const rows = [...prev];
       let row = {
         ...rows[idx],
-        [field]: isNaN(val) || typeof val === "string" ? val : +val,
+        [field]: val,
       };
 
       if (field === "poNo") {
@@ -372,57 +383,59 @@ export default function PurchaseGRNPage() {
           row.poId = po.id || po._id;
           row.poDate = po.date || "";
 
-          // If item is already selected, update its PO-specific data
-          if (row.itemName) {
+          if (row.itemId || row.itemName) {
             let poDetails = po.details || [];
             if (typeof poDetails === 'string') {
               try { poDetails = JSON.parse(poDetails); } catch (e) { poDetails = []; }
             }
-            const poItem = poDetails.find(d => String(d.itemName).toLowerCase() === String(row.itemName).toLowerCase());
+            const searchTerm = String(row.itemName || "").toLowerCase();
+            const poItem = poDetails.find(d => String(d.itemDescription || d.itemName || "").toLowerCase() === searchTerm);
             if (poItem) {
               row.poQty = poItem.poQty || 0;
               row.poRate = poItem.poRate || 0;
               row.grnRate = poItem.poRate || 0;
               row.gstPct = poItem.gstPct || row.gstPct;
+              row.poDetailId = poItem.id || poItem._id || poItem.poDetailId;
             }
           }
         }
       }
 
-      if (field === "indentNo") {
-        const ind = indents.find((i) => i.indentNo === val);
-        if (ind) {
-          row.indentId = ind.id || ind._id;
-        }
-      }
+      if (field === "itemId" || field === "itemName") {
+        const found = items.find((it) => 
+          String(it.id) === String(val) || 
+          (it.itemDescription || it.itemName) === val || 
+          it.itemName === val
+        );
+        
+        if (found) {
+          row.itemId = String(found.id);
+          row.itemName = toTitleCase(found.itemDescription || found.itemName || "");
+          row.uom = found.uom || "";
+          row.poRate = found.purchaseRate || found.rate || 0;
+          row.grnRate = found.purchaseRate || found.rate || 0;
+          row.gstPct = found.gstPercent !== undefined ? found.gstPercent : 0;
 
-      if (field === "itemName") {
-        const found = items.find((it) => (it.itemDescription || it.itemName) === val || it.itemName === val);
-        row.itemId = found?.id || found?._id || "";
-        row.uom = found?.uom || "";
-        row.poRate = found?.purchaseRate || found?.rate || 0;
-        row.grnRate = found?.purchaseRate || found?.rate || 0;
-        row.gstPct = found?.gstPercent !== undefined ? found.gstPercent : 0;
-
-        // If PO is selected, try to get details from that PO
-        if (row.poNo) {
-          const po = pos.find(p => p.poNo === row.poNo);
-          if (po) {
-            let poDetails = po.details || [];
-            if (typeof poDetails === 'string') {
-              try { poDetails = JSON.parse(poDetails); } catch(e) { poDetails = []; }
-            }
-            const poItem = poDetails.find(d => String(d.itemName).toLowerCase() === String(val).toLowerCase());
-            if (poItem) {
-              row.poQty = poItem.poQty || 0;
-              row.poRate = poItem.poRate || 0;
-              row.grnRate = poItem.poRate || 0;
-              row.gstPct = poItem.gstPct || row.gstPct;
+          if (row.poNo) {
+            const po = pos.find(p => p.poNo === row.poNo);
+            if (po) {
+              let poDetails = po.details || [];
+              if (typeof poDetails === 'string') {
+                try { poDetails = JSON.parse(poDetails); } catch(e) { poDetails = []; }
+              }
+              const searchTerm = row.itemName.toLowerCase();
+              const poItem = poDetails.find(d => String(d.itemDescription || d.itemName || "").toLowerCase() === searchTerm);
+              if (poItem) {
+                row.poQty = poItem.poQty || 0;
+                row.poRate = poItem.poRate || 0;
+                row.grnRate = poItem.poRate || 0;
+                row.gstPct = poItem.gstPct || row.gstPct;
+                row.poDetailId = poItem.id || poItem._id || poItem.poDetailId;
+              }
             }
           }
         }
       }
-
 
       row = calcRow(row, header.gstType);
       rows[idx] = row;
@@ -933,11 +946,11 @@ export default function PurchaseGRNPage() {
                     )}
                     <td>
                       <SearchSelect 
-                        style={{ minWidth: 150, border: "none" }}
-                        value={row.itemName} 
-                        onChange={val => updateDetail(idx, "itemName", val)}
-                        options={items.map(it => ({ value: it.itemDescription || it.itemName, label: it.itemDescription || it.itemName }))}
-                        placeholder="Select Item"
+                        style={{ minWidth: 200, border: "none" }}
+                        value={row.itemId || row.itemName} 
+                        onChange={val => updateDetail(idx, "itemId", val)}
+                        options={items.map(it => ({ value: String(it.id), label: it.itemDescription || it.itemName }))}
+                        placeholder="Select Item Description"
                       />
                     </td>
                     {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 70, textAlign: 'right' }} value={fmtQty(row.poQty)} readOnly /></td>}
