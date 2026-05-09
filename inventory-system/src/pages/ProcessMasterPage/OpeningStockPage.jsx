@@ -15,15 +15,21 @@ const emptyDetail = () => ({
   categoryName: "",
   itemId: "",
   itemName: "",
-  qty: 0,
-  rate: 0,
-  amount: 0,
+  qty: "0.000",
+  rate: "0.00",
+  amount: "0.00",
 });
 
 const fmt = (n) =>
   Number(n || 0).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  });
+
+const fmtQty = (n) =>
+  Number(n || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   });
 
 const FormGrid = ({ children }) => (
@@ -370,11 +376,12 @@ export default function OpeningStockPage() {
                         style={{ minWidth: 250, border: "none" }}
                         value={row.itemId} 
                         onChange={val => updateDetail(idx, "itemId", val)}
-                        options={items.filter(i => String(i.headId) === row.categoryId).map(i => ({ value: String(i.id), label: i.itemDescription || i.itemName }))}
-                        placeholder="Select Item Description"
+                        options={(row.categoryId ? items.filter(i => String(i.headId) === row.categoryId) : []).map(i => ({ value: String(i.id), label: i.itemDescription || i.itemName }))}
+                        placeholder={row.categoryId ? "Select Item Description" : "Select Category First"}
+                        disabled={!row.categoryId}
                       />
                     </td>
-                    <td><input type="number" className="inv-input" style={{ border: "none" }} value={row.qty} onChange={e => updateDetail(idx, "qty", e.target.value)} /></td>
+                    <td><input type="number" step="0.001" className="inv-input" style={{ border: "none" }} value={row.qty} onChange={e => updateDetail(idx, "qty", e.target.value)} onBlur={e => updateDetail(idx, "qty", Number(e.target.value || 0).toFixed(3))} /></td>
                     <td><input type="number" className="inv-input" style={{ border: "none" }} value={row.rate} onChange={e => updateDetail(idx, "rate", e.target.value)} /></td>
                     <td style={{ textAlign: "right" }}>{fmt(row.amount)}</td>
                     <td>
@@ -394,7 +401,7 @@ export default function OpeningStockPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 24 }}>
             <div className="inv-field-v">
               <label className="inv-label">Total Quantity</label>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "var(--accent)" }}>{fmt(totals.qty)}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "var(--accent)" }}>{fmtQty(totals.qty)}</div>
             </div>
             <div className="inv-field-v">
               <label className="inv-label">Total Amount</label>

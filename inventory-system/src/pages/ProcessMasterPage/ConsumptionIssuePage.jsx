@@ -23,11 +23,11 @@ const emptyDetail = () => ({
   subCategory: "",
   itemName: "",
   grnNo: "",
-  stkQty: 0,
-  stkRate: 0,
-  issueQty: 0,
-  rate: 0,
-  amount: 0,
+  stkQty: "0.000",
+  stkRate: "0.00",
+  issueQty: "0.000",
+  rate: "0.00",
+  amount: "0.00",
   issueRemarks: "",
 });
 
@@ -35,6 +35,12 @@ const fmt = (n) =>
   Number(n || 0).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  });
+
+const fmtQty = (n) =>
+  Number(n || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   });
 
 const getFY = () => {
@@ -531,9 +537,9 @@ export default function ConsumptionIssuePage() {
                         placeholder="Select GRN"
                       />
                     </td>
-                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.stkQty} onChange={e => updateDetail(idx, "stkQty", e.target.value)} /></td>
+                    <td><input type="number" step="0.001" className="inv-input" style={{ border: "none", width: 80 }} value={row.stkQty} onChange={e => updateDetail(idx, "stkQty", e.target.value)} onBlur={e => updateDetail(idx, "stkQty", Number(e.target.value || 0).toFixed(3))} /></td>
                     <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.stkRate} onChange={e => updateDetail(idx, "stkRate", e.target.value)} /></td>
-                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.issueQty} onChange={e => updateDetail(idx, "issueQty", e.target.value)} /></td>
+                    <td><input type="number" step="0.001" className="inv-input" style={{ border: "none", width: 80 }} value={row.issueQty} onChange={e => updateDetail(idx, "issueQty", e.target.value)} onBlur={e => updateDetail(idx, "issueQty", Number(e.target.value || 0).toFixed(3))} /></td>
                     <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.rate} onChange={e => updateDetail(idx, "rate", e.target.value)} /></td>
                     <td style={{ textAlign: "right" }}>{fmt(row.amount)}</td>
                     <td><input className="inv-input" style={{ border: "none", width: 120 }} value={row.issueRemarks} onChange={e => updateDetail(idx, "issueRemarks", e.target.value)} placeholder="Item remarks" /></td>
@@ -546,7 +552,7 @@ export default function ConsumptionIssuePage() {
               <tfoot>
                 <tr>
                   <td colSpan={6} style={{ textAlign: "right", fontWeight: 600 }}>Total</td>
-                  <td>{fmt(totals.issueQty)}</td>
+                  <td>{fmtQty(totals.issueQty)}</td>
                   <td></td>
                   <td></td>
                   <td style={{ textAlign: "right", fontWeight: 600 }}>₹{fmt(totals.amount)}</td>

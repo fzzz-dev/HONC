@@ -8,7 +8,7 @@ import { SearchSelect } from "../../components/FormFields";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 const today = () => new Date().toISOString().split("T")[0];
 const getFY = () => {
   const d = new Date();
@@ -108,9 +108,9 @@ const SupplierDetailsModal = ({ supplier, onClose }) => {
 };
 
 const emptyDetail = () => ({
-  _rowId: Math.random(), indentDetailId: "", indentNo: "", itemId: "", itemName: "", uom: "", balQty: 0,
-  poQty: 0, poRate: 0, discMode: "pct", discPct: 0, discPrice: 0, poAmount: 0,
-  gstPct: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0
+  _rowId: Math.random(), indentDetailId: "", indentNo: "", itemId: "", itemName: "", uom: "", balQty: "0.000",
+  poQty: "0.000", poRate: "0.00", discMode: "pct", discPct: "0.00", discPrice: "0.00", poAmount: "0.00",
+  gstPct: "0.00", sgst: "0.00", cgst: "0.00", igst: "0.00", totGst: "0.00", totalAmount: "0.00"
 });
 
 const emptyHeader = () => ({
@@ -274,7 +274,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
           <td class="text-right">${d.discMode === 'pct' ? Number(d.discPct || 0).toFixed(2) : ''}</td>
           <td class="text-right">${Number(d.gstPct || 0).toFixed(2)}</td>
           <td class="text-center">${esc(d.uom)}</td>
-          <td class="text-right">${Number(d.poQty || 0).toFixed(2)}</td>
+          <td class="text-right">${Number(d.poQty || 0).toFixed(3)}</td>
           <td class="text-right">${Number(d.poRate || 0).toFixed(2)}</td>
           <td class="text-right" style="border-right: none;">${Number((d.poQty || 0) * (d.poRate || 0)).toFixed(2)}</td>
         </tr>
@@ -619,12 +619,34 @@ export default function PurchaseOrderPage() {
 
   function addPendingLinesToDetails() {
     const selected = pendingIndentRows.filter(r => pendingSelected.has(r.rowId));
+    if (selected.length === 0) {
+      setPendingModalOpen(false);
+      return;
+    }
+    
     const newRows = selected.map(s => calcRow({
-      ...emptyDetail(), indentDetailId: s.detailId, indentNo: s.indentNo, itemId: s.itemId, itemName: s.itemName, uom: s.uom, balQty: s.balQty, poQty: s.balQty, poRate: s.rate || 0, 
+      ...emptyDetail(), 
+      indentDetailId: s.detailId, 
+      indentNo: s.indentNo, 
+      itemId: s.itemId, 
+      itemName: s.itemName, 
+      uom: s.uom, 
+      balQty: s.balQty, 
+      poQty: s.balQty, 
+      poRate: s.rate || 0, 
       gstPct: s.gstPct !== undefined ? s.gstPct : 0
     }));
-    setDetails(p => [...p.filter(r => r.itemId), ...newRows]);
-    setPendingModalOpen(false); setPendingSelected(new Set());
+    
+    setDetails(p => {
+      // Keep existing rows that already have an item selected
+      const existing = p.filter(r => r.itemId || r.itemName);
+      // If we only have one empty row, replace it
+      if (existing.length === 0) return newRows;
+      return [...existing, ...newRows];
+    });
+    
+    setPendingModalOpen(false); 
+    setPendingSelected(new Set());
   }
 
   if (view === "list") {
@@ -935,7 +957,7 @@ export default function PurchaseOrderPage() {
                           style={{ background: "#f8fafc", color: "#64748b", cursor: "not-allowed", textAlign: "right" }}
                         />
                       </td>
-                      <td><input className="inv-input-cell" type="number" step="0.01" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} onBlur={e => updateDetail(idx, "poQty", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
+                      <td><input className="inv-input-cell" type="number" step="0.001" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} onBlur={e => updateDetail(idx, "poQty", Number(e.target.value || 0).toFixed(3))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
                       <td><input className="inv-input-cell" type="number" step="0.01" value={row.poRate} onChange={e => updateDetail(idx, "poRate", e.target.value)} onBlur={e => updateDetail(idx, "poRate", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right" }} /></td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center" }}>
@@ -949,9 +971,12 @@ export default function PurchaseOrderPage() {
                           <td>
                             <input
                               className="inv-input-cell"
-                              value={`${Number(row.gstPct || 0)}%`}
-                              readOnly
-                              style={{ textAlign: "center", background: "#f8fafc", color: "#64748b", fontWeight: 600 }}
+                              type="number"
+                              step="0.01"
+                              value={row.gstPct}
+                              onChange={e => updateDetail(idx, "gstPct", e.target.value)}
+                              onBlur={e => updateDetail(idx, "gstPct", Number(e.target.value || 0).toFixed(2))}
+                              style={{ textAlign: "center", color: "#64748b", fontWeight: 600 }}
                             />
                           </td>
                           <td><input className="inv-input-cell" value={fmt(gstType === 'other' ? row.igst : row.sgst)} readOnly style={{ textAlign: "right" }} /></td>
@@ -1094,9 +1119,9 @@ export default function PurchaseOrderPage() {
           onClose={() => setPendingModalOpen(false)} 
           onSave={addPendingLinesToDetails} 
           saveLabel={`Add ${pendingSelected.size} Item(s) to PO`}
-          width="900px"
+          width="1300px"
         >
-          <div style={{ maxHeight: "500px", overflowY: "auto" }}>
+          <div style={{ maxHeight: "800px", overflowY: "auto" }}>
             <table className="inv-table-premium">
               <thead>
                 <tr>

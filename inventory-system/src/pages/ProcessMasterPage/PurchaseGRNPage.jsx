@@ -30,27 +30,27 @@ const emptyDetail = () => ({
   itemId: "",
   itemName: "",
   uom: "",
-  poQty: 0,
-  alGrnQty: 0,
-  balQty: 0,
-  grnQty: 0,
-  phyQty: 0,
-  poRate: 0,
-  grnRate: 0,
-  discPct: 0,
-  grnAmount: 0,
-  gstPct: 0,
-  sgst: 0,
-  cgst: 0,
-  igst: 0,
-  totGst: 0,
-  totalAmount: 0,
+  poQty: "0.000",
+  alGrnQty: "0.000",
+  balQty: "0.000",
+  grnQty: "0.000",
+  phyQty: "0.000",
+  poRate: "0.00",
+  grnRate: "0.00",
+  discPct: "0.00",
+  grnAmount: "0.00",
+  gstPct: "0.00",
+  sgst: "0.00",
+  cgst: "0.00",
+  igst: "0.00",
+  totGst: "0.00",
+  totalAmount: "0.00",
   remarks: "",
   isBatch: "No",
   batchNo: "",
   mfgDate: "",
   expDate: "",
-  batchQty: 0,
+  batchQty: "0.000",
   poDetailId: "",
 });
 
@@ -79,6 +79,12 @@ const fmt = (n) =>
   Number(n || 0).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  });
+
+const fmtQty = (n) =>
+  Number(n || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
   });
 
 const getFY = () => {
@@ -509,7 +515,10 @@ export default function PurchaseGRNPage() {
       const key = r.rowId || `${r.poId}-${r.poDetailId}`;
       return pendingSelected.has(key);
     });
-    if (selected.length === 0) return;
+    if (selected.length === 0) {
+      setPendingModalOpen(false);
+      return;
+    }
     
     // Inherit gstType from the first selected PO if not already set
     const firstGstType = selected[0].gstType || "local";
@@ -545,8 +554,9 @@ export default function PurchaseGRNPage() {
     }, firstGstType));
     
     setDetails(p => {
-      const filtered = p.filter(r => r.itemName || r.poNo);
-      return [...filtered, ...newRows];
+      const existing = p.filter(r => r.itemName || r.poNo);
+      if (existing.length === 0) return newRows;
+      return [...existing, ...newRows];
     });
     setPendingModalOpen(false);
     setPendingSelected(new Set());
@@ -706,9 +716,9 @@ export default function PurchaseGRNPage() {
           onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); }}
           onSave={addPendingLinesToDetails}
           saveLabel={pendingSelected.size > 0 ? `Add ${pendingSelected.size} Item(s) to GRN` : "Select items to add"}
-          width="900px"
+          width="1300px"
         >
-          <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+          <div style={{ maxHeight: '800px', overflowY: 'auto' }}>
             <table className="inv-table-premium">
               <thead>
                 <tr>
@@ -765,7 +775,7 @@ export default function PurchaseGRNPage() {
                       <td style={{ fontSize: "12px" }}>{r.poDate ? new Date(r.poDate).toLocaleDateString("en-GB") : "—"}</td>
                       <td style={{ fontWeight: 500 }}>{r.itemName}</td>
                       <td style={{ textAlign: "center" }}>{r.uom}</td>
-                      <td style={{ textAlign: "right", fontWeight: 700, color: "#3b6ef8" }}>{r.balQty}</td>
+                      <td style={{ textAlign: "right", fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(r.balQty)}</td>
                       <td style={{ textAlign: "right" }}>₹{fmt(r.poRate)}</td>
                     </tr>
                   );
@@ -930,9 +940,9 @@ export default function PurchaseGRNPage() {
                         placeholder="Select Item"
                       />
                     </td>
-                    {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.poQty} readOnly /></td>}
-                    {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.poRate} readOnly /></td>}
-                    <td><input type="number" className="inv-input" style={{ border: "none", width: 60, textAlign: 'right', fontWeight: 600, color: '#3b6ef8' }} value={row.grnQty} onChange={e => updateDetail(idx, "grnQty", e.target.value)} /></td>
+                    {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 70, textAlign: 'right' }} value={fmtQty(row.poQty)} readOnly /></td>}
+                    {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 60, textAlign: 'right' }} value={fmt(row.poRate)} readOnly /></td>}
+                    <td><input type="number" step="0.001" className="inv-input" style={{ border: "none", width: 80, textAlign: 'right', fontWeight: 600, color: '#3b6ef8' }} value={row.grnQty} onChange={e => updateDetail(idx, "grnQty", e.target.value)} onBlur={e => updateDetail(idx, "grnQty", Number(e.target.value || 0).toFixed(3))} /></td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <select 
@@ -966,9 +976,9 @@ export default function PurchaseGRNPage() {
                         )}
                       </div>
                     </td>
-                    {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.balQty} readOnly /></td>}
-                    {header.grnType !== "General" && <td><input type="number" className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.phyQty} onChange={e => updateDetail(idx, "phyQty", e.target.value)} /></td>}
-                    <td><input type="number" className="inv-input" style={{ border: "none", width: 60, textAlign: 'right' }} value={row.grnRate} onChange={e => updateDetail(idx, "grnRate", e.target.value)} /></td>
+                    {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 70, textAlign: 'right' }} value={fmtQty(row.balQty)} readOnly /></td>}
+                    {header.grnType !== "General" && <td><input type="number" step="0.001" className="inv-input" style={{ border: "none", width: 70, textAlign: 'right' }} value={row.phyQty} onChange={e => updateDetail(idx, "phyQty", e.target.value)} onBlur={e => updateDetail(idx, "phyQty", Number(e.target.value || 0).toFixed(3))} /></td>}
+                    <td><input type="number" step="0.01" className="inv-input" style={{ border: "none", width: 70, textAlign: 'right' }} value={row.grnRate} onChange={e => updateDetail(idx, "grnRate", e.target.value)} /></td>
                     <td><input type="number" className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.discPct} onChange={e => updateDetail(idx, "discPct", e.target.value)} /></td>
 
                     <td>
@@ -1096,9 +1106,11 @@ export default function PurchaseGRNPage() {
               <label className="inv-label">Batch Qty</label>
               <input 
                 type="number"
+                step="0.001"
                 className="inv-input" 
                 value={details[batchRowIdx].batchQty || 0} 
                 onChange={e => updateDetail(batchRowIdx, "batchQty", e.target.value)}
+                onBlur={e => updateDetail(batchRowIdx, "batchQty", Number(e.target.value || 0).toFixed(3))}
               />
             </div>
           </div>

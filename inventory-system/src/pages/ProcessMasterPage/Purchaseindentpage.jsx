@@ -6,6 +6,7 @@ import { SearchSelect } from "../../components/FormFields";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 const today = () => new Date().toISOString().split("T")[0];
 const getFY = () => {
   const d = new Date();
@@ -31,7 +32,7 @@ const safeDetails = (details) => {
 
 const emptyDetail = () => ({
   _rowId: Math.random(), mainCategoryId: "", mainCategoryName: "",
-  itemId: "", itemName: "", uom: "", indentQty: "0.00", dueDate: "", remarks: ""
+  itemId: "", itemName: "", uom: "", indentQty: "0.000", dueDate: "", remarks: ""
 });
 
 const emptyHeader = () => ({
@@ -287,7 +288,7 @@ export default function PurchaseIndentPage() {
                 </thead>
                 <tbody>
                   {details.map((row, idx) => {
-                    const filteredItems = row.mainCategoryName ? items.filter(it => it.group === row.mainCategoryName) : items;
+                    const filteredItems = row.mainCategoryName ? items.filter(it => it.group === row.mainCategoryName) : [];
                     return (
                       <tr key={row._rowId}>
                         <td style={{ textAlign: "center", color: "#94a3b8", fontWeight: 500 }}>{idx + 1}</td>
@@ -308,11 +309,12 @@ export default function PurchaseIndentPage() {
                             value={row.itemId}
                             onChange={val => updateDetail(idx, "itemId", val)}
                             options={filteredItems.map(it => ({ value: sid(it), label: it.itemDescription || it.itemName }))}
-                            placeholder="Select Item Description"
+                            placeholder={row.mainCategoryId ? "Select Item Description" : "Select Category First"}
+                            disabled={!row.mainCategoryId}
                           />
                         </td>
                         <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
-                        <td><input className="inv-input-cell" type="number" step="0.01" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
+                        <td><input className="inv-input-cell" type="number" step="0.001" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value || 0).toFixed(3))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
                         <td><input className="inv-input-cell" type="date" value={row.dueDate} onChange={e => updateDetail(idx, "dueDate", e.target.value)} /></td>
                         <td><input className="inv-input-cell" value={row.remarks} onChange={e => updateDetail(idx, "remarks", e.target.value)} placeholder="Notes..." /></td>
                         <td style={{ textAlign: "center" }}>
@@ -338,7 +340,7 @@ export default function PurchaseIndentPage() {
               </div>
               <div className="inv-summary-box">
                 <div className="inv-summary-box-label">Total Indent Qty</div>
-                <div className="inv-summary-box-value">{fmt(totalQty)}</div>
+                <div className="inv-summary-box-value">{fmtQty(totalQty)}</div>
               </div>
               <div
                 className="inv-summary-box"
