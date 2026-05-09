@@ -27,8 +27,8 @@ const styles = {
   },
   fullBox: {
     maxWidth: "98vw",
-    maxHeight: "98vh",
-    height: "98vh",
+    maxHeight: "90vh",
+    height: "90vh",
     borderRadius: "12px",
   },
   header: {
