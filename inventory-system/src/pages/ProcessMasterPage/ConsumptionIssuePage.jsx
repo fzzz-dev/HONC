@@ -355,7 +355,7 @@ export default function ConsumptionIssuePage() {
         </div>
 
         <div className="inv-card" style={{ marginBottom: 16 }}>
-          <div className="inv-card-body">
+          <div className="inv-card-body" style={{ padding: "20px 16px" }}>
             <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
               <label className="inv-label">Search ISS No</label>
               <input
@@ -443,8 +443,8 @@ export default function ConsumptionIssuePage() {
         </div>
       </div>
 
-      <div className="inv-card">
-        <div className="inv-card-body">
+      <div className="inv-card" style={{ minHeight: "160px" }}>
+        <div className="inv-card-body" style={{ padding: "24px" }}>
 
           <FormGrid>
             <Field label="ISS No (Auto)">
@@ -494,7 +494,7 @@ export default function ConsumptionIssuePage() {
         </div>
       </div>
 
-      <div className="inv-card">
+      <div className="inv-card" style={{ minHeight: "450px" }}>
         <div className="inv-card-body">
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
             <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
@@ -564,8 +564,8 @@ export default function ConsumptionIssuePage() {
         </div>
       </div>
 
-      <div className="inv-card" style={{ marginTop: 20 }}>
-        <div className="inv-card-body">
+      <div className="inv-card" style={{ marginTop: 20, minHeight: "120px" }}>
+        <div className="inv-card-body" style={{ padding: "24px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
             <div className="inv-field-v">
 
