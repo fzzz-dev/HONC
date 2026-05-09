@@ -435,10 +435,15 @@ export default function PurchaseGRNPage() {
         await grnApi.update(editId, payload);
       } else {
         if (payload.grnNo === "AUTO") payload.grnNo = "GRN-" + Date.now();
-        await grnApi.create(payload);
+        const res = await grnApi.create(payload);
+        if (res?.data?.id) {
+          setEditId(res.data.id);
+          setHeader(h => ({ ...h, grnNo: res.data.grnNo }));
+        }
       }
       await loadData();
-      setView("list");
+      alert("GRN saved successfully");
+
     } catch (err) {
       alert(err.message);
     } finally {
