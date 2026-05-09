@@ -1,3 +1,6 @@
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
+
 // ── Field wrapper ─────────────────────────────────────────────────────────────
 export function Field({ label, required, children }) {
   return (
@@ -54,6 +57,164 @@ export function Select({ value, onChange, options = [], placeholder }) {
         </option>
       ))}
     </select>
+  );
+}
+
+// ── Searchable Select ─────────────────────────────────────────────────────────
+export function SearchSelect({ value, onChange, options = [], placeholder, className, style, disabled }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+
+  const normalised = options.map((o) =>
+    typeof o !== "object" || o === null ? { value: String(o), label: String(o) } : o,
+  );
+
+  const filtered = normalised.filter(o => 
+    String(o.label).toLowerCase().includes(search.toLowerCase())
+  );
+
+  const selectedOption = normalised.find(o => String(o.value) === String(value));
+
+  const updateCoords = () => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const dropdownWidth = Math.max(rect.width, 220);
+      let left = rect.left + window.scrollX;
+      
+      // Prevent going off screen right
+      if (rect.left + dropdownWidth > window.innerWidth - 20) {
+        left = window.innerWidth - dropdownWidth - 20;
+      }
+
+      setCoords({
+        top: rect.bottom + window.scrollY,
+        left: left,
+        width: dropdownWidth
+      });
+    }
+  };
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      // If the click is outside BOTH the trigger container AND the dropdown portal, close it
+      const isOutsideTrigger = containerRef.current && !containerRef.current.contains(event.target);
+      const isOutsideDropdown = dropdownRef.current && !dropdownRef.current.contains(event.target);
+      
+      if (isOutsideTrigger && isOutsideDropdown) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      window.addEventListener("scroll", updateCoords, true);
+      window.addEventListener("resize", updateCoords);
+    }
+    return () => {
+      window.removeEventListener("scroll", updateCoords, true);
+      window.removeEventListener("resize", updateCoords);
+    };
+  }, [isOpen]);
+
+  // Determine if we are in a table cell by checking the className or style
+  const isCell = className?.includes("cell") || style?.border === "none";
+
+  return (
+    <div ref={containerRef} className={className} style={{ position: "relative", width: "100%", ...style }}>
+      <div 
+        className={isCell ? "inv-input-cell" : "inv-input"}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        style={{ 
+          cursor: disabled ? "not-allowed" : "pointer", 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center", 
+          minHeight: isCell ? 38 : 42,
+          background: disabled ? "#f9fafb" : "transparent",
+          opacity: disabled ? 0.7 : 1,
+          border: style?.border || undefined,
+          // Override background-image from inv-select-cell if present
+          backgroundImage: "none",
+          paddingRight: 12
+        }}
+      >
+        <span style={{ 
+          color: selectedOption ? "inherit" : "var(--text-secondary)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          marginRight: 8,
+          fontSize: isCell ? "12.5px" : "inherit"
+        }}>
+          {selectedOption ? selectedOption.label : (placeholder || "Select...")}
+        </span>
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+          <path d="M1 1L5 5L9 1" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+
+      {isOpen && createPortal(
+        <div ref={dropdownRef} style={{ 
+          position: "absolute", 
+          top: coords.top + 4, 
+          left: coords.left, 
+          width: coords.width,
+          zIndex: 10000, 
+          background: "#fff", 
+          border: "1px solid var(--border)", 
+          borderRadius: "var(--radius)",
+          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)", 
+          maxHeight: 250, 
+          display: "flex", 
+          flexDirection: "column",
+          overflow: "hidden"
+        }}>
+          <div style={{ padding: 8, borderBottom: "1px solid var(--border-subtle)", background: "#f8fafc" }}>
+            <input 
+              autoFocus
+              className="inv-input"
+              style={{ fontSize: 12, height: 32, padding: "0 10px" }}
+              placeholder="Search..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+          <div style={{ overflowY: "auto", flex: 1 }} className="no-scrollbar">
+            {filtered.length === 0 && <div style={{ padding: "12px", fontSize: 12, color: "var(--text-secondary)", textAlign: "center" }}>No results found</div>}
+            {filtered.map(o => (
+              <div 
+                key={o.value} 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  onChange(o.value); 
+                  setIsOpen(false); 
+                  setSearch(""); 
+                }}
+                style={{ 
+                  padding: "10px 14px", cursor: "pointer", fontSize: 13,
+                  background: String(o.value) === String(value) ? "var(--accent-light)" : "transparent",
+                  color: String(o.value) === String(value) ? "var(--accent)" : "#334155",
+                  transition: "all 0.1s"
+                }}
+                onMouseEnter={e => { if (String(o.value) !== String(value)) e.target.style.background = "#f1f5f9"; }}
+                onMouseLeave={e => { if (String(o.value) !== String(value)) e.target.style.background = "transparent"; }}
+              >
+                {o.label}
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
   );
 }
 

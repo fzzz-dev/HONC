@@ -11,6 +11,7 @@ import {
   purchaseIndentApi,
 } from "../../services/inventoryApi";
 import Modal from "../../components/Modal";
+import { SearchSelect } from "../../components/FormFields";
 
 const FormGrid = ({ children }) => <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>{children}</div>;
 const Field = ({ label, children, horizontal = true }) => (
@@ -50,6 +51,7 @@ const emptyDetail = () => ({
   mfgDate: "",
   expDate: "",
   batchQty: 0,
+  poDetailId: "",
 });
 
 function calcRow(row, gstType = "local") {
@@ -475,16 +477,22 @@ export default function PurchaseGRNPage() {
   const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
   async function openPendingModal() {
-    if (!header.supplierId) return alert("Please select a supplier first");
-    // Ensure we send a clean numeric ID
-    const cleanSupplierId = String(header.supplierId).split(':')[0];
     try {
-      const data = await grnApi.getPendingPOItems(cleanSupplierId);
-      if (!Array.isArray(data)) {
-        console.error("Unexpected pending items response:", data);
-        return alert("Could not load pending items. Please check your Purchase Orders have status 'Open'.");
+      let url = "/api/grns/pending-po-items";
+      const cleanSupplierId = header.supplierId
+        ? String(header.supplierId).split(':')[0]
+        : null;
+      const pendingData = await grnApi.getPendingPOItems(cleanSupplierId || "");
+      const rows = Array.isArray(pendingData) ? pendingData : [];
+      if (rows.length === 0) {
+        alert(header.supplierId
+          ? "No pending PO items found for this supplier. Please ensure POs exist with status 'Open' and have quantities."
+          : "No pending PO items found. Please create a Purchase Order first."
+        );
+        return;
       }
-      setPendingPoRows(data);
+      setPendingPoRows(rows);
+      setPendingSelected(new Set());
       setPendingModalOpen(true);
     } catch (err) {
       alert("Failed to fetch pending items: " + err.message);
@@ -492,11 +500,25 @@ export default function PurchaseGRNPage() {
   }
 
   function addPendingLinesToDetails() {
-    const selected = pendingPoRows.filter(r => pendingSelected.has(r.rowId || `${r.poId}-${r.poDetailId}`));
-    if (selected.length > 0) {
-      // Inherit gstType from the first selected PO
-      setHeader(h => ({ ...h, gstType: selected[0].gstType || "local" }));
+    const selected = pendingPoRows.filter(r => {
+      const key = r.rowId || `${r.poId}-${r.poDetailId}`;
+      return pendingSelected.has(key);
+    });
+    if (selected.length === 0) return;
+    
+    // Inherit gstType from the first selected PO if not already set
+    const firstGstType = selected[0].gstType || "local";
+    if (!header.supplierId && selected[0].supplierId) {
+      setHeader(h => ({ 
+        ...h, 
+        supplierId: String(selected[0].supplierId), 
+        supplierName: selected[0].supplierName || h.supplierName,
+        gstType: firstGstType 
+      }));
+    } else {
+      setHeader(h => ({ ...h, gstType: firstGstType }));
     }
+
     const newRows = selected.map(s => calcRow({
       ...emptyDetail(),
       poId: s.poId,
@@ -513,8 +535,9 @@ export default function PurchaseGRNPage() {
       phyQty: s.balQty,
       poRate: s.poRate,
       grnRate: s.poRate,
-      gstPct: s.gstPct !== undefined ? s.gstPct : 0
-    }, selected[0]?.gstType || "local"));
+      gstPct: s.gstPct !== undefined ? s.gstPct : 0,
+      poDetailId: s.poDetailId
+    }, firstGstType));
     
     setDetails(p => {
       const filtered = p.filter(r => r.itemName || r.poNo);
@@ -675,35 +698,55 @@ export default function PurchaseGRNPage() {
       {pendingModalOpen && (
         <Modal
           title="Pick Pending PO Items"
-          onClose={() => setPendingModalOpen(false)}
+          onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); }}
           onSave={addPendingLinesToDetails}
-          saveLabel="Add Selected"
+          saveLabel={pendingSelected.size > 0 ? `Add ${pendingSelected.size} Item(s) to GRN` : "Select items to add"}
+          width="900px"
         >
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            <table className="inv-table">
+          <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+            <table className="inv-table-premium">
               <thead>
                 <tr>
-                  <th style={{ width: 40 }}><input type="checkbox" onChange={(e) => {
-                    if (e.target.checked) setPendingSelected(new Set(pendingPoRows.map(r => r.rowId || `${r.poId}-${r.poDetailId}`)));
-                    else setPendingSelected(new Set());
-                  }} /></th>
-                  <th>PO No</th>
-                  <th>Item Description</th>
-                  <th>Bal Qty</th>
-                  <th>Unit Price</th>
+                  <th style={{ width: 40, textAlign: "center" }}>
+                    <input 
+                      type="checkbox" 
+                      style={{ width: 18, height: 18, cursor: "pointer" }}
+                      checked={pendingPoRows.length > 0 && pendingSelected.size === pendingPoRows.length}
+                      onChange={(e) => {
+                        if (e.target.checked) setPendingSelected(new Set(pendingPoRows.map(r => r.rowId || `${r.poId}-${r.poDetailId}`)));
+                        else setPendingSelected(new Set());
+                      }} 
+                    />
+                  </th>
+                  <th style={{ width: 140 }}>PO No</th>
+                  <th style={{ width: 100 }}>PO Date</th>
+                  <th style={{ minWidth: 200 }}>Item Description</th>
+                  <th style={{ width: 80 }}>UOM</th>
+                  <th style={{ width: 100, textAlign: "right" }}>Pending Qty</th>
+                  <th style={{ width: 100, textAlign: "right" }}>PO Rate</th>
                 </tr>
               </thead>
               <tbody>
                 {pendingPoRows.length === 0 && (
-                  <tr><td colSpan={5} className="inv-empty">No pending PO items found {header.supplierId ? "for this supplier" : ""}</td></tr>
+                  <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#64748b" }}>No pending PO items found {header.supplierId ? "for this supplier" : ""}</td></tr>
                 )}
                 {pendingPoRows.map(r => {
                   const rowId = r.rowId || `${r.poId}-${r.poDetailId}`;
                   return (
-                    <tr key={rowId}>
-                      <td>
+                    <tr 
+                      key={rowId} 
+                      onClick={() => {
+                        const next = new Set(pendingSelected);
+                        if (next.has(rowId)) next.delete(rowId);
+                        else next.add(rowId);
+                        setPendingSelected(next);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <td style={{ textAlign: "center" }} onClick={e => e.stopPropagation()}>
                         <input
                           type="checkbox"
+                          style={{ width: 18, height: 18, cursor: "pointer" }}
                           checked={pendingSelected.has(rowId)}
                           onChange={() => {
                             const next = new Set(pendingSelected);
@@ -713,10 +756,12 @@ export default function PurchaseGRNPage() {
                           }}
                         />
                       </td>
-                      <td>{r.poNo}</td>
-                      <td>{r.itemName}</td>
-                      <td>{r.balQty}</td>
-                      <td>₹{r.poRate}</td>
+                      <td style={{ fontWeight: 600, color: "var(--accent)" }}>{r.poNo}</td>
+                      <td style={{ fontSize: "12px" }}>{r.poDate ? new Date(r.poDate).toLocaleDateString("en-GB") : "—"}</td>
+                      <td style={{ fontWeight: 500 }}>{r.itemName}</td>
+                      <td style={{ textAlign: "center" }}>{r.uom}</td>
+                      <td style={{ textAlign: "right", fontWeight: 700, color: "#3b6ef8" }}>{r.balQty}</td>
+                      <td style={{ textAlign: "right" }}>₹{fmt(r.poRate)}</td>
                     </tr>
                   );
                 })}
@@ -745,17 +790,21 @@ export default function PurchaseGRNPage() {
 
             <Field label="Supplier *">
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <select className="inv-input" style={{ flex: 1 }} value={header.supplierId} onChange={(e) => {
-                  const rawId = e.target.value;
-                  const cleanId = rawId.includes(':') ? rawId.split(':')[0] : rawId;
-                  const s = suppliers.find(x => String(x.id) === cleanId || String(x._id) === cleanId);
-                  const gstType = s?.gstType || "local";
-                  setHeader(h => ({ ...h, supplierId: cleanId, supplierName: s?.supplierName || "", gstType }));
-                  setDetails(prev => prev.map(r => calcRow(r, gstType)));
-                }}>
-                  <option value="">Select supplier</option>
-                  {suppliers.map(s => <option key={s.id || s._id} value={String(s.id || s._id)}>{s.supplierName}</option>)}
-                </select>
+                <div style={{ flex: 1 }}>
+                  <SearchSelect 
+                    value={header.supplierId} 
+                    onChange={val => {
+                      const rawId = val;
+                      const cleanId = rawId.includes(':') ? rawId.split(':')[0] : rawId;
+                      const s = suppliers.find(x => String(x.id) === cleanId || String(x._id) === cleanId);
+                      const gstType = s?.gstType || "local";
+                      setHeader(h => ({ ...h, supplierId: cleanId, supplierName: s?.supplierName || "", gstType }));
+                      setDetails(prev => prev.map(r => calcRow(r, gstType)));
+                    }}
+                    options={suppliers.map(s => ({ value: String(s.id || s._id), label: s.supplierName }))}
+                    placeholder="Select supplier"
+                  />
+                </div>
                 <button type="button" className="inv-btn-icon" title="Add New Supplier" onClick={() => navigate("/supplier")} style={{ color: "#10b981" }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
@@ -796,10 +845,16 @@ export default function PurchaseGRNPage() {
                 <button 
                   className="inv-btn-secondary inv-btn-sm" 
                   onClick={openPendingModal} 
-                  disabled={!header.supplierId}
-                  style={{ opacity: !header.supplierId ? 0.5 : 1, cursor: !header.supplierId ? 'not-allowed' : 'pointer' }}
+                  style={{ 
+                    borderRadius: 4,
+                    background: "#f0fdf4",
+                    color: "#16a34a",
+                    borderColor: "#bbf7d0",
+                    fontWeight: 600,
+                    cursor: 'pointer' 
+                  }}
                 >
-                  Pending
+                  <span style={{ marginRight: 4 }}>+</span> Pick Pending PO
                 </button>
               )}
               <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
@@ -840,35 +895,35 @@ export default function PurchaseGRNPage() {
                     <td>{idx + 1}</td>
                     {header.grnType !== "General" && (
                       <td>
-                        <select className="inv-input" style={{ border: "none", width: 80 }} value={row.indentNo} onChange={e => updateDetail(idx, "indentNo", e.target.value)}>
-                          <option value="">—</option>
-                          {indents.map(ind => (
-                            <option key={ind.id} value={ind.indentNo}>{ind.indentNo}</option>
-                          ))}
-                        </select>
+                        <SearchSelect 
+                          style={{ minWidth: 100, border: "none" }}
+                          value={row.indentNo} 
+                          onChange={val => updateDetail(idx, "indentNo", val)}
+                          options={indents.map(ind => ({ value: ind.indentNo, label: ind.indentNo }))}
+                          placeholder="—"
+                        />
                       </td>
                     )}
                     {header.grnType !== "General" && (
                       <td>
-                        <select 
-                          className="inv-input" 
-                          style={{ border: "none", width: 80, cursor: !header.supplierId ? 'not-allowed' : 'pointer' }} 
+                        <SearchSelect 
+                          style={{ minWidth: 100, border: "none" }}
                           value={row.poNo} 
-                          onChange={e => updateDetail(idx, "poNo", e.target.value)}
+                          onChange={val => updateDetail(idx, "poNo", val)}
+                          options={pos.filter(po => !header.supplierId || String(po.supplierId) === String(header.supplierId)).map(po => ({ value: po.poNo, label: po.poNo }))}
+                          placeholder="—"
                           disabled={!header.supplierId}
-                        >
-                          <option value="">—</option>
-                          {pos.filter(po => !header.supplierId || String(po.supplierId) === String(header.supplierId)).map(po => (
-                            <option key={po.id} value={po.poNo}>{po.poNo}</option>
-                          ))}
-                        </select>
+                        />
                       </td>
                     )}
                     <td>
-                      <select className="inv-input" style={{ border: "none", width: 130 }} value={row.itemName} onChange={e => updateDetail(idx, "itemName", e.target.value)}>
-                        <option value="">Select Item Description</option>
-                        {items.map(it => <option key={it.id || it._id} value={it.itemDescription || it.itemName}>{it.itemDescription || it.itemName}</option>)}
-                      </select>
+                      <SearchSelect 
+                        style={{ minWidth: 150, border: "none" }}
+                        value={row.itemName} 
+                        onChange={val => updateDetail(idx, "itemName", val)}
+                        options={items.map(it => ({ value: it.itemDescription || it.itemName, label: it.itemDescription || it.itemName }))}
+                        placeholder="Select Item"
+                      />
                     </td>
                     {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.poQty} readOnly /></td>}
                     {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 50, textAlign: 'right' }} value={row.poRate} readOnly /></td>}

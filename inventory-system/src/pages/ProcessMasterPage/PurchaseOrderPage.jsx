@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 
 import { purchaseOrderApi, paymentTermsApi, supplierApi, inventoryHeadApi, mainCategoryApi, itemApi } from "../../services/inventoryApi";
 import Modal from "../../components/Modal";
+import { SearchSelect } from "../../components/FormFields";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -572,23 +573,47 @@ export default function PurchaseOrderPage() {
   };
   const indentDetailOptions = indents.flatMap(ind => safeDetails(ind.details).map(d => {
     const itMaster = items.find(i => sid(i) === sid(d.itemId));
+    const realBalQty = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
+      ? Number(d.balQty)
+      : Number(d.indentQty || 0);
     return {
       indentNo: ind.indentNo, detailId: sid(d.id || d._id), itemId: sid(d.itemId), 
       itemDescription: toTitleCase(d.itemDescription || d.itemName),
       itemName: toTitleCase(d.itemName),
-      uom: d.uom, balQty: d.indentQty, lastRate: d.rate, 
+      uom: d.uom, balQty: realBalQty, lastRate: d.rate, 
       gstPct: itMaster?.gstPercent !== undefined ? itMaster.gstPercent : (d.gstPct !== undefined ? d.gstPct : 0)
     };
   }));
 
-  const pendingIndentRows = indents.flatMap(ind => safeDetails(ind.details).filter(d => (d.indentQty || 0) > 0).map(d => {
-    const itMaster = items.find(i => sid(i) === sid(d.itemId));
-    return {
-      rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`, indentNo: ind.indentNo, detailId: sid(d.id || d._id),
-      itemId: sid(d.itemId), itemName: toTitleCase(d.itemDescription || d.itemName), uom: d.uom, balQty: d.indentQty, rate: d.rate,
-      gstPct: itMaster?.gstPercent || d.gstPct || 18
-    };
-  }));
+  const pendingIndentRows = indents.flatMap(ind => safeDetails(ind.details)
+    .filter(d => {
+      // Use actual balQty if it's set (existing rows after DB fix),
+      // else fall back to indentQty (brand-new rows not yet saved with balQty).
+      const balance = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
+        ? Number(d.balQty)
+        : Number(d.indentQty || 0);
+      return balance > 0 && d.itemId; // must have an item selected
+    })
+    .map(d => {
+      const itMaster = items.find(i => sid(i) === sid(d.itemId));
+      const realBalQty = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
+        ? Number(d.balQty)
+        : Number(d.indentQty || 0);
+      return {
+        rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`, 
+        indentNo: ind.indentNo, 
+        indentDate: ind.date,
+        departmentName: ind.departmentName,
+        detailId: sid(d.id || d._id),
+        itemId: sid(d.itemId), 
+        itemName: toTitleCase(d.itemDescription || d.itemName), 
+        categoryName: d.mainCategoryName || d.categoryName || "",
+        uom: d.uom, 
+        balQty: realBalQty,
+        rate: d.rate,
+        gstPct: itMaster?.gstPercent !== undefined ? itMaster.gstPercent : (d.gstPct !== undefined ? d.gstPct : 18)
+      };
+    }));
 
   const uniqueIndentNos = [...new Set(indentDetailOptions.map(o => o.indentNo))];
 
@@ -722,60 +747,55 @@ export default function PurchaseOrderPage() {
                   <option value="Capital Goods">Capital Goods</option>
                 </select>
               </Field>
-              <Field label="Supplier">
+              <Field label="Supplier *">
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  <select className="inv-input" style={{ flex: 1 }} value={header.supplierId} onChange={e => {
-                    const s = suppliers.find(x => sid(x) === e.target.value);
-                    let newGstType = "local";
-                    if (s) {
-                      const compGst = (company?.gstin || "").trim();
-                      const suppGst = (s.gstNo || "").trim();
+                  <div style={{ flex: 1 }}>
+                    <SearchSelect 
+                      value={header.supplierId} 
+                      onChange={val => {
+                        const s = suppliers.find(x => sid(x) === val);
+                        let newGstType = "local";
+                        if (s) {
+                          const compGst = (company?.gstin || "").trim();
+                          const suppGst = (s.gstNo || "").trim();
+                          const compCode = compGst.match(/^\d{2}/)?.[0];
+                          const suppCode = suppGst.match(/^\d{2}/)?.[0];
+                          if (compCode && suppCode) {
+                            newGstType = compCode === suppCode ? "local" : "other";
+                          } else {
+                            const compState = (company?.state || company?.address || "").toLowerCase().replace(/\s+/g, '');
+                            const parsedAddresses = safeDetails(s?.addresses);
+                            const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
+                            const suppState = (s.state || primaryAddr?.stateName || "").toLowerCase().replace(/\s+/g, '');
+                            if (compState && suppState && (compState.includes(suppState) || suppState.includes(compState))) {
+                              newGstType = "local";
+                            } else {
+                              newGstType = s.gstType || "local";
+                            }
+                          }
+                        }
 
-                      // Only compare if both start with 2 digits (valid GST state codes)
-                      const compCode = compGst.match(/^\d{2}/)?.[0];
-                      const suppCode = suppGst.match(/^\d{2}/)?.[0];
-
-                      if (compCode && suppCode) {
-                        newGstType = compCode === suppCode ? "local" : "other";
-                      } else {
-                        // Fallback: check states if GSTINs are not fully available
-                        const compState = (company?.state || company?.address || "").toLowerCase().replace(/\s+/g, '');
+                        setGstType(newGstType);
                         const parsedAddresses = safeDetails(s?.addresses);
                         const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
-                        const suppState = (s.state || primaryAddr?.stateName || "").toLowerCase().replace(/\s+/g, '');
-
-                        if (compState && suppState && (compState.includes(suppState) || suppState.includes(compState))) {
-                          newGstType = "local";
-                        } else {
-                          // Final fallback to the supplier's configured gstType or default to local
-                          // We don't force "other" unless we have clear evidence (GST codes)
-                          newGstType = s.gstType || "local";
+                        let addrText = "";
+                        if (primaryAddr) {
+                          const parts = [
+                            primaryAddr.address || primaryAddr.line1,
+                            primaryAddr.cityName,
+                            primaryAddr.stateName,
+                            primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""
+                          ].filter(Boolean);
+                          addrText = parts.join(", ");
                         }
-                      }
-                    }
 
-                    setGstType(newGstType);
-
-                    const parsedAddresses = safeDetails(s?.addresses);
-                    const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
-                    let addrText = "";
-                    if (primaryAddr) {
-                      const parts = [
-                        primaryAddr.address || primaryAddr.line1,
-                        primaryAddr.cityName,
-                        primaryAddr.stateName,
-                        primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""
-                      ].filter(Boolean);
-                      addrText = parts.join(", ");
-                    }
-
-                    setHeader(h => ({ ...h, supplierId: e.target.value, supplierName: toTitleCase(s?.supplierName || ""), supplierAddress: addrText, supplierGst: s?.gstNo || "" }));
-                    // Recalculate taxes for all rows when GST type changes
-                    setDetails(prev => prev.map(row => calcRow(row, newGstType)));
-                  }}>
-                    <option value="">Select supplier</option>
-                    {suppliers.map(s => <option key={sid(s)} value={sid(s)}>{s.supplierName}</option>)}
-                  </select>
+                        setHeader(h => ({ ...h, supplierId: val, supplierName: toTitleCase(s?.supplierName || ""), supplierAddress: addrText, supplierGst: s?.gstNo || "" }));
+                        setDetails(prev => prev.map(row => calcRow(row, newGstType)));
+                      }}
+                      options={suppliers.map(s => ({ value: sid(s), label: s.supplierName }))}
+                      placeholder="Select supplier"
+                    />
+                  </div>
                     <button type="button" className="inv-btn-icon" title="Add New Supplier" onClick={() => navigate("/supplier")} style={{ color: "#10b981" }}>
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     </button>
@@ -811,10 +831,30 @@ export default function PurchaseOrderPage() {
                 <thead>
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
-                    <th style={{ width: 140 }}>Indent No</th>
-                    <th style={{ minWidth: 200 }}>Item Description</th>
-                    <th style={{ width: 80 }}>UOM</th>
-                    <th style={{ width: 80, textAlign: "right" }}>Bal</th>
+                    <th style={{ width: 150 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Indent No
+                      </span>
+                    </th>
+                    <th style={{ minWidth: 200 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Item Description
+                      </span>
+                    </th>
+                    <th style={{ width: 80 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        UOM
+                      </span>
+                    </th>
+                    <th style={{ width: 80, textAlign: "right" }}>
+                      <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Bal
+                      </span>
+                    </th>
                     <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
                     <th style={{ width: 100, textAlign: "right" }}>Unit Price</th>
                     <th style={{ width: 100, textAlign: "right" }}>Disc</th>
@@ -832,36 +872,69 @@ export default function PurchaseOrderPage() {
                   {details.map((row, idx) => (
                     <tr key={row._rowId}>
                       <td style={{ textAlign: "center", color: "#94a3b8", fontWeight: 500 }}>{idx + 1}</td>
+                      {/* ── LOCKED: Indent No ── */}
                       <td>
-                        <select
-                          className="inv-select-cell"
+                        <input
+                          className="inv-input-cell"
                           value={row.indentNo || ""}
-                          onChange={e => updateDetail(idx, "indentNo", e.target.value)}
-                          style={{ color: '#4f46e5', fontWeight: 600 }}
-                        >
-                          <option value="">— Select —</option>
-                          {uniqueIndentNos.map(no => (
-                            <option key={no} value={no}>{no}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <select
-                          className="inv-select-cell"
-                          value={row.indentDetailId || row.itemId}
-                          onChange={e => {
-                            const val = e.target.value;
-                            updateDetail(idx, "indentDetailId", e.target.value);
+                          readOnly
+                          placeholder="Via Pick Indent"
+                          style={{
+                            background: "#f8fafc",
+                            color: row.indentNo ? "#4f46e5" : "#cbd5e1",
+                            fontWeight: row.indentNo ? 600 : 400,
+                            cursor: "not-allowed",
+                            fontStyle: row.indentNo ? "normal" : "italic",
+                            fontSize: 12,
                           }}
-                        >
-                          <option value="">— Select Item Description —</option>
-                          {indentDetailOptions.filter(o => o.indentNo === row.indentNo).map(o => (
-                            <option key={o.detailId} value={o.detailId}>{o.itemDescription || o.itemName}</option>
-                          ))}
-                        </select>
+                        />
                       </td>
-                      <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
-                      <td><input className="inv-input-cell" value={fmtQty(row.balQty)} readOnly style={{ textAlign: "right" }} /></td>
+                      {/* ── LOCKED: Item Description ── */}
+                      <td>
+                        {row.indentDetailId ? (
+                          // Locked — came from indent
+                          <input
+                            className="inv-input-cell"
+                            value={row.itemName || ""}
+                            readOnly
+                            style={{
+                              background: "#f8fafc",
+                              color: "#1e293b",
+                              fontWeight: 500,
+                              cursor: "not-allowed",
+                              minWidth: 160,
+                            }}
+                          />
+                        ) : (
+                          // Direct PO — allow item selection
+                          <SearchSelect
+                            className="inv-select-cell"
+                            style={{ padding: 0, border: "none" }}
+                            value={row.itemId}
+                            onChange={val => updateDetail(idx, "itemId", val)}
+                            options={items.map(it => ({ value: sid(it), label: it.itemDescription || it.itemName }))}
+                            placeholder="Select Item"
+                          />
+                        )}
+                      </td>
+                      {/* ── LOCKED: UOM ── */}
+                      <td>
+                        <input
+                          className="inv-input-cell"
+                          value={row.uom || ""}
+                          readOnly
+                          style={{ background: "#f8fafc", color: "#64748b", cursor: "not-allowed", textAlign: "center" }}
+                        />
+                      </td>
+                      {/* ── LOCKED: Bal Qty ── */}
+                      <td>
+                        <input
+                          className="inv-input-cell"
+                          value={row.balQty ? fmtQty(row.balQty) : "—"}
+                          readOnly
+                          style={{ background: "#f8fafc", color: "#64748b", cursor: "not-allowed", textAlign: "right" }}
+                        />
+                      </td>
                       <td><input className="inv-input-cell" type="number" step="0.01" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} onBlur={e => updateDetail(idx, "poQty", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
                       <td><input className="inv-input-cell" type="number" step="0.01" value={row.poRate} onChange={e => updateDetail(idx, "poRate", e.target.value)} onBlur={e => updateDetail(idx, "poRate", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right" }} /></td>
                       <td>
@@ -1016,17 +1089,67 @@ export default function PurchaseOrderPage() {
       </div>
 
       {pendingModalOpen && (
-        <Modal title="Pick Pending Indent Lines" onClose={() => setPendingModalOpen(false)} onSave={addPendingLinesToDetails} saveLabel="Add to PO">
-          <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-            <table className="inv-table">
+        <Modal 
+          title="Pick Pending Indent Lines" 
+          onClose={() => setPendingModalOpen(false)} 
+          onSave={addPendingLinesToDetails} 
+          saveLabel={`Add ${pendingSelected.size} Item(s) to PO`}
+          width="900px"
+        >
+          <div style={{ maxHeight: "500px", overflowY: "auto" }}>
+            <table className="inv-table-premium">
               <thead>
-                <tr><th><input type="checkbox" onChange={e => { if (e.target.checked) setPendingSelected(new Set(pendingIndentRows.map(r => r.rowId))); else setPendingSelected(new Set()); }} /></th><th>Indent</th><th>Item Description</th><th>Bal Qty</th></tr>
+                <tr>
+                  <th style={{ width: 40, textAlign: "center" }}>
+                    <input 
+                      type="checkbox" 
+                      style={{ width: 18, height: 18, cursor: "pointer" }}
+                      checked={pendingIndentRows.length > 0 && pendingSelected.size === pendingIndentRows.length}
+                      onChange={e => { 
+                        if (e.target.checked) setPendingSelected(new Set(pendingIndentRows.map(r => r.rowId))); 
+                        else setPendingSelected(new Set()); 
+                      }} 
+                    />
+                  </th>
+                  <th style={{ width: 120 }}>Indent No</th>
+                  <th style={{ width: 100 }}>Date</th>
+                  <th style={{ width: 120 }}>Department</th>
+                  <th style={{ width: 120 }}>Category</th>
+                  <th style={{ minWidth: 200 }}>Item Description</th>
+                  <th style={{ width: 60 }}>UOM</th>
+                  <th style={{ width: 90, textAlign: "right" }}>Pending</th>
+                </tr>
               </thead>
               <tbody>
+                {pendingIndentRows.length === 0 && (
+                  <tr><td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#64748b" }}>No pending indents available</td></tr>
+                )}
                 {pendingIndentRows.map(r => (
-                  <tr key={r.rowId}>
-                    <td><input type="checkbox" checked={pendingSelected.has(r.rowId)} onChange={() => { const n = new Set(pendingSelected); if (n.has(r.rowId)) n.delete(r.rowId); else n.add(r.rowId); setPendingSelected(n); }} /></td>
-                    <td>{r.indentNo}</td><td>{r.itemDescription || r.itemName}</td><td>{fmtQty(r.balQty)}</td>
+                  <tr key={r.rowId} onClick={() => {
+                    const n = new Set(pendingSelected);
+                    if (n.has(r.rowId)) n.delete(r.rowId); else n.add(r.rowId);
+                    setPendingSelected(n);
+                  }} style={{ cursor: "pointer" }}>
+                    <td style={{ textAlign: "center" }} onClick={e => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        style={{ width: 18, height: 18, cursor: "pointer" }}
+                        checked={pendingSelected.has(r.rowId)} 
+                        onChange={() => { 
+                          const n = new Set(pendingSelected); 
+                          if (n.has(r.rowId)) n.delete(r.rowId); 
+                          else n.add(r.rowId); 
+                          setPendingSelected(n); 
+                        }} 
+                      />
+                    </td>
+                    <td style={{ fontWeight: 600, color: "var(--accent)" }}>{r.indentNo}</td>
+                    <td style={{ fontSize: "12px" }}>{r.indentDate}</td>
+                    <td style={{ fontSize: "12px" }}>{r.departmentName}</td>
+                    <td style={{ fontSize: "12px", color: "#64748b" }}>{r.categoryName}</td>
+                    <td style={{ fontWeight: 500 }}>{r.itemName}</td>
+                    <td style={{ textAlign: "center" }}>{r.uom}</td>
+                    <td style={{ textAlign: "right", fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(r.balQty)}</td>
                   </tr>
                 ))}
               </tbody>

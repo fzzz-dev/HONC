@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { purchaseIndentApi, inventoryHeadApi, mainCategoryApi, itemApi, departmentApi } from "../../services/inventoryApi";
 import Modal from "../../components/Modal";
+import { SearchSelect } from "../../components/FormFields";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -92,7 +93,7 @@ export default function PurchaseIndentPage() {
   }
 
   async function openNew() {
-    setHeader({ ...emptyHeader(), preparedBy: user?.name || "Admin" }); 
+    setHeader({ ...emptyHeader(), preparedBy: user?.name || "Admin" });
     setDetails([emptyDetail()]); setEditId(null); setView("form");
     try { const { indentNo } = await purchaseIndentApi.getNextNumber(); if (indentNo) setHeader(h => ({ ...h, indentNo })); } catch (e) { }
   }
@@ -187,11 +188,11 @@ export default function PurchaseIndentPage() {
           <div className="inv-card-body">
             <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
               <label className="inv-label">Search Indent No</label>
-              <input 
-                className="inv-input" 
-                value={searchTerm} 
-                onChange={e => setSearchTerm(e.target.value)} 
-                placeholder="Type to search Indent Number..." 
+              <input
+                className="inv-input"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Type to search Indent Number..."
               />
             </div>
           </div>
@@ -250,13 +251,15 @@ export default function PurchaseIndentPage() {
               <Field label="Date"><input className="inv-input" type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} /></Field>
 
               <Field label="Department *">
-                <select className="inv-input" value={header.departmentId} onChange={e => {
-                  const d = departments.find(x => sid(x) === e.target.value);
-                  setHeader(h => ({ ...h, departmentId: e.target.value, departmentName: toTitleCase(d?.name || d?.departmentName || "") }));
-                }}>
-                  <option value="">Select department</option>
-                  {departments.map(d => <option key={sid(d)} value={sid(d)}>{d.name || d.departmentName}</option>)}
-                </select>
+                <SearchSelect
+                  value={header.departmentId}
+                  onChange={val => {
+                    const d = departments.find(x => sid(x) === val);
+                    setHeader(h => ({ ...h, departmentId: val, departmentName: toTitleCase(d?.name || d?.departmentName || "") }));
+                  }}
+                  options={departments.map(d => ({ value: sid(d), label: d.name || d.departmentName }))}
+                  placeholder="Select department"
+                />
               </Field>
               <Field label="Requested By"><input className="inv-input" value={header.createdBy} onChange={e => setHeader(h => ({ ...h, createdBy: e.target.value }))} /></Field>
             </FormGrid>
@@ -283,33 +286,41 @@ export default function PurchaseIndentPage() {
                   </tr>
                 </thead>
                 <tbody>
-                    {details.map((row, idx) => {
-                      const filteredItems = row.mainCategoryName ? items.filter(it => it.group === row.mainCategoryName) : items;
-                      return (
-                        <tr key={row._rowId}>
-                          <td style={{ textAlign: "center", color: "#94a3b8", fontWeight: 500 }}>{idx + 1}</td>
-                          <td>
-                            <select className="inv-select-cell" value={row.mainCategoryId} onChange={e => updateDetail(idx, "mainCategoryId", e.target.value)}>
-                              <option value="">Select Category</option>
-                              {categories.map(c => <option key={sid(c)} value={sid(c)}>{c.groupName}</option>)}
-                            </select>
-                          </td>
-                          <td>
-                            <select className="inv-select-cell" value={row.itemId} onChange={e => updateDetail(idx, "itemId", e.target.value)}>
-                              <option value="">Select Item Description</option>
-                              {filteredItems.map(it => <option key={sid(it)} value={sid(it)}>{it.itemDescription || it.itemName}</option>)}
-                            </select>
-                          </td>
-                          <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
-                          <td><input className="inv-input-cell" type="number" step="0.01" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
-                          <td><input className="inv-input-cell" type="date" value={row.dueDate} onChange={e => updateDetail(idx, "dueDate", e.target.value)} /></td>
-                          <td><input className="inv-input-cell" value={row.remarks} onChange={e => updateDetail(idx, "remarks", e.target.value)} placeholder="Notes..." /></td>
-                          <td style={{ textAlign: "center" }}>
-                            <button className="inv-btn-icon inv-btn-danger" onClick={() => removeRow(idx)} style={{ border: "none", background: "transparent" }}>✕</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                  {details.map((row, idx) => {
+                    const filteredItems = row.mainCategoryName ? items.filter(it => it.group === row.mainCategoryName) : items;
+                    return (
+                      <tr key={row._rowId}>
+                        <td style={{ textAlign: "center", color: "#94a3b8", fontWeight: 500 }}>{idx + 1}</td>
+                        <td>
+                          <SearchSelect
+                            className="inv-select-cell"
+                            style={{ padding: 0, border: "none" }}
+                            value={row.mainCategoryId}
+                            onChange={val => updateDetail(idx, "mainCategoryId", val)}
+                            options={categories.map(c => ({ value: sid(c), label: c.groupName }))}
+                            placeholder="Select Category"
+                          />
+                        </td>
+                        <td>
+                          <SearchSelect
+                            className="inv-select-cell"
+                            style={{ padding: 0, border: "none" }}
+                            value={row.itemId}
+                            onChange={val => updateDetail(idx, "itemId", val)}
+                            options={filteredItems.map(it => ({ value: sid(it), label: it.itemDescription || it.itemName }))}
+                            placeholder="Select Item Description"
+                          />
+                        </td>
+                        <td><input className="inv-input-cell" value={row.uom} readOnly /></td>
+                        <td><input className="inv-input-cell" type="number" step="0.01" value={row.indentQty} onChange={e => updateDetail(idx, "indentQty", e.target.value)} onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
+                        <td><input className="inv-input-cell" type="date" value={row.dueDate} onChange={e => updateDetail(idx, "dueDate", e.target.value)} /></td>
+                        <td><input className="inv-input-cell" value={row.remarks} onChange={e => updateDetail(idx, "remarks", e.target.value)} placeholder="Notes..." /></td>
+                        <td style={{ textAlign: "center" }}>
+                          <button className="inv-btn-icon inv-btn-danger" onClick={() => removeRow(idx)} style={{ border: "none", background: "transparent" }}>✕</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -320,12 +331,7 @@ export default function PurchaseIndentPage() {
           <div className="inv-card-body">
 
             <div className="inv-summary-grid">
-              <div className="inv-summary-box">
-                <div className="inv-summary-box-label">Department</div>
-                <div className="inv-summary-box-value" style={{ fontSize: 15 }}>
-                  {header.departmentName || "—"}
-                </div>
-              </div>
+
               <div className="inv-summary-box">
                 <div className="inv-summary-box-label">Total Line Items</div>
                 <div className="inv-summary-box-value">{details.length}</div>
@@ -352,9 +358,9 @@ export default function PurchaseIndentPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
                 <div className="inv-field-v">
                   <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
-                  <input 
-                    className="inv-input" 
-                    value={header.preparedBy || ""} 
+                  <input
+                    className="inv-input"
+                    value={header.preparedBy || ""}
                     onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
                     placeholder="Name of preparer"
                   />

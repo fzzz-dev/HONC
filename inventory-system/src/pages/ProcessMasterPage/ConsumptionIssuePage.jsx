@@ -7,6 +7,7 @@ import {
   itemApi,
   grnApi,
 } from "../../services/inventoryApi";
+import { SearchSelect } from "../../components/FormFields";
 
 const FormGrid = ({ children }) => <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>{children}</div>;
 const Field = ({ label, children, horizontal = true }) => (
@@ -462,22 +463,26 @@ export default function ConsumptionIssuePage() {
               </Field>
             )}
             <Field label="Department *">
-              <select className="inv-input" value={header.departmentId} onChange={(e) => {
-                const d = departments.find(x => String(x.id) === e.target.value);
-                setHeader(h => ({ ...h, departmentId: e.target.value, departmentName: d?.name || "" }));
-              }}>
-                <option value="">Select department</option>
-                {departments.map(d => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
-              </select>
+              <SearchSelect 
+                value={header.departmentId} 
+                onChange={val => {
+                  const d = departments.find(x => String(x.id) === val);
+                  setHeader(h => ({ ...h, departmentId: val, departmentName: d?.name || "" }));
+                }}
+                options={departments.map(d => ({ value: String(d.id), label: d.name }))}
+                placeholder="Select department"
+              />
             </Field>
             <Field label="Store *">
-              <select className="inv-input" value={header.storeId} onChange={(e) => {
-                const s = stores.find(x => String(x.id) === e.target.value);
-                setHeader(h => ({ ...h, storeId: e.target.value, storeName: s?.name || "" }));
-              }}>
-                <option value="">Select store</option>
-                {stores.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-              </select>
+              <SearchSelect 
+                value={header.storeId} 
+                onChange={val => {
+                  const s = stores.find(x => String(x.id) === val);
+                  setHeader(h => ({ ...h, storeId: val, storeName: s?.name || "" }));
+                }}
+                options={stores.map(s => ({ value: String(s.id), label: s.name }))}
+                placeholder="Select store"
+              />
             </Field>
           </FormGrid>
         </div>
@@ -509,16 +514,22 @@ export default function ConsumptionIssuePage() {
                   <tr key={row._rowId}>
                     <td>{idx + 1}</td>
                     <td>
-                      <select className="inv-input" style={{ border: "none", width: 200 }} value={row.itemName} onChange={e => updateDetail(idx, "itemName", e.target.value)}>
-                        <option value="">Select Item Description</option>
-                        {items.map(it => <option key={it.id} value={it.itemDescription || it.itemName}>{it.itemDescription || it.itemName}</option>)}
-                      </select>
+                      <SearchSelect 
+                        style={{ minWidth: 200, border: "none" }}
+                        value={row.itemName} 
+                        onChange={val => updateDetail(idx, "itemName", val)}
+                        options={items.map(it => ({ value: it.itemDescription || it.itemName, label: it.itemDescription || it.itemName }))}
+                        placeholder="Select Item"
+                      />
                     </td>
                     <td>
-                      <select className="inv-input" style={{ border: "none", width: 120 }} value={row.grnNo} onChange={e => updateDetail(idx, "grnNo", e.target.value)}>
-                        <option value="">Select GRN</option>
-                        {grns.map(g => <option key={g.id} value={g.grnNo}>{g.grnNo}</option>)}
-                      </select>
+                      <SearchSelect 
+                        style={{ minWidth: 120, border: "none" }}
+                        value={row.grnNo} 
+                        onChange={val => updateDetail(idx, "grnNo", val)}
+                        options={grns.map(g => ({ value: g.grnNo, label: g.grnNo }))}
+                        placeholder="Select GRN"
+                      />
                     </td>
                     <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.stkQty} onChange={e => updateDetail(idx, "stkQty", e.target.value)} /></td>
                     <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.stkRate} onChange={e => updateDetail(idx, "stkRate", e.target.value)} /></td>

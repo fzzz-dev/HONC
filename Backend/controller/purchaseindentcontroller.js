@@ -6,19 +6,32 @@ const TODAY = () => new Date().toISOString().split("T")[0];
 
 // ── Sanitize one detail row ───────────────────────────────────────────────────
 function sanitizeDetail(d = {}) {
+  const indentQty = Math.max(0, Number(d.indentQty) || 0);
+  const alPoQty   = Math.max(0, Number(d.alPoQty)   || 0);
+
+  // If balQty is explicitly provided (editing an existing row), use it.
+  // Otherwise (new row), default balQty = indentQty so it appears in Pick Pending.
+  let balQty;
+  if (d.balQty !== undefined && d.balQty !== null && d.balQty !== "") {
+    balQty = Math.max(0, Number(d.balQty));
+  } else {
+    balQty = Math.max(0, indentQty - alPoQty);
+  }
+
   return {
-    inventoryHeadId: d.inventoryHeadId || null,
+    inventoryHeadId:   d.inventoryHeadId   || null,
     inventoryHeadName: String(d.inventoryHeadName || ""),
-    mainCategoryId: d.mainCategoryId || null,
-    mainCategoryName: String(d.mainCategoryName || ""),
-    itemId: d.itemId || null,
+    mainCategoryId:    d.mainCategoryId    || null,
+    mainCategoryName:  String(d.mainCategoryName || ""),
+    itemId:   d.itemId || null,
     itemName: String(d.itemName || ""),
-    uom: String(d.uom || ""),
-    indentQty: Math.max(0, Number(d.indentQty) || 0),
-    dueDate: String(d.dueDate || ""),
-    remarks: String(d.remarks || ""),
-    alPoQty: Math.max(0, Number(d.alPoQty) || 0),
-    balQty: Math.max(0, Number(d.balQty) || 0),
+    itemDescription: String(d.itemDescription || d.itemName || ""), // alias for PO page
+    uom:      String(d.uom || ""),
+    indentQty,
+    dueDate:  String(d.dueDate  || ""),
+    remarks:  String(d.remarks  || ""),
+    alPoQty,
+    balQty,
     // id removed to allow database auto-increment
   };
 }

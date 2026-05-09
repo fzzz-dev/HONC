@@ -4,6 +4,7 @@ const PurchaseIndent = require("../model/purchaseIndent");
 const Supplier = require("../model/supplier");
 const PaymentTerm = require("../model/paymentTerm");
 const { Op } = require("sequelize");
+const { updateIndentBalance } = require("../utils/procurementUtils");
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,7 +68,7 @@ function calcDetail(d, gstEnabled, gstType) {
 
   return {
     ...d,
-    id: d.id || d._id || Date.now() + Math.random(),
+    // id removed to allow database auto-increment
     discPct: +discPct.toFixed(4),
     discPrice: +discPrice.toFixed(2),
     poAmount: +netAmt.toFixed(2),
@@ -221,6 +222,12 @@ exports.create = async (req, res) => {
       details: computedDetails,
     }, { include: ["details"] });
 
+    // Sync Indent Balances
+    const affectedIndentDetails = [...new Set(details.map(d => d.indentDetailId).filter(Boolean))];
+    for (const id of affectedIndentDetails) {
+      await updateIndentBalance(id);
+    }
+
     res.status(201).json(po);
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError')
@@ -283,6 +290,10 @@ exports.update = async (req, res) => {
       netAmount += Number(d.totalAmount || 0);
     });
 
+    // Track affected indents before and after update
+    const oldDetails = await PurchaseOrderDetail.findAll({ where: { purchaseOrderId: po.id } });
+    const oldIndentDetailIds = oldDetails.map(d => d.indentDetailId).filter(Boolean);
+
     await po.update({
       poNo,
       date,
@@ -314,6 +325,12 @@ exports.update = async (req, res) => {
       });
       await PurchaseOrderDetail.bulkCreate(detailsToCreate);
     }
+
+    const newIndentDetailIds = computedDetails.map(d => d.indentDetailId).filter(Boolean);
+    const allAffected = [...new Set([...oldIndentDetailIds, ...newIndentDetailIds])];
+    for (const id of allAffected) {
+      await updateIndentBalance(id);
+    }
     
     const updatedPo = await PurchaseOrder.findByPk(req.params.id, { include: ["details"] });
     res.json(updatedPo);
@@ -327,7 +344,16 @@ exports.remove = async (req, res) => {
   try {
     const po = await PurchaseOrder.findByPk(req.params.id);
     if (!po) return res.status(404).json({ message: "PO not found" });
+
+    const oldDetails = await PurchaseOrderDetail.findAll({ where: { purchaseOrderId: po.id } });
+    const oldIndentDetailIds = oldDetails.map(d => d.indentDetailId).filter(Boolean);
+
     await po.destroy();
+
+    for (const id of oldIndentDetailIds) {
+      await updateIndentBalance(id);
+    }
+
     res.json({ message: "Deleted", id: req.params.id });
   } catch (err) {
     res.status(500).json({ message: err.message });

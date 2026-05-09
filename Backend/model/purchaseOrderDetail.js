@@ -22,7 +22,9 @@ const PurchaseOrderDetail = sequelize.define("PurchaseOrderDetail", {
   itemName: { type: DataTypes.STRING, defaultValue: "" },
   uom: { type: DataTypes.STRING, defaultValue: "" },
   balQty: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+  alGrnQty: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
   poQty: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+
   poRate: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
   discMode: { type: DataTypes.STRING, defaultValue: "pct" },
   discPct: { type: DataTypes.DECIMAL(10, 4), defaultValue: 0 },

@@ -171,7 +171,11 @@ export const grnApi = {
   getAll: (p = {}) => request(`/grns${qs(p)}`),
   getOne: (id) => request(`/grns/${id}`),
   getNextNumber: () => request("/grns/next-number"),
-  getPendingPOItems: (supplierId) => request(`/grns/pending-po-items${qs({ supplierId })}`),
+  getPendingPOItems: (supplierId) => {
+    const params = supplierId ? { supplierId } : {};
+    return request(`/grns/pending-po-items${qs(params)}`);
+  },
+
   create: (body) => request("/grns", { method: "POST", body: j(body) }),
   update: (id, b) => request(`/grns/${id}`, { method: "PUT", body: j(b) }),
   remove: (id) => request(`/grns/${id}`, { method: "DELETE" }),

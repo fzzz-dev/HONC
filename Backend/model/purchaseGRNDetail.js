@@ -17,6 +17,8 @@ const PurchaseGRNDetail = sequelize.define("PurchaseGRNDetail", {
     onDelete: 'CASCADE'
   },
   poId: { type: DataTypes.INTEGER, allowNull: true },
+  poDetailId: { type: DataTypes.INTEGER, allowNull: true },
+
   poNo: { type: DataTypes.STRING, defaultValue: "" },
   poDate: { type: DataTypes.STRING, defaultValue: "" },
   indentNo: { type: DataTypes.STRING, defaultValue: "" },

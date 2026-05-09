@@ -1,44 +1,49 @@
-const PurchaseOrder = require("../model/purchaseOrder");
-const PurchaseGRN = require("../model/purchaseGRN");
+const PurchaseOrder       = require("../model/purchaseOrder");
+const PurchaseOrderDetail = require("../model/purchaseOrderDetail");
+const PurchaseGRN         = require("../model/purchaseGRN");
+const PurchaseGRNDetail   = require("../model/purchaseGRNDetail");
+const { Op } = require("sequelize");
 
+/**
+ * Recalculates alGrnQty / balQty for every PurchaseOrderDetail row.
+ * Uses direct Model.update() with hooks:false — never triggers afterSave.
+ */
 async function recalculatePOGRNQuantities() {
-  // Gather all non-cancelled GRNs
-  const activeGRNs = await PurchaseGRN.findAll({
-    where: {
-      status: { [require("sequelize").Op.ne]: "Cancelled" },
-    },
-  });
-
-  // Map: poDetailId -> total grnQty
-  const grnQtyMap = {};
-  for (const grn of activeGRNs) {
-    const details = grn.details || [];
-    for (const d of details) {
-      if (!d.poDetailId) continue;
-      const key = String(d.poDetailId);
-      grnQtyMap[key] = (grnQtyMap[key] || 0) + (d.grnQty || 0);
-    }
-  }
-
-  // Load all POs and update balances
-  const pos = await PurchaseOrder.findAll();
-  for (const po of pos) {
-    let changed = false;
-    const newDetails = (po.details || []).map((d) => {
-      const key = String(d.id || d._id);
-      const alGrnQty = grnQtyMap[key] || 0;
-      const balQty = Math.max(0, (d.poQty || 0) - alGrnQty);
-      if (d.alGrnQty !== alGrnQty || d.balQty !== balQty) {
-        changed = true;
-        return { ...d, alGrnQty, balQty };
-      }
-      return d;
+  try {
+    // 1. Build map: poDetailId -> total grnQty across all active GRNs
+    const grnDetails = await PurchaseGRNDetail.findAll({
+      attributes: ["poDetailId", "grnQty"],
+      raw: true,
     });
 
-    if (changed) {
-      po.details = newDetails;
-      await po.save();
+    const grnQtyMap = {};
+    for (const d of grnDetails) {
+      if (!d.poDetailId) continue;
+      const key = String(d.poDetailId);
+      grnQtyMap[key] = (grnQtyMap[key] || 0) + Number(d.grnQty || 0);
     }
+
+    // 2. Load all PO details and update those whose balance changed
+    const poDetails = await PurchaseOrderDetail.findAll({
+      attributes: ["id", "poQty", "alGrnQty", "balQty"],
+      raw: true,
+    });
+
+    for (const d of poDetails) {
+      const key       = String(d.id);
+      const alGrnQty  = grnQtyMap[key] || 0;
+      const balQty    = Math.max(0, Number(d.poQty || 0) - alGrnQty);
+
+      // Only write if something changed
+      if (Number(d.alGrnQty || 0) !== alGrnQty || Number(d.balQty || 0) !== balQty) {
+        await PurchaseOrderDetail.update(
+          { alGrnQty, balQty },
+          { where: { id: d.id }, hooks: false }
+        );
+      }
+    }
+  } catch (err) {
+    console.error("recalculatePOGRNQuantities error:", err.message);
   }
 }
 

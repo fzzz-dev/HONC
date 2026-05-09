@@ -88,7 +88,10 @@ exports.create = async (req, res) => {
     const record = await OpeningStock.create(body, { transaction });
     
     if (details && details.length > 0) {
-      const detailRows = details.map(d => ({ ...d, openingStockId: record.id }));
+      const detailRows = details.map(d => {
+        const { id, _id, ...rest } = d;
+        return { ...rest, openingStockId: record.id };
+      });
       await OpeningStock.sequelize.models.OpeningStockDetail.bulkCreate(detailRows, { transaction });
     }
     
@@ -131,7 +134,10 @@ exports.update = async (req, res) => {
     
     if (details && Array.isArray(details)) {
       await OpeningStock.sequelize.models.OpeningStockDetail.destroy({ where: { openingStockId: record.id }, transaction });
-      const detailRows = details.map(d => ({ ...d, openingStockId: record.id }));
+      const detailRows = details.map(d => {
+        const { id, _id, ...rest } = d;
+        return { ...rest, openingStockId: record.id };
+      });
       await OpeningStock.sequelize.models.OpeningStockDetail.bulkCreate(detailRows, { transaction });
     }
     

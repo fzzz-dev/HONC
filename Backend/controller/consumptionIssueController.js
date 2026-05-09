@@ -81,6 +81,13 @@ exports.createConsumptionIssue = async (req, res) => {
     body.totalQty = totalQty;
     body.totalAmount = totalAmount;
 
+    if (body.details && Array.isArray(body.details)) {
+      body.details = body.details.map(d => {
+        const { id, _id, ...rest } = d;
+        return rest;
+      });
+    }
+
     const issue = await ConsumptionIssue.create(body, { include: ["details"] });
     res.status(201).json({ success: true, data: issue });
   } catch (error) {

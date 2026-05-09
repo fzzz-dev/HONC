@@ -7,6 +7,7 @@ import {
   itemApi,
   storeApi,
 } from "../../services/inventoryApi";
+import { SearchSelect } from "../../components/FormFields";
 
 const emptyDetail = () => ({
   _rowId: Date.now() + Math.random(),
@@ -319,13 +320,15 @@ export default function OpeningStockPage() {
               <input className="inv-input" type="date" value={header.asOnDate} onChange={e => setHeader(h => ({ ...h, asOnDate: e.target.value }))} />
             </Field>
             <Field label="Store">
-              <select className="inv-input" value={header.storeId} onChange={e => {
-                const s = stores.find(x => String(x.id) === e.target.value);
-                setHeader(h => ({ ...h, storeId: e.target.value, storeName: s?.name || "" }));
-              }}>
-                <option value="">Select Store</option>
-                {stores.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-              </select>
+              <SearchSelect 
+                value={header.storeId} 
+                onChange={val => {
+                  const s = stores.find(x => String(x.id) === val);
+                  setHeader(h => ({ ...h, storeId: val, storeName: s?.name || "" }));
+                }}
+                options={stores.map(s => ({ value: String(s.id), label: s.name }))}
+                placeholder="Select Store"
+              />
             </Field>
           </FormGrid>
         </div>
@@ -354,16 +357,22 @@ export default function OpeningStockPage() {
                   <tr key={row._rowId}>
                     <td>{idx + 1}</td>
                     <td>
-                      <select className="inv-input" style={{ border: "none", width: 250 }} value={row.categoryId} onChange={e => updateDetail(idx, "categoryId", e.target.value)}>
-                        <option value="">Select Category</option>
-                        {categories.map(c => <option key={c.id} value={String(c.id)}>{c.headName}</option>)}
-                      </select>
+                      <SearchSelect 
+                        style={{ minWidth: 250, border: "none" }}
+                        value={row.categoryId} 
+                        onChange={val => updateDetail(idx, "categoryId", val)}
+                        options={categories.map(c => ({ value: String(c.id), label: c.headName }))}
+                        placeholder="Select Category"
+                      />
                     </td>
                     <td>
-                      <select className="inv-input" style={{ border: "none", width: 250 }} value={row.itemId} onChange={e => updateDetail(idx, "itemId", e.target.value)}>
-                        <option value="">Select Item Description</option>
-                        {items.filter(i => String(i.headId) === row.categoryId).map(i => <option key={i.id} value={String(i.id)}>{i.itemName}</option>)}
-                      </select>
+                      <SearchSelect 
+                        style={{ minWidth: 250, border: "none" }}
+                        value={row.itemId} 
+                        onChange={val => updateDetail(idx, "itemId", val)}
+                        options={items.filter(i => String(i.headId) === row.categoryId).map(i => ({ value: String(i.id), label: i.itemDescription || i.itemName }))}
+                        placeholder="Select Item Description"
+                      />
                     </td>
                     <td><input type="number" className="inv-input" style={{ border: "none" }} value={row.qty} onChange={e => updateDetail(idx, "qty", e.target.value)} /></td>
                     <td><input type="number" className="inv-input" style={{ border: "none" }} value={row.rate} onChange={e => updateDetail(idx, "rate", e.target.value)} /></td>

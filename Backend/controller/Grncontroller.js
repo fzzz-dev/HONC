@@ -133,13 +133,28 @@ exports.createGRN = async (req, res) => {
   try {
     const { grnNo, date, grnType, supplierId, storeId, invoiceNo, invoiceDate, vehicleNo, lrNo, transporterName, gstEnabled, gstType, status, remarks, details, createdBy } = req.body;
 
-    if (!grnNo || !date || !supplierId) return res.status(400).json({ success: false, message: "GRN No, Date, and Supplier are required" });
+    console.log("Creating GRN with body:", JSON.stringify(req.body, null, 2));
+
+    if (!grnNo || !date || !supplierId) {
+      return res.status(400).json({ success: false, message: "GRN No, Date, and Supplier are required" });
+    }
 
     const existing = await PurchaseGRN.findOne({ where: { grnNo } });
-    if (existing) return res.status(400).json({ success: false, message: `GRN No ${grnNo} already exists` });
+    if (existing) {
+      return res.status(400).json({ success: false, message: `GRN No ${grnNo} already exists` });
+    }
 
-    const supplier = await Supplier.findByPk(supplierId);
-    if (!supplier) return res.status(404).json({ success: false, message: "Supplier not found" });
+    // Handle string IDs like "1:Supplier Name" or just "1"
+    const cleanSupplierId = parseInt(String(supplierId).split(':')[0], 10);
+    if (isNaN(cleanSupplierId)) {
+       return res.status(400).json({ success: false, message: "Invalid Supplier ID format" });
+    }
+
+    const supplier = await Supplier.findByPk(cleanSupplierId);
+    if (!supplier) {
+      return res.status(404).json({ success: false, message: "Supplier not found in database" });
+    }
+
 
     let storeName = "";
     if (storeId) {
@@ -147,28 +162,38 @@ exports.createGRN = async (req, res) => {
       if (store) storeName = store.name;
     }
 
-    const processedDetails = await Promise.all(details.map(async (detail) => {
-      let itemName = detail.itemName;
-      let uom = detail.uom;
-      if (detail.itemId) {
-        const item = await Item.findByPk(detail.itemId);
-        if (item) { itemName = item.itemName; uom = item.uom; }
-      }
-      const grnAmount = detail.grnQty * detail.grnRate * (1 - (detail.discPct || 0) / 100);
+    const processedDetails = (details || []).map((detail) => {
+      const grnQty = Number(detail.grnQty || 0);
+      const grnRate = Number(detail.grnRate || detail.poRate || 0);
+      const discPct = Number(detail.discPct || 0);
+      
+      const grnAmount = grnQty * grnRate * (1 - discPct / 100);
       const gstPct = detail.gstPct !== undefined ? Number(detail.gstPct) : 0;
       const gst = grnAmount * (gstPct / 100);
+
+      // CRITICAL: Remove ALL possible internal/old fields that could cause Sequelize errors
+      const { 
+        id, _rowId, createdAt, updatedAt, 
+        purchaseGRNId, poDetailId: oldPoDetailId,
+        ...rest 
+      } = detail;
+      
       return {
-        ...detail,
-        itemName, uom,
+        ...rest,
+        // Use poDetailId from the object if present, otherwise fallback
+        poDetailId: detail.poDetailId || detail.id || oldPoDetailId,
+        grnQty,
+        grnRate,
         grnAmount: parseFloat(grnAmount.toFixed(2)),
         sgst: gstType === "local" ? parseFloat((gst / 2).toFixed(2)) : 0,
         cgst: gstType === "local" ? parseFloat((gst / 2).toFixed(2)) : 0,
         igst: gstType === "other" ? parseFloat(gst.toFixed(2)) : 0,
         totGst: parseFloat(gst.toFixed(2)),
         totalAmount: parseFloat((grnAmount + gst).toFixed(2)),
-        id: detail.id || detail._id || Date.now() + Math.random()
       };
-    }));
+    });
+
+
 
     let totalQty = 0;
     let totalAmount = 0;
@@ -178,7 +203,7 @@ exports.createGRN = async (req, res) => {
     });
 
     const grn = await PurchaseGRN.create({
-      grnNo, date, grnType: grnType || "Against PO", supplierId, supplierName: supplier.supplierName,
+      grnNo, date, grnType: grnType || "Against PO", supplierId: cleanSupplierId, supplierName: supplier.supplierName,
       storeId: storeId || null, storeName, invoiceNo: invoiceNo || "", invoiceDate: invoiceDate || "",
       vehicleNo: vehicleNo || "", lrNo: lrNo || "", transporterName: transporterName || "",
       gstEnabled: gstEnabled !== false, gstType: gstType || "local",
@@ -190,9 +215,16 @@ exports.createGRN = async (req, res) => {
 
     res.status(201).json({ success: true, message: "GRN created successfully", data: grn });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to create GRN", error: error.message });
+    console.error("❌ CREATE GRN ERROR:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to create GRN: " + error.message,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
+
 
 // @desc    Update GRN
 exports.updateGRN = async (req, res) => {
@@ -217,12 +249,22 @@ exports.updateGRN = async (req, res) => {
     }
 
     if (details) {
-      updateData.details = await Promise.all(details.map(async (detail) => {
-        const grnAmount = detail.grnQty * detail.grnRate * (1 - (detail.discPct || 0) / 100);
+      const processedDetails = details.map((detail) => {
+        const grnQty = Number(detail.grnQty || 0);
+        const grnRate = Number(detail.grnRate || detail.poRate || 0);
+        const discPct = Number(detail.discPct || 0);
+        
+        const grnAmount = grnQty * grnRate * (1 - discPct / 100);
         const gstPct = detail.gstPct !== undefined ? Number(detail.gstPct) : 0;
         const gst = grnAmount * (gstPct / 100);
+
+        const { id, _rowId, createdAt, updatedAt, purchaseGRNId, ...rest } = detail;
+
         return {
-          ...detail,
+          ...rest,
+          purchaseGRNId: grn.id,
+          grnQty,
+          grnRate,
           grnAmount: parseFloat(grnAmount.toFixed(2)),
           sgst: (gstType || grn.gstType) === "local" ? parseFloat((gst / 2).toFixed(2)) : 0,
           cgst: (gstType || grn.gstType) === "local" ? parseFloat((gst / 2).toFixed(2)) : 0,
@@ -230,34 +272,31 @@ exports.updateGRN = async (req, res) => {
           totGst: parseFloat(gst.toFixed(2)),
           totalAmount: parseFloat((grnAmount + gst).toFixed(2)),
         };
-      }));
+      });
       
       let totalQty = 0;
       let totalAmount = 0;
-      updateData.details.forEach(d => {
+      processedDetails.forEach(d => {
         totalQty += Number(d.grnQty || 0);
         totalAmount += Number(d.totalAmount || 0);
       });
+
       updateData.totalQty = totalQty;
       updateData.totalAmount = totalAmount;
-      updateData.totalItems = updateData.details.length;
+      updateData.totalItems = processedDetails.length;
+
+      await grn.update(updateData);
+      
+      await PurchaseGRNDetail.destroy({ where: { purchaseGRNId: grn.id } });
+      await PurchaseGRNDetail.bulkCreate(processedDetails);
+    } else {
+      await grn.update(updateData);
     }
 
-    await grn.update(updateData);
-    
-    if (updateData.details) {
-      await PurchaseGRNDetail.destroy({ where: { purchaseGRNId: grn.id } });
-      const detailsToCreate = updateData.details.map(d => {
-        const { id, _id, ...rest } = d;
-        return { ...rest, purchaseGRNId: grn.id };
-      });
-      if (detailsToCreate.length > 0) {
-        await PurchaseGRNDetail.bulkCreate(detailsToCreate);
-      }
-    }
     
     const updatedGrn = await PurchaseGRN.findByPk(req.params.id, { include: ["details"] });
     res.json({ success: true, message: "GRN updated successfully", data: updatedGrn });
+
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to update GRN", error: error.message });
   }
@@ -281,23 +320,23 @@ exports.getPendingPOItems = async (req, res) => {
     const { supplierId, poId } = req.query;
     console.log("Fetching pending PO items for:", { supplierId, poId });
 
+    // Build PO query - show all Open POs, optionally filtered by supplier
     const query = { status: "Open" };
-    let querySupplierId = supplierId;
-    if (typeof supplierId === 'string' && supplierId.includes(':')) {
-      querySupplierId = supplierId.split(':')[0];
-    }
     
-    // Convert to number if possible to avoid database type mismatch errors
-    if (querySupplierId && !isNaN(querySupplierId)) {
-      query.supplierId = parseInt(querySupplierId, 10);
-    } else if (querySupplierId) {
-      query.supplierId = querySupplierId;
+    if (supplierId) {
+      let cleanId = supplierId;
+      if (typeof supplierId === 'string' && supplierId.includes(':')) {
+        cleanId = supplierId.split(':')[0];
+      }
+      if (!isNaN(cleanId)) {
+        query.supplierId = parseInt(cleanId, 10);
+      } else {
+        query.supplierId = cleanId;
+      }
     }
 
-    if (poId && !isNaN(poId)) {
-      query.id = parseInt(poId, 10);
-    } else if (poId) {
-      query.id = poId;
+    if (poId) {
+      query.id = !isNaN(poId) ? parseInt(poId, 10) : poId;
     }
 
     const pos = await PurchaseOrder.findAll({
@@ -306,15 +345,14 @@ exports.getPendingPOItems = async (req, res) => {
       order: [["date", "DESC"]],
     });
 
+    // Build received-quantity map from all non-cancelled GRNs
     const allGrns = await PurchaseGRN.findAll({
       where: { status: { [Op.ne]: "Cancelled" } },
       include: ["details"]
     });
 
-    // Pass 1: Build a map of received quantities to avoid nested loops
     const receivedMap = {}; 
     allGrns.forEach((grn) => {
-      if (!grn) return;
       let grnDetails = grn.details;
       if (typeof grnDetails === 'string') {
         try { grnDetails = JSON.parse(grnDetails); } catch (e) { grnDetails = []; }
@@ -323,10 +361,8 @@ exports.getPendingPOItems = async (req, res) => {
 
       grnDetails.forEach((gd) => {
         if (!gd || !gd.poId) return;
-        // Map by PO ID + Item ID (or name as fallback)
         const itemKey = gd.itemId || gd.itemName;
         if (!itemKey) return;
-        
         const key = `${gd.poId}-${itemKey}`;
         receivedMap[key] = (receivedMap[key] || 0) + Number(gd.grnQty || 0);
       });
@@ -334,7 +370,6 @@ exports.getPendingPOItems = async (req, res) => {
 
     const pendingItems = [];
 
-    // Pass 2: Calculate balances for each PO item
     for (const po of pos) {
       let details = po.details;
       if (typeof details === 'string') {
@@ -345,25 +380,30 @@ exports.getPendingPOItems = async (req, res) => {
       for (const detail of details) {
         if (!detail) continue;
         
+        const poQty = Number(detail.poQty || 0);
+        if (poQty <= 0) continue; // Skip rows with no quantity
+        
         const itemKey = detail.itemId || detail.itemName || "unknown";
         const key = `${po.id}-${itemKey}`;
         const alreadyReceived = receivedMap[key] || 0;
-        const balanceQty = Number(detail.poQty || 0) - alreadyReceived;
+        const balanceQty = poQty - alreadyReceived;
 
         if (balanceQty > 0) {
+          const rowId = `${po.id}-${detail.id || detail._id || itemKey}`;
           pendingItems.push({
+            rowId,
             poId: po.id,
             poNo: po.poNo,
             poDate: po.date,
-            poDetailId: detail.id || detail._id || `tmp-${Math.random()}`,
+            poDetailId: detail.id || detail._id || rowId,
             indentId: detail.indentId,
-            indentNo: detail.indentNo,
+            indentNo: detail.indentNo || "",
             itemId: detail.itemId,
             itemName: detail.itemName,
             uom: detail.uom,
-            poQty: Number(detail.poQty || 0),
+            poQty,
             alGrnQty: alreadyReceived,
-            balQty: balanceQty,
+            balQty: +balanceQty.toFixed(2),
             poRate: Number(detail.poRate || detail.rate || 0),
             gstPct: detail.gstPct !== undefined ? Number(detail.gstPct) : 0,
             gstType: po.gstType || "local",
@@ -374,14 +414,13 @@ exports.getPendingPOItems = async (req, res) => {
       }
     }
 
-    res.json({ success: true, data: pendingItems });
+    res.json(pendingItems); // Return plain array for simpler frontend handling
   } catch (error) {
     console.error("Get pending PO items error:", error);
     res.status(500).json({ 
       success: false,
       message: `Failed to fetch pending PO items: ${error.message}`, 
-      error: error.message,
-      stack: error.stack
+      error: error.message
     });
   }
 };
