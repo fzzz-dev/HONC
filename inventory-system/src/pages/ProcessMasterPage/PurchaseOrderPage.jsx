@@ -1072,9 +1072,9 @@ export default function PurchaseOrderPage() {
           onClose={() => setPendingModalOpen(false)} 
           onSave={addPendingLinesToDetails} 
           saveLabel={`Add ${pendingSelected.size} Item(s) to PO`}
-          width="1300px"
+          full={true}
         >
-          <div style={{ maxHeight: "800px", overflowY: "auto" }}>
+          <div style={{ padding: "0 10px" }}>
             <table className="inv-table-premium">
               <thead>
                 <tr>

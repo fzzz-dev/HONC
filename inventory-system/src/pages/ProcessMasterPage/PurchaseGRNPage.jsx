@@ -672,9 +672,9 @@ export default function PurchaseGRNPage() {
           onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); }}
           onSave={addPendingLinesToDetails}
           saveLabel={pendingSelected.size > 0 ? `Add ${pendingSelected.size} Item(s) to GRN` : "Select items to add"}
-          width="1300px"
+          full={true}
         >
-          <div style={{ maxHeight: '800px', overflowY: 'auto' }}>
+          <div style={{ padding: "0 10px" }}>
             <table className="inv-table-premium">
               <thead>
                 <tr>
@@ -836,9 +836,28 @@ export default function PurchaseGRNPage() {
               <thead>
                 <tr>
                   <th>#</th>
-                  {header.grnType !== "General" && <th>Indent No</th>}
-                  {header.grnType !== "General" && <th>PO No</th>}
-                  <th>Item Description</th>
+                  {header.grnType !== "General" && (
+                    <th style={{ width: 140 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Indent No
+                      </span>
+                    </th>
+                  )}
+                  {header.grnType !== "General" && (
+                    <th style={{ width: 140 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        PO No
+                      </span>
+                    </th>
+                  )}
+                  <th style={{ minWidth: 200 }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                      Item Description
+                    </span>
+                  </th>
                   {header.grnType !== "General" && <th>PO Qty</th>}
                   {header.grnType !== "General" && <th>PO Unit Price</th>}
                   <th>GRN Qty</th>

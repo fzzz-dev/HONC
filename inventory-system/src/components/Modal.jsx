@@ -19,11 +19,17 @@ const styles = {
     width: "100%",
     maxWidth: "560px",
     maxHeight: "90vh",
-    overflowY: "auto",
+    overflow: "hidden", // Changed from overflowY: "auto" to hidden to allow body to scroll
     boxShadow:
       "0 20px 35px -8px rgba(0, 0, 0, 0.2), 0 5px 12px -4px rgba(0, 0, 0, 0.1)",
     display: "flex",
     flexDirection: "column",
+  },
+  fullBox: {
+    maxWidth: "98vw",
+    maxHeight: "98vh",
+    height: "98vh",
+    borderRadius: "12px",
   },
   header: {
     display: "flex",
@@ -74,6 +80,7 @@ export default function Modal({
   saving,
   saveDisabled,
   maxWidth,
+  full = false,
 }) {
   const primaryDisabled = saving || saveDisabled;
   useEffect(() => {
@@ -81,7 +88,12 @@ export default function Modal({
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    // Prevent background scrolling when modal is open
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener("keydown", handler);
+      document.body.style.overflow = 'unset';
+    };
   }, [onClose]);
 
   return (
@@ -92,6 +104,7 @@ export default function Modal({
       <div
         style={{
           ...styles.box,
+          ...(full ? styles.fullBox : {}),
           ...(maxWidth ? { maxWidth } : {}),
         }}
       >
@@ -129,3 +142,4 @@ export default function Modal({
     </div>
   );
 }
+
