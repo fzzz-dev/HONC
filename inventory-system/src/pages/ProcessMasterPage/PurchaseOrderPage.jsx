@@ -482,45 +482,9 @@ export default function PurchaseOrderPage() {
       const rows = [...prev];
       let row = { ...rows[idx], [field]: val };
 
-      if (field === "indentNo") {
-        // Clear item-specific fields if indent source changes
-        if (val !== rows[idx].indentNo) {
-          row.indentDetailId = "";
-          row.itemId = "";
-          row.itemName = "";
-          row.uom = "";
-          row.balQty = 0;
-          row.poRate = 0;
-          row.poAmount = 0;
-          row.totalAmount = 0;
-        }
-      }
-
-      if (field === "indentDetailId") {
-        const opt = indentDetailOptions.find(o => o.detailId === val);
-        if (opt) {
-          row.indentNo = opt.indentNo;
-          row.itemId = opt.itemId;
-          row.itemName = opt.itemDescription || opt.itemName;
-          row.uom = opt.uom;
-          row.balQty = opt.balQty;
-          row.balQty = opt.balQty;
-          const itMaster = items.find(i => sid(i) === opt.itemId);
-          row.poRate = opt.lastRate || itMaster?.purchaseRate || 0;
-          row.gstPct = itMaster?.gstPercent !== undefined ? itMaster.gstPercent : (opt.gstPct !== undefined ? opt.gstPct : 0);
-          row.poQty = opt.balQty;
-        } else {
-          row.indentNo = ""; row.itemId = ""; row.itemName = ""; row.uom = ""; row.balQty = 0;
-        }
-      }
-      if (field === "itemId") {
-        const it = items.find(i => sid(i) === val);
-        if (it) {
-          row.itemId = val; row.itemName = it.itemDescription || it.itemName; row.uom = it.uom; 
-          row.gstPct = it.gstPercent !== undefined ? it.gstPercent : 0;
-          row.indentDetailId = ""; row.indentNo = ""; row.balQty = 0;
-        }
-      }
+      // Manual selection restricted as per user request. 
+      // Items must be added via 'Pick Indent' modal.
+      
       rows[idx] = calcRow(row);
       return rows;
     });
@@ -913,31 +877,20 @@ export default function PurchaseOrderPage() {
                       </td>
                       {/* ── LOCKED: Item Description ── */}
                       <td>
-                        {row.indentDetailId ? (
-                          // Locked — came from indent
-                          <input
-                            className="inv-input-cell"
-                            value={row.itemName || ""}
-                            readOnly
-                            style={{
-                              background: "#f8fafc",
-                              color: "#1e293b",
-                              fontWeight: 500,
-                              cursor: "not-allowed",
-                              minWidth: 160,
-                            }}
-                          />
-                        ) : (
-                          // Direct PO — allow item selection
-                          <SearchSelect
-                            className="inv-select-cell"
-                            style={{ padding: 0, border: "none" }}
-                            value={row.itemId}
-                            onChange={val => updateDetail(idx, "itemId", val)}
-                            options={items.map(it => ({ value: sid(it), label: it.itemDescription || it.itemName }))}
-                            placeholder="Select Item"
-                          />
-                        )}
+                        <input
+                          className="inv-input-cell"
+                          value={row.itemName || ""}
+                          readOnly
+                          placeholder="Via Pick Indent"
+                          style={{
+                            background: "#f8fafc",
+                            color: row.itemName ? "#1e293b" : "#cbd5e1",
+                            fontWeight: row.itemName ? 500 : 400,
+                            cursor: "not-allowed",
+                            minWidth: 160,
+                            fontStyle: row.itemName ? "normal" : "italic",
+                          }}
+                        />
                       </td>
                       {/* ── LOCKED: UOM ── */}
                       <td>
