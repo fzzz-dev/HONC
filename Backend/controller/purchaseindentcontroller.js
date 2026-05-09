@@ -19,7 +19,7 @@ function sanitizeDetail(d = {}) {
     remarks: String(d.remarks || ""),
     alPoQty: Math.max(0, Number(d.alPoQty) || 0),
     balQty: Math.max(0, Number(d.balQty) || 0),
-    id: d.id || Date.now() + Math.random(), // Ensure each detail has an ID
+    // id removed to allow database auto-increment
   };
 }
 

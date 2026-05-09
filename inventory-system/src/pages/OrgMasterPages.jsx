@@ -611,7 +611,7 @@ import {
   updateDepartment,
   deleteDepartment,
   clearActionError as clearDeptError,
-} from "../slices/departmentSlice";
+} from "../slices/Departmentslice";
 
 import {
   fetchProcesses,
@@ -619,7 +619,7 @@ import {
   updateProcess,
   deleteProcess,
   clearActionError as clearProcessError,
-} from "../slices/processSlice";
+} from "../slices/Processslice";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STORE MASTER
