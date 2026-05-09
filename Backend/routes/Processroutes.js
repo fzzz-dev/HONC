@@ -6,7 +6,7 @@ const {
   create,
   update,
   remove,
-} = require("../controller/processController");
+} = require("../controller/Processcontroller");
 
 router.get("/", getAll);
 router.get("/:id", getOne);
