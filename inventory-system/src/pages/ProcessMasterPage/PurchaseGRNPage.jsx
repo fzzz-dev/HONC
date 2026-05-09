@@ -377,65 +377,8 @@ export default function PurchaseGRNPage() {
         [field]: val,
       };
 
-      if (field === "poNo") {
-        const po = pos.find((p) => p.poNo === val);
-        if (po) {
-          row.poId = po.id || po._id;
-          row.poDate = po.date || "";
-
-          if (row.itemId || row.itemName) {
-            let poDetails = po.details || [];
-            if (typeof poDetails === 'string') {
-              try { poDetails = JSON.parse(poDetails); } catch (e) { poDetails = []; }
-            }
-            const searchTerm = String(row.itemName || "").toLowerCase();
-            const poItem = poDetails.find(d => String(d.itemDescription || d.itemName || "").toLowerCase() === searchTerm);
-            if (poItem) {
-              row.poQty = poItem.poQty || 0;
-              row.poRate = poItem.poRate || 0;
-              row.grnRate = poItem.poRate || 0;
-              row.gstPct = poItem.gstPct || row.gstPct;
-              row.poDetailId = poItem.id || poItem._id || poItem.poDetailId;
-            }
-          }
-        }
-      }
-
-      if (field === "itemId" || field === "itemName") {
-        const found = items.find((it) => 
-          String(it.id) === String(val) || 
-          (it.itemDescription || it.itemName) === val || 
-          it.itemName === val
-        );
-        
-        if (found) {
-          row.itemId = String(found.id);
-          row.itemName = toTitleCase(found.itemDescription || found.itemName || "");
-          row.uom = found.uom || "";
-          row.poRate = found.purchaseRate || found.rate || 0;
-          row.grnRate = found.purchaseRate || found.rate || 0;
-          row.gstPct = found.gstPercent !== undefined ? found.gstPercent : 0;
-
-          if (row.poNo) {
-            const po = pos.find(p => p.poNo === row.poNo);
-            if (po) {
-              let poDetails = po.details || [];
-              if (typeof poDetails === 'string') {
-                try { poDetails = JSON.parse(poDetails); } catch(e) { poDetails = []; }
-              }
-              const searchTerm = row.itemName.toLowerCase();
-              const poItem = poDetails.find(d => String(d.itemDescription || d.itemName || "").toLowerCase() === searchTerm);
-              if (poItem) {
-                row.poQty = poItem.poQty || 0;
-                row.poRate = poItem.poRate || 0;
-                row.grnRate = poItem.poRate || 0;
-                row.gstPct = poItem.gstPct || row.gstPct;
-                row.poDetailId = poItem.id || poItem._id || poItem.poDetailId;
-              }
-            }
-          }
-        }
-      }
+      // Manual selection restricted as per user request. 
+      // Items must be added via 'Pick PO' modal.
 
       row = calcRow(row, header.gstType);
       rows[idx] = row;
@@ -923,34 +866,54 @@ export default function PurchaseGRNPage() {
                     <td>{idx + 1}</td>
                     {header.grnType !== "General" && (
                       <td>
-                        <SearchSelect 
-                          style={{ minWidth: 100, border: "none" }}
-                          value={row.indentNo} 
-                          onChange={val => updateDetail(idx, "indentNo", val)}
-                          options={indents.map(ind => ({ value: ind.indentNo, label: ind.indentNo }))}
+                        <input
+                          className="inv-input-cell"
+                          value={row.indentNo || ""}
+                          readOnly
                           placeholder="—"
+                          style={{
+                            background: "#f8fafc",
+                            color: row.indentNo ? "#4f46e5" : "#cbd5e1",
+                            fontWeight: row.indentNo ? 600 : 400,
+                            cursor: "not-allowed",
+                            fontStyle: row.indentNo ? "normal" : "italic",
+                            fontSize: 12,
+                          }}
                         />
                       </td>
                     )}
                     {header.grnType !== "General" && (
                       <td>
-                        <SearchSelect 
-                          style={{ minWidth: 100, border: "none" }}
-                          value={row.poNo} 
-                          onChange={val => updateDetail(idx, "poNo", val)}
-                          options={pos.filter(po => !header.supplierId || String(po.supplierId) === String(header.supplierId)).map(po => ({ value: po.poNo, label: po.poNo }))}
+                        <input
+                          className="inv-input-cell"
+                          value={row.poNo || ""}
+                          readOnly
                           placeholder="—"
-                          disabled={!header.supplierId}
+                          style={{
+                            background: "#f8fafc",
+                            color: row.poNo ? "#4f46e5" : "#cbd5e1",
+                            fontWeight: row.poNo ? 600 : 400,
+                            cursor: "not-allowed",
+                            fontStyle: row.poNo ? "normal" : "italic",
+                            fontSize: 12,
+                          }}
                         />
                       </td>
                     )}
                     <td>
-                      <SearchSelect 
-                        style={{ minWidth: 200, border: "none" }}
-                        value={row.itemId || row.itemName} 
-                        onChange={val => updateDetail(idx, "itemId", val)}
-                        options={items.map(it => ({ value: String(it.id), label: it.itemDescription || it.itemName }))}
-                        placeholder="Select Item Description"
+                      <input
+                        className="inv-input-cell"
+                        value={row.itemName || ""}
+                        readOnly
+                        placeholder="Via Pick PO"
+                        style={{
+                          background: "#f8fafc",
+                          color: row.itemName ? "#1e293b" : "#cbd5e1",
+                          fontWeight: row.itemName ? 500 : 400,
+                          cursor: "not-allowed",
+                          minWidth: 160,
+                          fontStyle: row.itemName ? "normal" : "italic",
+                        }}
                       />
                     </td>
                     {header.grnType !== "General" && <td><input className="inv-input" style={{ border: "none", width: 70, textAlign: 'right' }} value={fmtQty(row.poQty)} readOnly /></td>}
