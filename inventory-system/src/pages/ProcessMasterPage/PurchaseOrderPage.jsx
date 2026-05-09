@@ -1026,7 +1026,7 @@ export default function PurchaseOrderPage() {
                 {pendingIndentRows.map(r => (
                   <tr key={r.rowId}>
                     <td><input type="checkbox" checked={pendingSelected.has(r.rowId)} onChange={() => { const n = new Set(pendingSelected); if (n.has(r.rowId)) n.delete(r.rowId); else n.add(r.rowId); setPendingSelected(n); }} /></td>
-                    <td>{r.indentNo}</td><td>{r.itemName}</td><td>{fmtQty(r.balQty)}</td>
+                    <td>{r.indentNo}</td><td>{r.itemDescription || r.itemName}</td><td>{fmtQty(r.balQty)}</td>
                   </tr>
                 ))}
               </tbody>
