@@ -13,7 +13,7 @@ const {
   bulkUploadSuppliers,
   bulkUploadMiddleware,
   downloadTemplate,
-} = require("../controller/supplierController"); // ✅ fix typo here
+} = require("../controller/Suppliercontroller"); // ✅ fix typo here
 
 router.route("/").get(getAllSuppliers).post(createSupplier);
 router.route("/template").get(downloadTemplate);
