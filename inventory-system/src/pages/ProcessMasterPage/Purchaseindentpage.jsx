@@ -102,9 +102,9 @@ export default function PurchaseIndentPage() {
   function openEdit(indent) {
     setEditId(sid(indent));
     setHeader({
-      indentNo: indent.indentNo, date: indent.date, departmentId: sid(indent.departmentId), departmentName: indent.departmentName,
-      createdBy: indent.createdBy, remarks: indent.remarks || "", status: indent.status || "Open",
-      preparedBy: indent.preparedBy || ""
+      ...indent,
+      departmentId: sid(indent.departmentId),
+      preparedBy: indent.preparedBy || indent.createdBy || ""
     });
     setDetails(safeDetails(indent.details).map(d => ({
       ...d, _rowId: Math.random(), mainCategoryId: sid(d.mainCategoryId), itemId: sid(d.itemId)
@@ -131,18 +131,6 @@ export default function PurchaseIndentPage() {
 
   function addRow() { setDetails(p => [...p, emptyDetail()]); }
   function removeRow(idx) { setDetails(p => p.filter((_, i) => i !== idx)); }
-
-  async function handleDelete(id) {
-    if (!window.confirm("Delete this purchase order?")) return;
-    try {
-      await purchaseOrderApi.remove(id);
-      await loadPos();
-      setSaveToast("Purchase Order deleted successfully!");
-      setTimeout(() => setSaveToast(""), 4000);
-    } catch (err) {
-      setFormError(err.message);
-    }
-  }
 
   async function handleSave() {
     if (!header.indentNo.trim()) return setFormError("Indent No is required");
