@@ -177,7 +177,12 @@ export default function CityPage() {
                       <td className="inv-idx">
                         {String((page - 1) * limit + i + 1).padStart(2, "0")}
                       </td>
-                      <td className="inv-muted-sm">{row.stateName}</td>
+                      <td className="inv-muted-sm">
+                        {row.stateName || 
+                         row.stateId?.name || 
+                         states.find(s => (s.id || s._id) === (row.stateId?._id || row.stateId))?.name || 
+                         "—"}
+                      </td>
                       <td className="inv-bold">{row.name}</td>
                       <td>
                         <span

@@ -108,9 +108,9 @@ const SupplierDetailsModal = ({ supplier, onClose }) => {
 };
 
 const emptyDetail = () => ({
-  _rowId: Math.random(), indentDetailId: "", indentNo: "", itemId: "", itemName: "", uom: "", balQty: "0.000",
-  poQty: "0.000", poRate: "0.00", discMode: "pct", discPct: "0.00", discPrice: "0.00", poAmount: "0.00",
-  gstPct: "0.00", sgst: "0.00", cgst: "0.00", igst: "0.00", totGst: "0.00", totalAmount: "0.00"
+  _rowId: Math.random(), indentDetailId: "", indentNo: "", itemId: "", itemName: "", uom: "", balQty: 0,
+  poQty: 0, poRate: 0, discMode: "pct", discPct: 0, discPrice: 0, poAmount: 0,
+  gstPct: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0
 });
 
 const emptyHeader = () => ({
@@ -119,7 +119,7 @@ const emptyHeader = () => ({
   refNo: "", refDate: "", paymentTermsId: "", paymentTermsName: "", deliveryDate: "",
   createdBy: "Admin", createdOn: today(), status: "Open", remarks: "",
   poType: "",
-  preparedBy: ""
+  preparedBy: "System Administrator"
 });
 
 const FormGrid = ({ children }) => (
@@ -328,7 +328,10 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
 
     <table style="border: none; width: 100%; margin-top: -1px;">
       <tr class="signature-row">
-        <td style="width: 20%; border-left: none; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">Prepared By</td>
+        <td style="width: 20%; border-left: none; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">
+          <div>Prepared By</div>
+          <div style="margin-top: 20px; font-weight: normal; font-size: 10px;">${esc(header.preparedBy || "")}</div>
+        </td>
         <td style="width: 20%; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">Verified By</td>
         <td style="width: 30%; padding: 5px 10px 10px 10px;">
           <table style="border: none; width: 100%; margin-bottom: 8px;">
@@ -424,7 +427,7 @@ export default function PurchaseOrderPage() {
   }
 
   async function openNew() {
-    setHeader({ ...emptyHeader(), preparedBy: user?.name || "Admin" }); 
+    setHeader({ ...emptyHeader(), preparedBy: "System Administrator" }); 
     setDetails([emptyDetail()]); setEditId(null); setView("form"); setGstType("");
     try { const res = await purchaseOrderApi.getNextNumber(); if (res?.poNo) setHeader(h => ({ ...h, poNo: res.poNo })); } catch (e) { }
   }
@@ -448,32 +451,64 @@ export default function PurchaseOrderPage() {
     }
 
     setEditId(sid(po));
+    const normalizeDate = (d) => {
+      if (!d) return "";
+      // If already YYYY-MM-DD or ISO
+      if (typeof d === "string" && d.includes("-")) {
+        const parts = d.split("T")[0].split("-");
+        if (parts[0].length === 4) return d.split("T")[0]; // YYYY-MM-DD
+        if (parts[2]?.length === 4) return `${parts[2]}-${parts[1]}-${parts[0]}`; // DD-MM-YYYY to YYYY-MM-DD
+      }
+      try {
+        const dt = new Date(d);
+        if (!isNaN(dt.getTime())) return dt.toISOString().split("T")[0];
+      } catch (e) {}
+      return "";
+    };
+
     setHeader({
       ...po,
+      poNo: po.poNo || po.poNumber || "",
+      date: normalizeDate(po.date),
       supplierId: sId,
       paymentTermsId: sid(po.paymentTermsId),
-      supplierAddress: po.supplierAddress || addrText
+      supplierAddress: po.supplierAddress || addrText,
+      refNo: po.refNo || po.referenceNo || "",
+      deliveryDate: normalizeDate(po.deliveryDate || po.dueDate),
+      poType: po.poType || po.purchaseOrderType || "",
+      supplierGst: po.supplierGst || s?.gstNo || "",
+      preparedBy: po.preparedBy || "System Administrator"
     });
-    setDetails(safeDetails(po.details).map(d => ({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) })));
+    const gType = po.gstType || "local";
+    setDetails(safeDetails(po.details).map(d => calcRow({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) }, gType)));
     setGstType(po.gstType || "local");
     setGstEnabled(po.gstEnabled !== false);
     setView("form");
   }
 
   const calcRow = (row, gType = gstType) => {
-    const qty = Number(row.poQty || 0); const rate = Number(row.poRate || 0);
+    const qty = Number(row.poQty || 0); 
+    const rate = Number(row.poRate || 0);
     let disc = 0;
-    if (row.discMode === 'pct') disc = (qty * rate) * (Number(row.discPct || 0) / 100);
-    else disc = Number(row.discPrice || 0);
+    if (row.discMode === 'pct') {
+      disc = (qty * rate) * (Number(row.discPct || 0) / 100);
+    } else {
+      disc = Number(row.discPrice || 0);
+    }
     const amt = (qty * rate) - disc;
     const gPct = Number(row.gstPct || 0);
     const tax = gstEnabled ? (amt * gPct / 100) : 0;
+    
     return {
       ...row,
-      grossAmount: qty * rate,
-      rowDisc: disc,
-      poAmount: amt, totGst: tax, totalAmount: amt + tax,
-      sgst: gType === 'local' ? tax / 2 : 0, cgst: gType === 'local' ? tax / 2 : 0, igst: gType === 'other' ? tax : 0
+      grossAmount: (qty * rate) || 0,
+      rowDisc: disc || 0,
+      poAmount: amt || 0, 
+      totGst: tax || 0, 
+      totalAmount: (amt + tax) || 0,
+      sgst: (gType === 'local' ? tax / 2 : 0) || 0, 
+      cgst: (gType === 'local' ? tax / 2 : 0) || 0, 
+      igst: (gType === 'other' ? tax : 0) || 0
     };
   };
 
@@ -498,7 +533,7 @@ export default function PurchaseOrderPage() {
     });
   }
 
-  function addRow() { setDetails(p => [...p, emptyDetail()]); }
+  function addRow() { setDetails(p => [...p, calcRow(emptyDetail())]); }
   function removeRow(idx) { setDetails(p => p.filter((_, i) => i !== idx)); }
 
   async function handleSave() {
@@ -516,14 +551,14 @@ export default function PurchaseOrderPage() {
   }
 
   const totals = details.reduce((acc, r) => ({
-    grossAmount: acc.grossAmount + (r.grossAmount || 0),
-    discPrice: acc.discPrice + (r.rowDisc || 0),
-    poAmount: acc.poAmount + r.poAmount,
-    totGst: acc.totGst + r.totGst,
-    totalAmount: acc.totalAmount + r.totalAmount,
-    sgst: acc.sgst + (r.sgst || 0),
-    cgst: acc.cgst + (r.cgst || 0),
-    igst: acc.igst + (r.igst || 0)
+    grossAmount: (acc.grossAmount || 0) + Number(r.grossAmount || 0),
+    discPrice: (acc.discPrice || 0) + Number(r.rowDisc || 0),
+    poAmount: (acc.poAmount || 0) + Number(r.poAmount || 0),
+    totGst: (acc.totGst || 0) + Number(r.totGst || 0),
+    totalAmount: (acc.totalAmount || 0) + Number(r.totalAmount || 0),
+    sgst: (acc.sgst || 0) + Number(r.sgst || 0),
+    cgst: (acc.cgst || 0) + Number(r.cgst || 0),
+    igst: (acc.igst || 0) + Number(r.igst || 0)
   }), { grossAmount: 0, discPrice: 0, poAmount: 0, totGst: 0, totalAmount: 0, sgst: 0, cgst: 0, igst: 0 });
 
   const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
@@ -722,7 +757,7 @@ export default function PurchaseOrderPage() {
           <div className="inv-card-body">
 
             <FormGrid>
-              <Field label="PO No (Auto)"><input className="inv-input" value={header.poNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} /></Field>
+              <Field label="PO No (Auto)"><input className="inv-input" value={header.poNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} placeholder="PO/0008/26-27" /></Field>
               <Field label="Date"><input className="inv-input" type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} /></Field>
 
               <Field label="PO Type">
@@ -797,7 +832,7 @@ export default function PurchaseOrderPage() {
                 </div>
               </Field>
               <Field label="Reference No"><input className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" /></Field>
-              <Field label="Delivery Date"><input className="inv-input" type="date" value={header.deliveryDate} onChange={e => setHeader(h => ({ ...h, deliveryDate: e.target.value }))} /></Field>
+              <Field label="Delivery Date"><input className="inv-input" type="date" value={header.deliveryDate} onChange={e => setHeader(h => ({ ...h, deliveryDate: e.target.value }))} placeholder="dd-mm-yyyy" /></Field>
               <Field label="GST No"><input className="inv-input" value={header.supplierGst} readOnly style={{ background: "#f8fafc" }} /></Field>
               <Field label="GST Type (Auto)"><input className="inv-input" value={!gstType ? "" : (gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)")} readOnly style={{ background: "#f8fafc", color: "#64748b" }} /></Field>
             </FormGrid>
@@ -817,39 +852,16 @@ export default function PurchaseOrderPage() {
                 <thead>
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
-                    <th style={{ width: 150 }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                        Indent No
-                      </span>
-                    </th>
-                    <th style={{ minWidth: 200 }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                        Item Description
-                      </span>
-                    </th>
-                    <th style={{ width: 80 }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                        UOM
-                      </span>
-                    </th>
-                    <th style={{ width: 80, textAlign: "right" }}>
-                      <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                        Bal
-                      </span>
-                    </th>
+                    <th style={{ width: 140 }}>Indent No</th>
+                    <th style={{ minWidth: 200 }}>Item Description</th>
+                    <th style={{ width: 80, textAlign: "center" }}>UOM</th>
+                    <th style={{ width: 80, textAlign: "right" }}>Bal</th>
                     <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
                     <th style={{ width: 100, textAlign: "right" }}>Unit Price</th>
                     <th style={{ width: 100, textAlign: "right" }}>Disc</th>
                     <th style={{ width: 110, textAlign: "right" }}>PO Amt</th>
-                    {gstEnabled && <>
-                      <th style={{ width: 70, textAlign: "center" }}>GST%</th>
-                      <th style={{ width: 90, textAlign: "right" }}>{gstType === 'local' ? 'SGST' : 'IGST'}</th>
-                      {gstType === 'local' && <th style={{ width: 90, textAlign: "right" }}>CGST</th>}
-                    </>}
+                    <th style={{ width: 70, textAlign: "center" }}>GST%</th>
+                    <th style={{ width: 90, textAlign: "right" }}>IGST</th>
                     <th style={{ width: 120, textAlign: "right" }}>Total</th>
                     <th style={{ width: 40 }}></th>
                   </tr>
@@ -919,23 +931,18 @@ export default function PurchaseOrderPage() {
                         </div>
                       </td>
                       <td><input className="inv-input-cell" value={fmt(row.poAmount)} readOnly style={{ textAlign: "right", color: "#1e293b", fontWeight: 500 }} /></td>
-                      {gstEnabled && (
-                        <>
-                          <td>
-                            <input
-                              className="inv-input-cell"
-                              type="number"
-                              step="0.01"
-                              value={row.gstPct}
-                              onChange={e => updateDetail(idx, "gstPct", e.target.value)}
-                              onBlur={e => updateDetail(idx, "gstPct", Number(e.target.value || 0).toFixed(2))}
-                              style={{ textAlign: "center", color: "#64748b", fontWeight: 600 }}
-                            />
-                          </td>
-                          <td><input className="inv-input-cell" value={fmt(gstType === 'other' ? row.igst : row.sgst)} readOnly style={{ textAlign: "right" }} /></td>
-                          {gstType === 'local' && <td><input className="inv-input-cell" value={fmt(row.cgst)} readOnly style={{ textAlign: "right" }} /></td>}
-                        </>
-                      )}
+                      <td>
+                        <input
+                          className="inv-input-cell"
+                          type="number"
+                          step="0.01"
+                          value={row.gstPct}
+                          onChange={e => updateDetail(idx, "gstPct", e.target.value)}
+                          onBlur={e => updateDetail(idx, "gstPct", Number(e.target.value || 0).toFixed(2))}
+                          style={{ textAlign: "center", color: "#64748b", fontWeight: 600 }}
+                        />
+                      </td>
+                      <td><input className="inv-input-cell" value={fmt(row.totGst)} readOnly style={{ textAlign: "right" }} /></td>
                       <td><input className="inv-input-cell" value={fmt(row.totalAmount)} readOnly style={{ textAlign: "right", fontWeight: 700, background: "#f8fafc", color: "#3b6ef8" }} /></td>
                       <td style={{ textAlign: "center" }}>
                         <button className="inv-btn-icon inv-btn-danger" onClick={() => removeRow(idx)} style={{ border: "none", background: "transparent" }}>✕</button>
@@ -952,89 +959,31 @@ export default function PurchaseOrderPage() {
         <div className="inv-card">
           <div className="inv-card-body">
 
-            <div className="inv-summary-grid">
-              <div className="inv-summary-box" style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}>
-                <div className="inv-summary-box-label">Gross Amount</div>
-                <div className="inv-summary-box-value" style={{ color: "#64748b" }}>
-                  ₹{fmt(totals.grossAmount)}
-                </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, padding: "10px 20px" }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Gross Amount</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.grossAmount)}</div>
               </div>
-
-              <div
-                className="inv-summary-box"
-                style={{ background: "#fffbeb", borderColor: "#fcd34d", position: "relative", overflow: "hidden" }}
-              >
-                {totals.discPrice > 0 && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 6,
-                      right: 0,
-                      background: "#f59e0b",
-                      color: "#fff",
-                      fontSize: 9,
-                      fontWeight: 700,
-                      padding: "2px 8px 2px 6px",
-                      borderRadius: "4px 0 0 4px",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
-                    Savings
-                  </div>
-                )}
-                <div className="inv-summary-box-label">Total Discount</div>
-                <div className="inv-summary-box-value" style={{ color: "#b45309" }}>
-                  −₹{fmt(totals.discPrice)}
-                </div>
-                <div style={{ fontSize: 11, color: "#92400e", marginTop: 2, fontWeight: 500 }}>
-                  {Number(effectiveDiscPct || 0).toFixed(2)}% effective
-                </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Total Discount</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#b45309" }}>−₹{fmt(totals.discPrice)}</div>
+                <div style={{ fontSize: 11, color: "#92400e" }}>{Number(effectiveDiscPct || 0).toFixed(2)}% effective</div>
               </div>
-
-              <div className="inv-summary-box">
-                <div className="inv-summary-box-label">PO Amount (after disc, before GST)</div>
-                <div className="inv-summary-box-value">₹{fmt(totals.poAmount)}</div>
-                {totals.discPrice > 0 && (
-                  <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2, fontWeight: 500 }}>
-                    ↓ ₹{fmt(totals.discPrice)} saved vs gross
-                  </div>
-                )}
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>PO Amount (after disc, before GST)</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div>
               </div>
-
-              {gstEnabled && (
-                <>
-                  <div className="inv-summary-box">
-                    <div className="inv-summary-box-label">Total GST</div>
-                    <div className="inv-summary-box-value">₹{fmt(totals.totGst)}</div>
-                  </div>
-                  {gstType === "local" ? (
-                    <div className="inv-summary-box">
-                      <div className="inv-summary-box-label">SGST + CGST</div>
-                      <div className="inv-summary-box-value">
-                        ₹{fmt(totals.sgst + totals.cgst)}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="inv-summary-box">
-                      <div className="inv-summary-box-label">IGST (Other State)</div>
-                      <div className="inv-summary-box-value" style={{ color: "#7c3aed" }}>
-                        ₹{fmt(totals.igst)}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              <div className="inv-summary-box" style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}>
-                <div className="inv-summary-box-label">Grand Total</div>
-                <div className="inv-summary-box-value" style={{ color: "var(--accent)" }}>
-                  ₹{fmt(totals.totalAmount)}
-                </div>
-                {totals.discPrice > 0 && (
-                  <div style={{ fontSize: 11, color: "#1d4ed8", marginTop: 2, fontWeight: 500 }}>
-                    vs gross ₹{fmt(totals.grossAmount + totals.totGst)} — saved ₹{fmt(totals.discPrice)}
-                  </div>
-                )}
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Total GST</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.totGst)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>IGST (Other State)</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#7c3aed" }}>₹{fmt(totals.igst)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Grand Total</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>₹{fmt(totals.totalAmount)}</div>
               </div>
             </div>
 
@@ -1046,7 +995,7 @@ export default function PurchaseOrderPage() {
                     className="inv-input" 
                     value={header.preparedBy || ""} 
                     onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
-                    placeholder="Name of person preparing this PO"
+                    placeholder="System Administrator"
                   />
                 </div>
                 <div className="inv-field-v">

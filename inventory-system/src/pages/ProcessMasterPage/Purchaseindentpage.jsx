@@ -279,7 +279,7 @@ export default function PurchaseIndentPage() {
                     <th style={{ width: 50, textAlign: "center" }}>#</th>
                     <th>Category</th>
                     <th>Item Description</th>
-                    <th style={{ width: 80 }}>UOM</th>
+                    <th style={{ width: 80, textAlign: "center" }}>UOM</th>
                     <th style={{ width: 100, textAlign: "right" }}>Qty</th>
                     <th style={{ width: 140 }}>Due Date</th>
                     <th>Remarks</th>
@@ -334,26 +334,20 @@ export default function PurchaseIndentPage() {
 
             <div className="inv-summary-grid">
 
-              <div className="inv-summary-box">
-                <div className="inv-summary-box-label">Total Line Items</div>
-                <div className="inv-summary-box-value">{details.length}</div>
+            <div style={{ display: "flex", gap: 40, padding: "10px 20px" }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Line Items</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b" }}>{details.length}</div>
               </div>
-              <div className="inv-summary-box">
-                <div className="inv-summary-box-label">Total Indent Qty</div>
-                <div className="inv-summary-box-value">{fmtQty(totalQty)}</div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Indent Qty</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(totalQty)}</div>
               </div>
-              <div
-                className="inv-summary-box"
-                style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}
-              >
-                <div className="inv-summary-box-label">Status</div>
-                <div
-                  className="inv-summary-box-value"
-                  style={{ color: "var(--accent)" }}
-                >
-                  {header.status}
-                </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "var(--accent)" }}>{header.status}</div>
               </div>
+            </div>
             </div>
 
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
