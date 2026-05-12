@@ -132,6 +132,18 @@ export default function PurchaseIndentPage() {
   function addRow() { setDetails(p => [...p, emptyDetail()]); }
   function removeRow(idx) { setDetails(p => p.filter((_, i) => i !== idx)); }
 
+  async function handleDelete(id) {
+    if (!window.confirm("Delete this purchase order?")) return;
+    try {
+      await purchaseOrderApi.remove(id);
+      await loadPos();
+      setSaveToast("Purchase Order deleted successfully!");
+      setTimeout(() => setSaveToast(""), 4000);
+    } catch (err) {
+      setFormError(err.message);
+    }
+  }
+
   async function handleSave() {
     if (!header.indentNo.trim()) return setFormError("Indent No is required");
     if (!header.departmentId) return setFormError("Department is required");

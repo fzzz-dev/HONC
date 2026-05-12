@@ -536,6 +536,18 @@ export default function PurchaseOrderPage() {
   function addRow() { setDetails(p => [...p, calcRow(emptyDetail())]); }
   function removeRow(idx) { setDetails(p => p.filter((_, i) => i !== idx)); }
 
+  async function handleDelete(id) {
+    if (!window.confirm("Delete this purchase order?")) return;
+    try {
+      await purchaseOrderApi.remove(id);
+      await loadPos();
+      setSaveToast("Purchase Order deleted successfully!");
+      setTimeout(() => setSaveToast(""), 4000);
+    } catch (err) {
+      setFormError(err.message);
+    }
+  }
+
   async function handleSave() {
     if (!header.poNo.trim()) return setFormError("PO No is required");
     setFormError(null);
