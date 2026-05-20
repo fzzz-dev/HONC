@@ -39,9 +39,20 @@ const emptyDetail = () => ({
 });
 
 const emptyHeader = () => ({
-  indentNo: "", date: today(), departmentId: "", departmentName: "", createdBy: "Admin", createdOn: today(), status: "Open", remarks: "",
-   dueDate: today(), preparedBy: ""
+  indentNo: "", 
+  indentDate: today(),  // Add this line
+  date: today(), 
+  departmentId: "", 
+  departmentName: "", 
+  createdBy: "Admin", 
+  createdOn: today(), 
+  status: "Open", 
+  remarks: "",
+  dueDate: today(), 
+  preparedBy: ""
 });
+
+
 
 const FormGrid = ({ children }) => (
   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "5px" }}>{children}</div>
@@ -150,7 +161,18 @@ export default function PurchaseIndentPage() {
     });
   }
 
-  function addRow() { setDetails(p => [...p, emptyDetail()]); }
+  function addRow() { 
+  setDetails(p => [...p, emptyDetail()]);
+  
+  // Focus on the new row's category after render
+  setTimeout(() => {
+    const categoryElements = document.querySelectorAll('.category-select');
+    const lastCategory = categoryElements[categoryElements.length - 1];
+    if (lastCategory) {
+      lastCategory.focus();
+    }
+  }, 100);
+}
   function removeRow(idx) { setDetails(p => p.filter((_, i) => i !== idx)); }
 
 
@@ -306,11 +328,24 @@ export default function PurchaseIndentPage() {
       <div className="inv-page-header">
         <div><h1 className="inv-page-title">{editId ? "Edit Purchase Indent" : "New Purchase Indent"}</h1><p className="inv-page-sub">Header-Detail-Summary layout</p></div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-secondary" onClick={() => {
-  setFormError("");
-  setView("list");
-}}>View List</button>
-          <button className="inv-btn-primary" onClick={handleSave} disabled={saving}><u style={{marginRight: "-6px"}}>S</u>ave</button>
+           <button 
+            className="inv-btn-secondary" 
+            onClick={() => {
+              setFormError("");
+              setView("list");
+            }}
+            tabIndex={7 + (details.length * 6)}  // After Add Row button
+          >
+            View List
+          </button>
+          <button 
+            className="inv-btn-primary" 
+            onClick={handleSave} 
+            disabled={saving}
+            tabIndex={8 + (details.length * 6)}  // After View List button
+          >
+            <u style={{marginRight: "-6px"}}>S</u>ave
+          </button>
         </div>
       </div>
 
@@ -319,65 +354,99 @@ export default function PurchaseIndentPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: "0px" }}>
         <div className="inv-card">
           <div className="inv-card-body inv-form-row.cols-3">
-
-            <FormGrid className=''>
-              <Field label="Indent No (Auto) *"><input  tabIndex={1} className="inv-input" value={header.indentNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} /></Field>
-              <Field label="Indent Date *">
-                <input  tabIndex={2} className="inv-input" type="date"  min={new Date().toISOString().split("T")[0]} 
-                defaultValue={header.date} onKeyDown={(e) => e.preventDefault()} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} readOnly />
-              </Field>
-              <Field label="Due Date *">
-                <input  tabIndex={2} className="inv-input" type="date"  min={new Date().toISOString().split("T")[0]} defaultValue={header.dueDate} 
+<FormGrid>
+              <Field label="Indent No (Auto) *"><input className="inv-input" value={header.indentNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} /></Field>
+             <Field label="Indent Date *">
+              <input 
+                className="inv-input"
+                tabIndex={1}
+                type="date"  
+                min="2026-05-01"
+                value={header.indentDate || new Date().toISOString().split("T")[0]}
                 onChange={e => {
-                      const value = e.target.value;
-                      setTmpDueDate(value);
+                  const selectedDate = e.target.value;
+                  const minDate = "2026-05-01";
+                  
+                  if (selectedDate < minDate) {
+                    setHeader(h => ({ ...h, indentDate: minDate, indentDateError: "Past dates are not allowed." }));
+                  } else {
+                    setHeader(h => ({ ...h, indentDate: selectedDate, indentDateError: "" }));
+                  }
+                }}
+              />
+              {header.indentDateError && (
+                <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+                  ⚠️ {header.indentDateError}
+                </div>
+              )}
+            </Field>
 
-                      console.log(tmpDueDate);
-                      const today = new Date().toISOString().split("T")[0];
+           <Field label="Due Date *">
+            <input 
+              className="inv-input"
+              tabIndex={1}
+              type="date"  
+              min="2026-05-01"
+              value={header.dueDate || new Date().toISOString().split("T")[0]}
+              onChange={e => {
+                const selectedDate = e.target.value;
+                const minDate = "2026-05-01";
+                
+                if (selectedDate < minDate) {
+                  setHeader(h => ({ ...h, dueDate: minDate, dueDateError: "Past dates are not allowed." }));
+                } else {
+                  setHeader(h => ({ ...h, dueDate: selectedDate, dueDateError: "" }));
+                }
+              }}
+            />
+            {header.dueDateError && (
+              <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+                ⚠️ {header.dueDateError}
+              </div>
+            )}
+          </Field>            
+              <Field label="Department *">
+                <div 
+                  className="inv-input" 
+                  style={{ padding: 0, overflow: "hidden", cursor: "pointer" }}
+                  tabIndex={3}
+                  onFocus={() => {
+                    // Focus the SearchSelect when div gets focus
+                    const searchSelect = document.querySelector('.department-select .search-select__control');
+                    if (searchSelect) searchSelect.focus();
+                  }}
+                >
+                  <SearchSelect
+                    className="department-select"
+                    style={{ 
+                      border: "none",
+                      boxShadow: "none",
+                      outline: "none",
+                      width: "100%",
+                      padding: "7px 10px",
+                      background: "transparent"
+                    }}
+                    value={header.departmentId}
+                    onChange={(val) => {
+                      const d = departments.find(x => sid(x) === val);
                       setHeader(h => ({
                         ...h,
-                        dueDate: value <= today ? today : value
+                        departmentId: val,
+                        departmentName: toTitleCase(
+                          d?.name || d?.departmentName || ""
+                        )
                       }));
-
                     }}
-                onBlur={e => {
-                    const value = e.target.value;
-                    const today = new Date().toISOString().split("T")[0];                    
-                    if (value < today) {
-                      e.target.value = today;
-                    }
-                    setTmpDueDate(e.target.value);
-                }}
-                
-                 />
-                {tmpDueDate < today && (
-                  <span style={{color: 'red', textAlign: "center", padding: "30px"}}>Past dates are not allowed</span>
-                )}
-              </Field>
-              <Field label="Department *">
-                <SearchSelect
-                  tabIndex={3}
-                  className="inv-input1"
-                  value={header.departmentId}
-                  onChange={(val) => {
-                    const d = departments.find(x => sid(x) === val);
-                    setHeader(h => ({
-                      ...h,
-                      departmentId: val,
-                      departmentName: (
-                        d?.name || d?.departmentName || ""
-                      )
-                    }));
-                  }}
-                  options={departments.map(d => ({ 
-                    value: sid(d), 
-                    label: d.name || d.departmentName 
-                  }))}
-                  placeholder="Select Department"
-                />
-              </Field>                                           
+                    options={departments.map(d => ({ 
+                      value: sid(d), 
+                      label: d.name || d.departmentName 
+                    }))}
+                    placeholder="Select Department"
+                    autoFocus={false}
+                  />
+                </div>
+              </Field>                                                                                                                                                                                
               <Field label="Requested By"><input  tabIndex={4} className="inv-input" value={header.createdBy} onChange={e => setHeader(h => ({ ...h, createdBy: e.target.value }))} /></Field>
-              
             </FormGrid>
           </div>
         </div>
@@ -387,9 +456,15 @@ export default function PurchaseIndentPage() {
             <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "5px 10px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
               <button 
                 className="inv-btn-primary inv-btn-sm" 
-                onClick={addRow} 
+                onClick={addRow}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addRow();
+                  }
+                }}
                 style={{ borderRadius: 4, padding: "5px 12px" }}
-                tabIndex={5 + (details.length * 6)}  // After last remark of last row
+                tabIndex={6 + (details.length * 6)}
               >
                 + Add Row
               </button>              
@@ -431,7 +506,7 @@ export default function PurchaseIndentPage() {
                         <td>
                           <SearchSelect
                             tabIndex={5 + (idx * 6)}  // Start from 5 (after Requested By which is tabIndex 4)
-                            className="inv-select-cell"
+                            className="inv-select-cell category-select"  // Added "category-select" here
                             style={{ padding: 0, border: "none" }}
                             value={row.mainCategoryId}
                             onChange={val => updateDetail(idx, "mainCategoryId", val)}
@@ -504,7 +579,7 @@ export default function PurchaseIndentPage() {
                             className="inv-btn-icon inv-btn-danger" 
                             onClick={() => removeRow(idx)} 
                             style={{ border: "none", background: "transparent" }} 
-                            tabIndex={-1}  // Remove from tab order
+                            tabIndex={10 + ((idx * 6) + 1)}  // Remove from tab order
                           >
                             ✕
                           </button>

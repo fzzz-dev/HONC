@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
@@ -17,9 +17,6 @@ const getFY = () => {
   return m < 4 ? `${y - 1}-${y}` : `${y}-${y + 1}`;
 };
 
-
-
-
 const sid = (v) => {
   if (!v) return "";
   if (typeof v === "object") return String(v.id || v._id || "");
@@ -27,72 +24,33 @@ const sid = (v) => {
 };
 const toTitleCase = (str) => {
   if (!str) return "";
-  // return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-  return str;
+  return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
+
+
 const numberToWords = (num) => {
-  if (num === 0) return "Rupees Zero Only";
-
-  const ones = [
-    '', 'One', 'Two', 'Three', 'Four', 'Five',
-    'Six', 'Seven', 'Eight', 'Nine', 'Ten',
-    'Eleven', 'Twelve', 'Thirteen', 'Fourteen',
-    'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'
-  ];
-
-  const tens = [
-    '', '', 'Twenty', 'Thirty', 'Forty',
-    'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'
-  ];
-
-  const places = ['', 'Thousand', 'Lakh', 'Crore'];
-
+  if (num === 0) return "Zero Only";
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const g = ['', 'Thousand', 'Lakh', 'Crore'];
   const makeGroup = (n) => {
-    let str = '';
-
-    if (n >= 100) {
-      str += ones[Math.floor(n / 100)] + ' Hundred ';
-      n %= 100;
-    }
-
-    if (n >= 20) {
-      str += tens[Math.floor(n / 10)] + ' ';
-      n %= 10;
-    }
-
-    if (n > 0) {
-      str += ones[n] + ' ';
-    }
-
-    return str.trim();
+    let res = '';
+    if (n >= 100) { res += a[Math.floor(n / 100)] + ' Hundred '; n %= 100; }
+    if (n >= 20) { res += b[Math.floor(n / 20)] + ' ' + a[n % 20]; }
+    else if (n > 0) { res += a[n]; }
+    return res.trim();
   };
-
-  let words = '';
-
-  // First 3 digits
-  let group = num % 1000;
-  if (group > 0) {
-    words = makeGroup(group);
-  }
-
-  num = Math.floor(num / 1000);
-
-  // Remaining 2-digit groups
-  let i = 1;
-
+  let word = '';
+  let i = 0;
   while (num > 0) {
-    group = num % 100;
-
-    if (group > 0) {
-      words = makeGroup(group) + ' ' + places[i] + ' ' + words;
-    }
-
-    num = Math.floor(num / 100);
+    let divisor = (i === 1 || i === 2) ? 100 : 1000;
+    let n = num % divisor;
+    if (n > 0) word = makeGroup(n) + ' ' + g[i] + ' ' + word;
+    num = Math.floor(num / divisor);
     i++;
   }
-
-  return `Rupees ${words.trim()} Only`;
+  return word.trim() + " Only";
 };
 
 const ViewIcon = () => (
@@ -101,8 +59,6 @@ const ViewIcon = () => (
     <circle cx="12" cy="12" r="3" />
   </svg>
 );
-
-
 
 const SupplierDetailsModal = ({ supplier, onClose }) => {
   const Row = ({ label, value }) => !value ? null : (
@@ -156,22 +112,20 @@ const SupplierDetailsModal = ({ supplier, onClose }) => {
 const emptyDetail = () => ({
   _rowId: Math.random(), indentDetailId: "", indentNo: "", itemId: "", itemName: "", uom: "", balQty: 0,
   poQty: 0, poRate: 0, discMode: "pct", discPct: 0, discPrice: 0, poAmount: 0,
-  gstPct: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0, netAmount: 0,
+  gstPct: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0
 });
-
-
 
 const emptyHeader = () => ({
   poNo: "", date: today(), supplierId: "", supplierName: "", supplierAddress: "", supplierGst: "",
   purchaseIndentId: "", purchaseIndentNo: "",
   refNo: "", refDate: "", paymentTermsId: "", paymentTermsName: "", deliveryDate: "",
   createdBy: "Admin", createdOn: today(), status: "Open", remarks: "",
-  poType: "", roundoff: 0, totalAmount: 0,
+  poType: "",
   preparedBy: "System Administrator"
 });
 
 const FormGrid = ({ children }) => (
-  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "5px" }}>{children}</div>
+  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>{children}</div>
 );
 
 const Field = ({ label, children, horizontal = true }) => (
@@ -184,8 +138,6 @@ const Field = ({ label, children, horizontal = true }) => (
 function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) {
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   
-
-
   const ITEMS_PER_PAGE = 15;
   const totalPages = Math.ceil(detailRows.length / ITEMS_PER_PAGE);
   
@@ -323,7 +275,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
                   </tr>
                   <tr>
                     <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
-                      <span class="bold" style="font-size: 8px;">Value in Words</span> <span style="font-size: 9px; margin-left: 4px;">${numberToWords(Math.round(totals.totalAmount))}</span>
+                      <span class="bold" style="font-size: 8px;">Value in Words</span> <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(Math.round(totals.totalAmount))}</span>
                     </td>
                   </tr>
                 </table>
@@ -337,8 +289,8 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
                   <tr><td class="text-left">CGST</td><td class="text-right">${fmt(cgstAmount)}</td></tr>
                   <tr><td class="text-left">SGST</td><td class="text-right">${fmt(sgstAmount)}</td></tr>
                   <tr><td class="text-left">Other Charges</td><td class="text-right">0.00</td></tr>
-                  <tr><td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off</td><td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">${fmt(totals.roundoff)}</td></tr>
-                  <tr><td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value</td><td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(Math.round(totals.totalAmount))}</td></tr>
+                  <tr><td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off</td><td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">0.00</td></tr>
+                  <tr><td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value</td><td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(totals.totalAmount)}</td></tr>
                 </table>
               </td>
             </tr>
@@ -429,8 +381,6 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
     w.document.close(); 
   }
 }
-
-
 const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) => {
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   
@@ -571,7 +521,7 @@ const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstTyp
                   <\/tr>
                   <tr>
                     <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
-                      <span class="bold" style="font-size: 8px;">Value in Words<\/span> <span style="font-size: 9px; margin-left: 4px;">${numberToWords(Math.round(totals.totalAmount))}<\/span>
+                      <span class="bold" style="font-size: 8px;">Value in Words<\/span> <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(Math.round(totals.totalAmount))}<\/span>
                     <\/td>
                   <\/tr>
                 <\/table>
@@ -702,18 +652,20 @@ export default function PurchaseOrderPage() {
   const [saving, setSaving] = useState(false);
   const [viewingSupplier, setViewingSupplier] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [tableEnabled, setTableEnabled] = useState(false);
+  const pickIndentRef = useRef(null);
 
   const navigate = useNavigate();
-
-
-const curdate = new Date().toISOString().split("T")[0];
-const [tmpDueDate, setTmpDueDate] = useState(curdate);
-
 
   useEffect(() => {
 
     loadLookups(); loadPos(); openNew();
   }, []);
+  useEffect(() => {
+  if (!pendingModalOpen && pickIndentRef.current) {
+    pickIndentRef.current.focus();
+  }
+}, [pendingModalOpen]);
 
   async function loadLookups() {
     try {
@@ -795,9 +747,7 @@ const [tmpDueDate, setTmpDueDate] = useState(curdate);
       deliveryDate: normalizeDate(po.deliveryDate || po.dueDate),
       poType: po.poType || po.purchaseOrderType || "",
       supplierGst: po.supplierGst || s?.gstNo || "",
-      preparedBy: po.preparedBy || "System Administrator",
-      roundoff: po.roundoff || 0,
-      totalAmount: po.totalAmount || 0
+      preparedBy: po.preparedBy || "System Administrator"
     });
     const gType = po.gstType || "local";
     setDetails(safeDetails(po.details).map(d => calcRow({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) }, gType)));
@@ -853,7 +803,30 @@ const [tmpDueDate, setTmpDueDate] = useState(curdate);
     });
   }
 
-  function addRow() { setDetails(p => [...p, calcRow(emptyDetail())]); }
+    const addRow = () => { 
+    const newRow = {
+      _rowId: Math.random(),
+      indentDetailId: "",
+      indentNo: "",
+      itemId: "",
+      itemName: "",
+      uom: "",
+      balQty: 0,
+      poQty: 0,
+      poRate: 0,
+      discMode: "pct",
+      discPct: 0,
+      discPrice: 0,
+      poAmount: 0,
+      gstPct: 0,
+      sgst: 0,
+      cgst: 0,
+      igst: 0,
+      totGst: 0,
+      totalAmount: 0
+    };
+    setDetails(p => [...p, newRow]);
+  };
   function removeRow(idx) { setDetails(p => p.filter((_, i) => i !== idx)); }
 
   async function handleDelete(id) {
@@ -868,42 +841,9 @@ const [tmpDueDate, setTmpDueDate] = useState(curdate);
     }
   }
 
-
-  
   async function handleSave() {
     if (!header.poNo.trim()) return setFormError("PO No is required");
-    if (!header.poType.trim()) return setFormError("PO Type is required");
-    if (!header.supplierId.trim()) return setFormError("Supplier is required");
-
-    // setHeader({ ...emptyHeader(), netAmount: totals.netAmount }); 
-    // setHeader({ ...emptyHeader(), totalAmount: totals.totalAmount });
-    // setHeader({ ...emptyHeader(), roundoff: totals.roundoff });
-
-    
-
-    setHeader(h => ({
-      ...h,
-      roundoff: totals.roundoff,
-      netAmount: totals.netAmount,
-      totalAmount: totals.totalAmount
-    }));
-
-    for (const row of details) {
-      if (row.indentNo === "" ||row.indentNo === null) {return setFormError("Indent No is required");  }
-      if (row.itemName === "" ||row.itemName === null) {return setFormError("Item Description is required");  }
-      if (row.poQty === "" || row.poQty === null || Number(row.poQty) <= 0) {return setFormError("PO Qty is required");  }
-      if (row.poAmount === "" || row.poAmount === null || Number(row.poAmount) <= 0) {return setFormError("PO Amount is required");  }
-    }
-
     setFormError(null);
-
-    const confirmSave = window.confirm(
-      "Do you want to save this record?"
-    );
-
-    if (!confirmSave) return;
-
-
     setSaving(true);
     const payload = { ...header, gstEnabled, gstType, details: details.map(({ _rowId, ...rest }) => rest) };
     try {
@@ -915,74 +855,16 @@ const [tmpDueDate, setTmpDueDate] = useState(curdate);
     } catch (err) { setFormError(err.message); } finally { setSaving(false); }
   }
 
-      useEffect(() => {
-        const listener = (e) => {
-          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-            e.preventDefault();
-            e.stopPropagation();
-
-            if (view !== "list") {
-              handleSave();
-            }
-          }
-        };
-
-        document.addEventListener("keydown", listener);
-
-        return () => {
-          document.removeEventListener("keydown", listener);
-        };
-      }, [handleSave, view]);
-
-
-
-const totals = details.reduce(
-  (acc, r) => {
-    acc.grossAmount += Number(r.grossAmount || 0);
-    acc.discPrice += Number(r.rowDisc || 0);
-    acc.poAmount += Number(r.poAmount || 0);
-    acc.totGst += Number(r.totGst || 0);
-    acc.totalAmount += Number(r.totalAmount || 0);
-    acc.sgst += Number(r.sgst || 0);
-    acc.cgst += Number(r.cgst || 0);
-    acc.igst += Number(r.igst || 0);
-
-    return acc;
-  },
-  {
-    grossAmount: 0,
-    discPrice: 0,
-    poAmount: 0,
-    totGst: 0,
-    totalAmount: 0,
-    sgst: 0,
-    cgst: 0,
-    igst: 0
-  }
-);
-
-totals.netAmount = Math.round(totals.totalAmount);
-
-totals.roundoff = Number(
-  (totals.netAmount - totals.totalAmount).toFixed(2)
-);
-
-
-// setHeader(prev => ({
-//   ...prev,
-//   grossAmount: totals.grossAmount,
-//   discAmount: totals.discPrice,
-//   poAmount: totals.poAmount,
-//   totalAmount: totals.totalAmount,
-//   netAmount: totals.netAmount,
-//   roundoff: totals.roundoff,
-//   sgstAmount: totals.sgst,
-//   cgstAmount: totals.cgst,
-//   igstAmount: totals.igst
-// }));
-
-
-
+  const totals = details.reduce((acc, r) => ({
+    grossAmount: (acc.grossAmount || 0) + Number(r.grossAmount || 0),
+    discPrice: (acc.discPrice || 0) + Number(r.rowDisc || 0),
+    poAmount: (acc.poAmount || 0) + Number(r.poAmount || 0),
+    totGst: (acc.totGst || 0) + Number(r.totGst || 0),
+    totalAmount: (acc.totalAmount || 0) + Number(r.totalAmount || 0),
+    sgst: (acc.sgst || 0) + Number(r.sgst || 0),
+    cgst: (acc.cgst || 0) + Number(r.cgst || 0),
+    igst: (acc.igst || 0) + Number(r.igst || 0)
+  }), { grossAmount: 0, discPrice: 0, poAmount: 0, totGst: 0, totalAmount: 0, sgst: 0, cgst: 0, igst: 0 });
 
   const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
@@ -1091,6 +973,8 @@ totals.roundoff = Number(
       document.body.removeChild(link);
     };
 
+     
+
     return (
       <div className="inv-page">
         <div className="inv-page-header">
@@ -1118,7 +1002,7 @@ totals.roundoff = Number(
         <div className="inv-card">
           <table className="inv-table">
             <thead>
-              <tr><th>#</th><th>PO No</th><th>Date</th><th>Supplier</th><th>Status</th><th style={{ textAlign: "center"}}>Total Amount</th><th>Actions</th></tr>
+              <tr><th>#</th><th>PO No</th><th>Date</th><th>Supplier</th><th>Status</th><th>Total Amount</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {filteredPos.length === 0 && (
@@ -1131,7 +1015,7 @@ totals.roundoff = Number(
                   <td>{po.date}</td>
                   <td>{po.supplierName}</td>
                   <td><span className={`inv-badge ${po.status === 'Open' ? 'inv-badge-yes' : 'inv-badge-no'}`}>{po.status}</span></td>
-                  <td style={{ textAlign: "center" }}>₹{fmt(po.netAmount || 0)}</td>
+                  <td>₹{fmt(safeDetails(po.details).reduce((s, d) => s + (d.totalAmount || 0), 0))}</td>
                   <td>
                     <div className="inv-actions">
                       <button className="inv-btn-icon" onClick={() => openEdit(po)}>Edit</button>
@@ -1150,17 +1034,42 @@ totals.roundoff = Number(
 
   return (
     <div className="inv-page">
-      <div className="inv-page-header">
-        <div><h1 className="inv-page-title">{editId ? "Edit Purchase Order" : "New Purchase Order"}</h1></div>
-        <div style={{ display: "flex", gap: 8 }}>
-           <button className="inv-btn-secondary" onClick={() => setView("list")}>View List</button>
-            <button className="inv-btn-ghost" onClick={() => printPurchaseOrder({ header, details, totals, gstEnabled, gstType, company })}> Print</button>
-            <button className="inv-btn-primary" onClick={() => downloadAsPDF({ header, details, totals, gstEnabled, gstType, company })}>Download as PDF</button>
-            <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>Save Order</button>
-        </div>
-      </div>
+  <div className="inv-page-header">
+    <div><h1 className="inv-page-title">{editId ? "Edit Purchase Order" : "New Purchase Order"}</h1><p className="inv-page-sub">Header-Detail-Summary layout</p></div>
+   <div style={{ display: "flex", gap: 8 }}>
+  <button 
+    className="inv-btn-secondary" 
+    onClick={() => setView("list")}
+    tabIndex={11}
+  >
+    View List
+  </button>
+  <button 
+    className="inv-btn-ghost" 
+    onClick={() => printPurchaseOrder({ header, details, totals, gstEnabled, gstType, company })}
+    tabIndex={12}
+  >
+    Print
+  </button>
+  <button 
+    className="inv-btn-primary" 
+    onClick={() => downloadAsPDF({ header, details, totals, gstEnabled, gstType, company })}
+    tabIndex={13}
+  >
+    Download as PDF
+  </button>
+  <button 
+    className="inv-btn-primary" 
+    onClick={handleSave} 
+    disabled={saving}
+    tabIndex={14}
+  >
+    Save Order
+  </button>
+</div>
+  </div>
 
-      {formError && <div className="inv-error-banner" style={{ marginBottom: 16, color: 'red', textAlign: 'right' }}>{formError}</div>}
+      {formError && <div className="inv-error-banner" style={{ marginBottom: 16 }}>{formError}</div>}
       {saveToast && (
         <div style={{
           position: "fixed", top: 24, right: 24, zIndex: 9999,
@@ -1176,26 +1085,66 @@ totals.roundoff = Number(
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         <div className="inv-card">
           <div className="inv-card-body">
 
             <FormGrid>
-              <Field label="PO No (Auto)"><input className="inv-input" value={header.poNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} placeholder="PO/0008/26-27" /></Field>
-              <Field label="PO Date"><input className="inv-input" type="date" value={new Date().toISOString().split("T")[0]} readOnly /></Field>
+              <Field label="PO No (Auto)">
+                <input 
+                  tabIndex={1}  // First field
+                  className="inv-input" 
+                  value={header.poNo} 
+                  readOnly 
+                  style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} 
+                  placeholder="PO/0008/26-27" 
+                />
+              </Field>
+              
+               <Field label="PO Date *">
+              <input 
+                className="inv-input" 
+                tabIndex={2}
+                type="date"  
+                min="2026-05-01"
+                value={header.dueDate || "2026-05-20"}
+                onChange={e => {
+                  const selectedDate = e.target.value;
+                  const minDate = "2026-05-01";
+                  
+                  if (selectedDate < minDate) {
+                    setHeader(h => ({ ...h, dueDate: minDate, dueDateError: "Past dates are not allowed." }));
+                  } else {
+                    setHeader(h => ({ ...h, dueDate: selectedDate, dueDateError: "" }));
+                  }
+                }}
+              />
+              {header.dueDateError && (
+                <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+                  ⚠️ {header.dueDateError}
+                </div>
+              )}
+            </Field>  
 
-              <Field label="PO Type *">
-                <select className="inv-input" value={header.poType || ""} onChange={e => setHeader(h => ({ ...h, poType: e.target.value }))}>
+              <Field label="PO Type">
+                <select 
+                  tabIndex={3}  // Third field
+                  className="inv-input" 
+                  value={header.poType || ""} 
+                  onChange={e => setHeader(h => ({ ...h, poType: e.target.value }))}
+                >
                   <option value="">Select Type</option>
                   <option value="Consumables">Consumables</option>
                   <option value="Project">Project</option>
                   <option value="Capital Goods">Capital Goods</option>
                 </select>
               </Field>
+              
               <Field label="Supplier *">
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                   <div style={{ flex: 1 }}>
                     <SearchSelect 
+                      tabIndex={4}  // Fourth field
                       value={header.supplierId} 
                       onChange={val => {
                         const s = suppliers.find(x => sid(x) === val);
@@ -1241,195 +1190,393 @@ totals.roundoff = Number(
                       placeholder="Select supplier"
                     />
                   </div>
-                    <button type="button" className="inv-btn-icon" title="Add New Supplier" onClick={() => navigate("/supplier")} style={{ color: "#10b981" }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    </button>
-                    {header.supplierId && (
-                      <button type="button" className="inv-btn-icon" title="View Supplier Details" onClick={() => {
+                  <button 
+                    type="button" 
+                    className="inv-btn-icon" 
+                    title="Add New Supplier" 
+                    onClick={() => navigate("/supplier")} 
+                    style={{ color: "#10b981" }}
+                    tabIndex={5}  // Remove from tab order
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  </button>
+                  {header.supplierId && (
+                    <button 
+                      type="button" 
+                      className="inv-btn-icon" 
+                      title="View Supplier Details" 
+                      onClick={() => {
                         const s = suppliers.find(x => sid(x) === header.supplierId);
                         if (s) setViewingSupplier(s);
-                      }}>
-                        <ViewIcon />
-                      </button>
-                    )}
-
+                      }}
+                      tabIndex={-1}  // Remove from tab order
+                    >
+                      <ViewIcon />
+                    </button>
+                  )}
                 </div>
               </Field>
-              <Field label="Reference No"><input className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" /></Field>
-              <Field label="Delivery Date">
-                  <input className="inv-input" type="date" value={header.deliveryDate}  min={new Date(Date.now()).toISOString().split("T")[0]} 
-                   // onChange={e => setHeader(h => ({ ...h, deliveryDate: e.target.value})) } 
-                   onChange={e => {
-                        const value = e.target.value;
-                        // setTmpDueDate(e.target.value);
-                        setFormError("Past Date Not Allowed");
-                        // const today = new Date().toISOString().split("T")[0];
-                        setHeader(h => ({
-                          ...h,
-                          deliveryDate: value 
-                        }));
-                      }}
-                  onBlur={e => {
-                      const value = e.target.value;
-                      // const today = new Date().toISOString().split("T")[0];                    
-                      if (value < curdate) {
-                        e.target.value = null;
-                      }
-                      setHeader(h => ({
-                          ...h,
-                          deliveryDate: null 
-                      }));
-                      setTmpDueDate(null);
-                      setFormError(null);
-                  }}
-                   />
-                  {/* {tmpDueDate < curdate && (
-                    <span style={{color: 'red', textAlign: "center", padding: "0px 30px"}}>Past dates are not allowed</span>
-                  )} */}
+              
+              <Field label="Reference No">
+                <input 
+                  tabIndex={6}  // Fifth field
+                  className="inv-input" 
+                  value={header.refNo} 
+                  onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} 
+                  placeholder="e.g. Quote #123" 
+                />
               </Field>
-              <Field label="GST No"><input className="inv-input" value={header.supplierGst} readOnly style={{ background: "#f8fafc" }} /></Field>
-              <Field label="GST Type (Auto)"><input className="inv-input" value={!gstType ? "" : (gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)")} readOnly style={{ background: "#f8fafc", color: "#64748b" }} /></Field>
-            </FormGrid>
+              
+              <Field label="Delivery Date">
+                <input 
+                  tabIndex={7}  // Sixth field
+                  className="inv-input" 
+                  type="date" 
+                  value={header.deliveryDate} 
+                  onChange={e => setHeader(h => ({ ...h, deliveryDate: e.target.value }))} 
+                  placeholder="dd-mm-yyyy" 
+                />
+              </Field>
+              
+              <Field label="GST No">
+                <input 
+                  tabIndex={8}  // Seventh field
+                  className="inv-input" 
+                  value={header.supplierGst} 
+                  readOnly 
+                  style={{ background: "#f8fafc" }} 
+                />
+              </Field>
+              
+              <Field label="GST Type (Auto)">
+                <input 
+                  tabIndex={9}  // Eighth field
+                  className="inv-input" 
+                  value={!gstType ? "" : (gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)")} 
+                  readOnly 
+                  style={{ background: "#f8fafc", color: "#64748b" }} 
+                />
+              </Field>
+            </FormGrid>            
           </div>
         </div>
 
-        <div className="inv-card" style={{ padding: 0, overflow: "hidden" }}>
-          <div className="inv-card-body" style={{ minHeight: "475px", padding: 0 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "8px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="inv-btn-secondary inv-btn-sm" onClick={() => setPendingModalOpen(true)} style={{ borderRadius: 4 }}>+ Pick Indent</button>
-                <button className="inv-btn-primary inv-btn-sm" onClick={addRow} style={{ borderRadius: 4 }}>+ Add Row</button>
+          <div className="inv-card" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="inv-card-body" style={{ minHeight: "400px", padding: 0 }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "16px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button 
+                className="inv-btn-secondary inv-btn-sm" 
+                onClick={() => {
+                  setPendingModalOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setPendingModalOpen(true);
+                  }
+                }}
+                style={{ borderRadius: 4 }}
+                tabIndex={9}
+              >
+                + Pick Indent
+              </button>
+                 <button 
+                  className="inv-btn-primary inv-btn-sm" 
+                  onClick={() => {
+                    const newRow = {
+                      _rowId: Math.random(),
+                      indentDetailId: "",
+                      indentNo: "",
+                      itemId: "",
+                      itemName: "",
+                      uom: "",
+                      balQty: 0,
+                      poQty: 0,
+                      poRate: 0,
+                      discMode: "pct",
+                      discPct: 0,
+                      discPrice: 0,
+                      poAmount: 0,
+                      gstPct: 0,
+                      sgst: 0,
+                      cgst: 0,
+                      igst: 0,
+                      totGst: 0,
+                      totalAmount: 0
+                    };
+                    setDetails(p => [...p, newRow]);
+                    setTableEnabled(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const newRow = {
+                        _rowId: Math.random(),
+                        indentDetailId: "",
+                        indentNo: "",
+                        itemId: "",
+                        itemName: "",
+                        uom: "",
+                        balQty: 0,
+                        poQty: 0,
+                        poRate: 0,
+                        discMode: "pct",
+                        discPct: 0,
+                        discPrice: 0,
+                        poAmount: 0,
+                        gstPct: 0,
+                        sgst: 0,
+                        cgst: 0,
+                        igst: 0,
+                        totGst: 0,
+                        totalAmount: 0
+                      };
+                      setDetails(p => [...p, newRow]);
+                      setTableEnabled(true);
+                      
+                      setTimeout(() => {
+                        const lastRow = document.querySelector('tbody tr:last-child');
+                        if (lastRow) {
+                          const firstInput = lastRow.querySelector('input');
+                          if (firstInput) firstInput.focus();
+                        }
+                      }, 150);
+                    }
+                  }}
+                  style={{ borderRadius: 4 }}
+                  tabIndex={10}
+                >
+                  + Add Row
+                </button>
+                </div>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table className="inv-table-premium">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 40, textAlign: "center" }}>#</th>
+                      <th style={{ width: 140 }}>Indent No</th>
+                      <th style={{ minWidth: 200 }}>Item Description</th>
+                      <th style={{ width: 80, textAlign: "center" }}>UOM</th>
+                      <th style={{ width: 80, textAlign: "right" }}>Bal</th>
+                      <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
+                      <th style={{ width: 100, textAlign: "right" }}>Unit Price</th>
+                      <th style={{ width: 100, textAlign: "right" }}>Disc</th>
+                      <th style={{ width: 110, textAlign: "right" }}>PO Amt</th>
+                      <th style={{ width: 70, textAlign: "center" }}>GST%</th>
+                      <th style={{ width: 90, textAlign: "right" }}>IGST</th>
+                      <th style={{ width: 120, textAlign: "right" }}>Total</th>
+                      <th style={{ width: 40 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {details.map((row, idx) => {
+                      const baseTabIndex = 15 + (idx * 11);
+                      const isLastRow = idx === details.length - 1; // 11 fields per row (Indent No through Total)
+                      
+                      return (
+                        <tr key={row._rowId}>
+                          <td style={{ textAlign: "center" }}>{idx + 1}</td>
+                          
+                          {/* Indent No - tabIndex starts at baseTabIndex */}
+                          <td>
+                            <input
+                              tabIndex={tableEnabled ? baseTabIndex : -1}
+                              className="inv-input-cell"
+                              value={row.indentNo || ""}
+                              readOnly
+                            />
+                          </td>
+                          
+                          {/* Item Description */}
+                          <td>
+                            <input
+                              tabIndex={tableEnabled ? baseTabIndex + 1 : -1}
+                              className="inv-input-cell"
+                              value={row.itemName || ""}
+                              readOnly
+                            />
+                          </td>
+                          
+                          {/* UOM */}
+                          <td>
+                            <input
+                              tabIndex={tableEnabled ? baseTabIndex + 2 : -1}
+                              className="inv-input-cell"
+                              value={row.uom || ""}
+                              readOnly
+                            />
+                          </td>
+                          
+                          {/* Bal Qty */}
+                          <td>
+                            <input
+                              tabIndex={tableEnabled ? baseTabIndex + 3 : -1}
+                              className="inv-input-cell"
+                              value={row.balQty ? fmtQty(row.balQty) : "—"}
+                              readOnly
+                            />
+                          </td>
+                          
+                          {/* PO Qty */}
+                          <tr>
+                            <input 
+                              tabIndex={tableEnabled ? baseTabIndex + 4 : -1}
+                              className="inv-input-cell" 
+                              type="number" 
+                              value={row.poQty} 
+                              onChange={e => updateDetail(idx, "poQty", e.target.value)} 
+                            />
+                          </tr>
+                          
+                          {/* Unit Price */}
+                          <td>
+                            <input 
+                              tabIndex={tableEnabled ? baseTabIndex + 5 : -1}
+                              className="inv-input-cell" 
+                              type="number" 
+                              value={row.poRate} 
+                              onChange={e => updateDetail(idx, "poRate", e.target.value)} 
+                            />
+                          </td>
+                          
+                          {/* Discount */}
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center" }}>
+                              <input 
+                                tabIndex={tableEnabled ? baseTabIndex + 6 : -1}
+                                className="inv-input-cell" 
+                                type="number" 
+                                value={row.discMode === 'pct' ? row.discPct : row.discPrice} 
+                                onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} 
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => toggleDiscMode(idx)} 
+                                tabIndex={-1}
+                              >
+                                {row.discMode === 'pct' ? '%' : '₹'}
+                              </button>
+                            </div>
+                          </td>
+                          
+                          {/* PO Amount */}
+                          <td>
+                            <input 
+                              tabIndex={tableEnabled ? baseTabIndex + 7 : -1}
+                              className="inv-input-cell" 
+                              value={fmt(row.poAmount)} 
+                              readOnly 
+                            />
+                          </td>
+                          
+                          {/* GST% */}
+                          <td>
+                            <input
+                              tabIndex={tableEnabled ? baseTabIndex + 8 : -1}
+                              className="inv-input-cell"
+                              type="number"
+                              value={row.gstPct}
+                              onChange={e => updateDetail(idx, "gstPct", e.target.value)}
+                            />
+                          </td>
+                          
+                          {/* IGST */}
+                          <td>
+                            <input 
+                              tabIndex={tableEnabled ? baseTabIndex + 9 : -1}
+                              className="inv-input-cell" 
+                              value={fmt(row.totGst)} 
+                              readOnly 
+                            />
+                          </td>
+                          
+                          {/* Total */}
+                          <td>
+                            <input 
+                              tabIndex={tableEnabled ? baseTabIndex + 10 : -1}
+                              className="inv-input-cell" 
+                              value={fmt(row.totalAmount)} 
+                              readOnly 
+                            />
+                          </td>
+                          
+                          {/* Delete Button - remove from tab order */}
+                          
+                           <td>
+                            <input 
+                              tabIndex={tableEnabled ? baseTabIndex + 11 : -1}
+                              className="inv-input-cell" 
+                              value={fmt(row.totalAmount)} 
+                              readOnly 
+                              onKeyDown={(e) => {
+                                if (e.key === 'Tab' && !e.shiftKey) {
+                                  // Prevent default tab behavior
+                                  e.preventDefault();
+                                  // Focus on Add Row button
+                                  const addRowBtn = document.querySelector('button[tabIndex="10"]');
+                                  if (addRowBtn) {
+                                    addRowBtn.focus();
+                                  }
+                                }
+                              }}
+                            />
+                          </td>
+
+                          <td>
+                            <button 
+                              onClick={() => removeRow(idx)} 
+                              tabIndex={tableEnabled ? baseTabIndex + 11 : -1}
+                            >
+                              ✕
+                            </button>
+                          </td> 
+
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div style={{
-    maxHeight: "450px",
-    overflowY: "auto",
-    border: "1px solid #ccc",
-  }}>
-              <table className="inv-table-premium" style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                }}>
-                <thead 
-                    style={{
-                      position: "sticky",
-                      top: 0,
-                      background: "#f5f5f5",
-                      zIndex: 1,
-                    }}
-                >
-                  <tr>
-                    <th style={{ width: 40, textAlign: "center" }}>#</th>
-                    <th style={{ width: 180 }}>Indent No</th>
-                    <th style={{ minWidth: 200 }}>Item Description</th>
-                    <th style={{ width: 80, textAlign: "center" }}>UOM</th>
-                    <th style={{ width: 80, textAlign: "right" }}>Bal</th>
-                    <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
-                    <th style={{ width: 100, textAlign: "right" }}>Unit Price</th>
-                    <th style={{ width: 100, textAlign: "right" }}>Disc</th>
-                    <th style={{ width: 110, textAlign: "right" }}>PO Amt</th>
-                    <th style={{ width: 70, textAlign: "center" }}>GST%</th>
-                    <th style={{ width: 90, textAlign: "right" }}>Total GST</th>
-                    <th style={{ width: 120, textAlign: "right" }}>Total</th>
-                    <th style={{ width: 40 }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {details.map((row, idx) => (
-                    <tr key={row._rowId}>
-                      <td style={{ textAlign: "center", color: "#94a3b8", fontWeight: 500 }}>{idx + 1}</td>
-                      {/* ── LOCKED: Indent No ── */}
-                      <td>
-                        <input
-                          className="inv-input-cell"
-                          value={row.indentNo || ""}
-                          readOnly
-                          placeholder="Via Pick Indent"
-                          style={{
-                            background: "#f8fafc",
-                            color: row.indentNo ? "#4f46e5" : "#cbd5e1",
-                            fontWeight: row.indentNo ? 600 : 400,
-                            cursor: "not-allowed",
-                            fontStyle: row.indentNo ? "normal" : "italic",
-                            fontSize: 12,
-                          }}
-                        />
-                      </td>
-                      {/* ── LOCKED: Item Description ── */}
-                      <td>
-                        <input
-                          className="inv-input-cell"
-                          value={row.itemName || ""}
-                          readOnly
-                          placeholder="Via Pick Indent"
-                          style={{
-                            background: "#f8fafc",
-                            color: row.itemName ? "#1e293b" : "#cbd5e1",
-                            fontWeight: row.itemName ? 500 : 400,
-                            cursor: "not-allowed",
-                            minWidth: 160,
-                            fontStyle: row.itemName ? "normal" : "italic",
-                          }}
-                        />
-                      </td>
-                      {/* ── LOCKED: UOM ── */}
-                      <td>
-                        <input
-                          className="inv-input-cell"
-                          value={row.uom || ""}
-                          readOnly
-                          style={{ background: "#f8fafc", color: "#64748b", cursor: "not-allowed", textAlign: "center" }}
-                        />
-                      </td>
-                      {/* ── LOCKED: Bal Qty ── */}
-                      <td>
-                        <input
-                          className="inv-input-cell"
-                          value={row.balQty ? fmtQty(row.balQty) : "—"}
-                          readOnly
-                          style={{ background: "#f8fafc", color: "#64748b", cursor: "not-allowed", textAlign: "right" }}
-                        />
-                      </td>
-                      <td><input className="inv-input-cell" type="number" step="0.001" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} onBlur={e => updateDetail(idx, "poQty", Number(e.target.value || 0).toFixed(3))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} /></td>
-                      <td><input className="inv-input-cell" type="number" step="0.01" value={row.poRate} onChange={e => updateDetail(idx, "poRate", e.target.value)} onBlur={e => updateDetail(idx, "poRate", Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right" }} /></td>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center" }}>
-                          <input className="inv-input-cell" type="number" step="0.01" value={row.discMode === 'pct' ? row.discPct : row.discPrice} onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} onBlur={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', Number(e.target.value || 0).toFixed(2))} style={{ textAlign: "right", flex: 1 }} />
-                          <button type="button" onClick={() => toggleDiscMode(idx)} style={{ fontSize: 10, border: "none", background: "#f1f5f9", padding: "4px 6px", cursor: "pointer", color: "#64748b", fontWeight: 700 }}>{row.discMode === 'pct' ? '%' : '₹'}</button>
-                        </div>
-                      </td>
-                      <td><input className="inv-input-cell" value={fmt(row.poAmount)} readOnly style={{ textAlign: "right", color: "#1e293b", fontWeight: 500 }} /></td>
-                      <td>
-                        <input
-                          className="inv-input-cell"
-                          type="number"
-                          step="0.01"
-                          value={row.gstPct}
-                          onChange={e => updateDetail(idx, "gstPct", e.target.value)}
-                          onBlur={e => updateDetail(idx, "gstPct", Number(e.target.value || 0).toFixed(2))}
-                          style={{ textAlign: "center", color: "#64748b", fontWeight: 600 }}
-                        />
-                      </td>
-                      <td><input className="inv-input-cell" value={fmt(row.totGst)} readOnly style={{ textAlign: "right" }} /></td>
-                      <td><input className="inv-input-cell" value={fmt(row.totalAmount)} readOnly style={{ textAlign: "right", fontWeight: 700, background: "#f8fafc", color: "#3b6ef8" }} /></td>
-                      <td style={{ textAlign: "center" }}>
-                        <button className="inv-btn-icon inv-btn-danger" onClick={() => removeRow(idx)} style={{ border: "none", background: "transparent" }}>✕</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </div>
-        </div>
 
         {/* ── Summary card ── */}
         <div className="inv-card">
-          <div className="inv-card-body" style={{ display: "grid", gridTemplateColumns: "1fr 3fr" }}>
+          <div className="inv-card-body">
 
-            <div style={{ marginTop: 0, paddingTop: 10, borderTop: "0px solid #f1f5f9"}}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 0, width: '100%' }}>
-                <div className="inv-field-v" style={{ display: "grid", gridTemplateColumns: "1fr 3fr", gap: 2 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, padding: "10px 20px" }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Gross Amount</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.grossAmount)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Total Discount</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#b45309" }}>−₹{fmt(totals.discPrice)}</div>
+                <div style={{ fontSize: 11, color: "#92400e" }}>{Number(effectiveDiscPct || 0).toFixed(2)}% effective</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>PO Amount (after disc, before GST)</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Total GST</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.totGst)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>IGST (Other State)</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#7c3aed" }}>₹{fmt(totals.igst)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Grand Total</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>₹{fmt(totals.totalAmount)}</div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
+                <div className="inv-field-v">
                   <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
                   <input 
                     className="inv-input" 
@@ -1438,12 +1585,11 @@ totals.roundoff = Number(
                     placeholder="System Administrator"
                   />
                 </div>
-                <div className="inv-field-v" style={{marginTop: 10}}>
+                <div className="inv-field-v">
                   <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Remarks & Special Instructions</label>
                   <textarea
-                    rows={4}
                     className="inv-input"
-                    style={{ fontSize: "13px", padding: "12px" }}
+                    style={{ height: 40, resize: "none", fontSize: "13px", padding: "12px" }}
                     value={header.remarks || ""}
                     onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))}
                     placeholder="Enter any specific terms, instructions or internal notes..."
@@ -1451,61 +1597,6 @@ totals.roundoff = Number(
                 </div>
               </div>
             </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, padding: "10px 20px", width: '100%' }}  >
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>PO Qty</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.poQty)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>PO Amount</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.grossAmount)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total Discount</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700,  }}>−₹{fmt(totals.discPrice)}</div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#92400e", display: "none" }}>{Number(effectiveDiscPct || 0).toFixed(2)}% effective</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Amount after Disc</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>CGST</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.cgst)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>SGST</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.sgst)}</div>
-              </div>
-              <div>
-              <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>IGST </div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700,  }}>₹{fmt(totals.igst)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total GST</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.totGst)}</div>
-              </div>
-              
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total Amount</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.totalAmount)}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Round Off</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.roundoff)}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Net Amount</div>
-                <div style={{ fontSize: 24, textAlign: 'center', fontWeight: 700, color: "var(--accent)" }}>₹{fmt(totals.netAmount)}</div>
-              </div>
-
-
-            </div>
-
-            
 
           </div>
         </div>
@@ -1519,9 +1610,9 @@ totals.roundoff = Number(
           saveLabel={`Add ${pendingSelected.size} Item(s) to PO`}
           full={true}
         >
-          <div style={{ padding: "0 10px", maxHeight: "350px",overflowY: "auto",border: "0px solid #ccc" }}>
-            <table className="inv-table-premium"  style={{width: "100%",borderCollapse: "collapse",}}>
-              <thead  style={{position: "sticky",top: 0,background: "#f5f5f5",zIndex: 1,}}>
+          <div style={{ padding: "0 10px" }}>
+            <table className="inv-table-premium">
+              <thead>
                 <tr>
                   <th style={{ width: 40, textAlign: "center" }}>
                     <input 

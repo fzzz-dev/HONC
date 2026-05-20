@@ -42,7 +42,7 @@ const EMPTY = {
   imageFile: null, // actual File object for new uploads
 };
 
-const GST_OPTIONS = [0, 5, 12, 18];
+const GST_OPTIONS = [ 5, 12, 18];
 
 export default function ItemPage() {
   // ── Data state ───────────────────────────────────────────────────────────────
@@ -58,10 +58,13 @@ export default function ItemPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
+  const [form, setForm] = useState({
+  // ... your other fields
+  gstPercent: "",
+  gstPercentError: "", });
   const [filterHead, setFilterHead] = useState("");
   const [filterGroup, setFilterGroup] = useState("");
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState(EMPTY);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [bulkUploadResult, setBulkUploadResult] = useState(null);
   const fileRef = useRef();
@@ -211,91 +214,104 @@ export default function ItemPage() {
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────────
+
   async function handleSave() {
-    if (!form.itemName.trim()) return alert("Item Description is required");
-    if (!form.headId || !form.head) return alert("Head is required");
-
-    setSaving(true);
-    try {
-      let result;
-
-      if (form.imageFile) {
-        // Multipart upload when a new image file is selected
-        const fd = new FormData();
-        fd.append("image", form.imageFile);
-        fd.append("headId", form.headId);
-        fd.append("head", form.head);
-        fd.append("group", form.group);
-        fd.append("itemName", form.itemName);
-        fd.append("uom", form.uom);
-        fd.append("make", form.make);
-        fd.append("spec", form.spec);
-        fd.append("movementType", form.movementType);
-        fd.append("itemDescription", computedItemDescription);
-        fd.append("minimumStock", parseFloat(form.minimumStock) || 0);
-        fd.append("minimumOrderQty", parseFloat(form.minimumOrderQty) || 0);
-        fd.append("leadDays", parseInt(form.leadDays, 10) || 0);
-        fd.append("inTransitDays", parseInt(form.inTransitDays, 10) || 0);
-        fd.append("hsnCode", form.hsnCode);
-        fd.append("gstPercent", parseFloat(form.gstPercent) || 0);
-        fd.append("rackBinNo", form.rackBinNo);
-        fd.append("rate", parseFloat(form.rate) || 0);
-        fd.append("active", form.active);
-
-        const url =
-          modal.mode === "add"
-            ? `${API_BASE}/items`
-            : `${API_BASE}/items/${modal.id}`;
-        const method = modal.mode === "add" ? "POST" : "PUT";
-
-        const res = await fetch(url, { method, body: fd });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message);
-        result = data.data;
-      } else {
-        // JSON upload — no new image
-        const payload = {
-          headId: form.headId,
-          head: form.head,
-          group: form.group,
-          itemName: form.itemName,
-          uom: form.uom,
-          make: form.make,
-          spec: form.spec,
-          movementType: form.movementType,
-          itemDescription: computedItemDescription,
-          minimumStock: parseFloat(form.minimumStock) || 0,
-          minimumOrderQty: parseFloat(form.minimumOrderQty) || 0,
-          leadDays: parseInt(form.leadDays, 10) || 0,
-          inTransitDays: parseInt(form.inTransitDays, 10) || 0,
-          hsnCode: form.hsnCode,
-          gstPercent: parseFloat(form.gstPercent) || 0,
-          rackBinNo: form.rackBinNo,
-          rate: parseFloat(form.rate) || 0,
-          active: form.active,
-          image: form.image, // null if removed, existing URL if unchanged
-        };
-
-        result =
-          modal.mode === "add"
-            ? await itemApi.create(payload)
-            : await itemApi.update(modal.id, payload);
-      }
-
-      if (modal.mode === "add") {
-        setItems((prev) => [result, ...prev]);
-      } else {
-        setItems((prev) =>
-          prev.map((it) => ((it.id || it._id) === modal.id ? result : it)),
-        );
-      }
-      setModal(null);
-    } catch (err) {
-      alert(err.message || "Save failed");
-    } finally {
-      setSaving(false);
-    }
+  // Validate Item Description
+  if (!form.itemName.trim()) return alert("Item Description is required");
+  
+  // Validate Head
+  if (!form.headId || !form.head) return alert("Head is required");
+  
+  // Validate GST % - Required field
+  if (!form.gstPercent || form.gstPercent === "") {
+    setForm(f => ({ ...f, gstPercentError: "GST % is required. Please select a value." }));
+    return;
   }
+
+  // Clear error before saving
+  setForm(f => ({ ...f, gstPercentError: "" }));
+
+  setSaving(true);
+  try {
+    let result;
+
+    if (form.imageFile) {
+      // Multipart upload when a new image file is selected
+      const fd = new FormData();
+      fd.append("image", form.imageFile);
+      fd.append("headId", form.headId);
+      fd.append("head", form.head);
+      fd.append("group", form.group);
+      fd.append("itemName", form.itemName);
+      fd.append("uom", form.uom);
+      fd.append("make", form.make);
+      fd.append("spec", form.spec);
+      fd.append("movementType", form.movementType);
+      fd.append("itemDescription", computedItemDescription);
+      fd.append("minimumStock", parseFloat(form.minimumStock) || 0);
+      fd.append("minimumOrderQty", parseFloat(form.minimumOrderQty) || 0);
+      fd.append("leadDays", parseInt(form.leadDays, 10) || 0);
+      fd.append("inTransitDays", parseInt(form.inTransitDays, 10) || 0);
+      fd.append("hsnCode", form.hsnCode);
+      fd.append("gstPercent", parseFloat(form.gstPercent) || 0);
+      fd.append("rackBinNo", form.rackBinNo);
+      fd.append("rate", parseFloat(form.rate) || 0);
+      fd.append("active", form.active);
+
+      const url =
+        modal.mode === "add"
+          ? `${API_BASE}/items`
+          : `${API_BASE}/items/${modal.id}`;
+      const method = modal.mode === "add" ? "POST" : "PUT";
+
+      const res = await fetch(url, { method, body: fd });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+      result = data.data;
+    } else {
+      // JSON upload — no new image
+      const payload = {
+        headId: form.headId,
+        head: form.head,
+        group: form.group,
+        itemName: form.itemName,
+        uom: form.uom,
+        make: form.make,
+        spec: form.spec,
+        movementType: form.movementType,
+        itemDescription: computedItemDescription,
+        minimumStock: parseFloat(form.minimumStock) || 0,
+        minimumOrderQty: parseFloat(form.minimumOrderQty) || 0,
+        leadDays: parseInt(form.leadDays, 10) || 0,
+        inTransitDays: parseInt(form.inTransitDays, 10) || 0,
+        hsnCode: form.hsnCode,
+        gstPercent: parseFloat(form.gstPercent) || 0,
+        rackBinNo: form.rackBinNo,
+        rate: parseFloat(form.rate) || 0,
+        active: form.active,
+        image: form.image, // null if removed, existing URL if unchanged
+      };
+
+      result =
+        modal.mode === "add"
+          ? await itemApi.create(payload)
+          : await itemApi.update(modal.id, payload);
+    }
+
+    if (modal.mode === "add") {
+      setItems((prev) => [result, ...prev]);
+    } else {
+      setItems((prev) =>
+        prev.map((it) => ((it.id || it._id) === modal.id ? result : it)),
+      );
+    }
+    setModal(null);
+  } catch (err) {
+    alert(err.message || "Save failed");
+  } finally {
+    setSaving(false);
+  }
+}
 
   // ── Delete ────────────────────────────────────────────────────────────────────
   async function handleDelete(id) {
@@ -684,13 +700,25 @@ export default function ItemPage() {
           </FormGrid>
 
           <FormGrid>
-            <Field label="GST %">
+            <Field label="GST % *">
               <Select
                 value={form.gstPercent}
-                onChange={(v) => setForm((f) => ({ ...f, gstPercent: Number(v) }))}
+                onChange={(v) => {
+                  setForm((f) => ({ 
+                    ...f, 
+                    gstPercent: Number(v), 
+                    gstPercentError: ""  // Clear error when selected
+                  }));
+                }}
                 options={GST_OPTIONS.map(v => ({ value: v, label: `${v}%` }))}
                 placeholder="Select GST %"
+                className={form.gstPercentError ? "error-field" : ""}
               />
+              {form.gstPercentError && (
+                <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+                  ⚠️ {form.gstPercentError}
+                </div>
+              )}
             </Field>
             <Field label="Rack – Bin No">
               <Input

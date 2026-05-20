@@ -59,6 +59,10 @@ const emptyDetail = () => ({
   poDetailId: "",
 });
 
+const emptyHeader = () => ({
+  "GRN Date": today()
+});
+
 function calcRow(row, gstType = "local") {
   const grnQty = Number(row.grnQty || 0);
   const grnRate = Number(row.grnRate || 0);
@@ -102,7 +106,7 @@ const getFY = () => {
 
 export default function PurchaseGRNPage() {
   const { user } = useAuth();
-  const today = new Date().toISOString().split("T")[0];
+  const today = () => new Date().toISOString().split("T")[0];
 
   // ── State ──
   const [grns, setGrns] = useState([]);
@@ -660,9 +664,28 @@ export default function PurchaseGRNPage() {
           <p className="inv-page-sub">Record goods received against purchase orders</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-secondary" onClick={() => setView("list")}>View GRN</button>
-          <button className="inv-btn-secondary" onClick={printGRN}>Print</button>
-          <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save GRN"}</button>
+          <button 
+            className="inv-btn-secondary" 
+            onClick={() => setView("list")}
+            tabIndex={11}  // View GRN
+          >
+            View GRN
+          </button>
+          <button 
+            className="inv-btn-secondary" 
+            onClick={printGRN}
+            tabIndex={12}  // Print
+          >
+            Print
+          </button>
+          <button 
+            className="inv-btn-primary" 
+            onClick={handleSave} 
+            disabled={saving}
+            tabIndex={13}  // Save GRN
+          >
+            {saving ? "Saving..." : "Save GRN"}
+          </button>
         </div>
       </div>
 
@@ -749,11 +772,32 @@ export default function PurchaseGRNPage() {
             <Field label="GRN No (Auto)">
               <input className="inv-input" value={header.grnNo} readOnly style={{ background: "#f8f9fa", color: "#4f46e5", fontWeight: 600 }} />
             </Field>
-            <Field label="GRN Date">
-              <input className="inv-input" type="date" value={header.date} readOnly style={{ background: "#f8f9fa" }} />
-            </Field>
+            <Field label="GRN Date *">
+              <input 
+                className="inv-input"
+                tabIndex={1}
+                type="date"  
+                min="2026-05-01"
+                value={header.grnDate || today()}  // Uses today() as fallback
+                onChange={e => {
+                  const selectedDate = e.target.value;
+                  const minDate = "2026-05-01";
+                  
+                  if (selectedDate < minDate) {
+                    setHeader(h => ({ ...h, grnDate: minDate, grnDateError: "Past dates are not allowed." }));
+                  } else {
+                    setHeader(h => ({ ...h, grnDate: selectedDate, grnDateError: "" }));
+                  }
+                }}
+              />
+              {header.grnDateError && (
+                <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+                  ⚠️ {header.grnDateError}
+                </div>
+              )}
+            </Field> 
             <Field label="GRN Type *">
-              <select className="inv-input" value={header.grnType} onChange={(e) => setHeader(h => ({ ...h, grnType: e.target.value }))}>
+              <select className="inv-input" tabIndex={2} value={header.grnType} onChange={(e) => setHeader(h => ({ ...h, grnType: e.target.value }))}>
                 <option value="Against PO">Against PO</option>
                 <option value="General">General</option>
               </select>
@@ -762,7 +806,8 @@ export default function PurchaseGRNPage() {
             <Field label="Supplier *">
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                 <div style={{ flex: 1 }}>
-                  <SearchSelect 
+                  <SearchSelect
+                    tabIndex={3} 
                     value={header.supplierId} 
                     onChange={val => {
                       const rawId = val;
@@ -776,13 +821,13 @@ export default function PurchaseGRNPage() {
                     placeholder="Select supplier"
                   />
                 </div>
-                <button type="button" className="inv-btn-icon" title="Add New Supplier" onClick={() => navigate("/supplier")} style={{ color: "#10b981" }}>
+                <button type="button" className="inv-btn-icon" tabIndex={4} title="Add New Supplier" onClick={() => navigate("/supplier")} style={{ color: "#10b981" }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
               </div>
             </Field>
             <Field label="Store *">
-              <select className="inv-input" value={header.storeId} onChange={(e) => {
+              <select className="inv-input" tabIndex={5} value={header.storeId} onChange={(e) => {
                 const st = stores.find(x => String(x.id || x._id) === e.target.value);
                 setHeader(h => ({ ...h, storeId: e.target.value, storeName: st?.name || "" }));
               }}>
@@ -791,14 +836,15 @@ export default function PurchaseGRNPage() {
               </select>
             </Field>
             <Field label="Inv/Pdc No">
-              <input className="inv-input" value={header.invoiceNo} onChange={(e) => setHeader(h => ({ ...h, invoiceNo: e.target.value }))} placeholder="Enter Invoice Number" />
+              <input className="inv-input" tabIndex={6} value={header.invoiceNo} onChange={(e) => setHeader(h => ({ ...h, invoiceNo: e.target.value }))} placeholder="Enter Invoice Number" />
             </Field>
             <Field label="Inv Date">
-              <input className="inv-input" type="date" value={header.invoiceDate} onChange={(e) => setHeader(h => ({ ...h, invoiceDate: e.target.value }))} />
+              <input className="inv-input" tabIndex={7} type="date" value={header.invoiceDate} onChange={(e) => setHeader(h => ({ ...h, invoiceDate: e.target.value }))} />
             </Field>
             <Field label="GST Type">
               <input 
                 className="inv-input" 
+                tabIndex={8}
                 value={header.gstType === 'other' ? 'Other State (IGST)' : 'Local (SGST+CGST)'} 
                 readOnly 
                 style={{ background: "#f8f9fa", color: header.gstType === 'other' ? "#7c3aed" : "#10b981", fontWeight: 600 }} 
@@ -814,6 +860,7 @@ export default function PurchaseGRNPage() {
             <div style={{ display: "flex", gap: 8 }}>
               {header.grnType !== "General" && (
                 <button 
+                  tabIndex={9}
                   className="inv-btn-secondary inv-btn-sm" 
                   onClick={openPendingModal} 
                   style={{ 
@@ -828,7 +875,7 @@ export default function PurchaseGRNPage() {
                   <span style={{ marginRight: 4 }}>+</span> Pick Pending PO
                 </button>
               )}
-              <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
+              <button className="inv-btn-secondary inv-btn-sm"  tab tabIndex={10} onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
             </div>
           </div>
           <div style={{ overflowX: "auto", minHeight: 400 }}>
