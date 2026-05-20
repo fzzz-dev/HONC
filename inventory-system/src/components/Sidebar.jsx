@@ -128,7 +128,7 @@ export default function Sidebar() {
   return (
     <aside className="inv-sidebar no-scrollbar">
       <div className="inv-logo" style={{ cursor: 'pointer', padding: '32px 0', border: 'none' }} onClick={() => navigate('/')}>
-        <img src="/honc-logo.png" alt="HONC" style={{ width: '50px', height: '50px', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }} />
+        <img src="/logo-full-white.png" alt="HONC" style={{ width: '100px', height: 'auto', borderRadius: '0', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }} />
       </div>
 
       <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '10px 0' }}>

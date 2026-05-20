@@ -33,18 +33,18 @@ export default function HomePage() {
         <div className="logo-wrapper" style={{
           position: 'relative',
           padding: '10px',
-          background: '#fff',
+          background: 'transparent',
           borderRadius: '24px',
-          boxShadow: '0 15px 35px rgba(0, 0, 0, 0.08)',
+          // boxShadow: '0 15px 35px rgba(0, 0, 0, 0.08)',
           animation: 'logoFloat 4s ease-in-out infinite'
         }}>
           <img
-            src="/honc-logo.png"
+            src="/logo-full.png"
             alt="HONC Logo"
             style={{
               width: '140px',
               height: 'auto',
-              borderRadius: '16px',
+              borderRadius: '0px',
               display: 'block'
             }}
           />

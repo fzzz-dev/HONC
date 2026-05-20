@@ -29,8 +29,8 @@ const LoginPage = () => {
     <div className="login-container">
       <div className="login-glass-card">
         <div className="login-header">
-          <img src="/honc-logo.png" alt="HONC Logo" className="login-logo" />
-          <h1>HONC</h1>
+          <img src="/logo-full-white.png" alt="HONC Logo" className="login-logo" />
+          {/* <h1>HONC</h1> */}
           <p>Secure Enterprise Portal</p>
         </div>
         

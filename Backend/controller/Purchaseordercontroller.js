@@ -147,6 +147,7 @@ exports.create = async (req, res) => {
   try {
     const {
       poNo,
+      poType,
       date,
       supplierId,
       supplierName,
@@ -161,6 +162,7 @@ exports.create = async (req, res) => {
     } = req.body;
 
     if (!poNo) return res.status(400).json({ message: "poNo is required" });
+    if (!poType) return res.status(400).json({ message: "poType is required" });
 
     let finalSupplierName = supplierName;
     if (supplierId) {
@@ -185,7 +187,8 @@ exports.create = async (req, res) => {
     const computedDetails = details.map((d) => calcDetail(d, gstEnabled, gstType));
     
     // Calculate summaries
-    let grossAmount = 0, discAmount = 0, poAmount = 0, igstAmount = 0, cgstAmount = 0, sgstAmount = 0, netAmount = 0;
+    let grossAmount = 0, discAmount = 0, poAmount = 0, igstAmount = 0, cgstAmount = 0, sgstAmount = 0;
+    let totalAmount = 0;
     computedDetails.forEach(d => {
       const qty = Number(d.poQty || 0);
       const rate = Number(d.poRate || 0);
@@ -195,11 +198,16 @@ exports.create = async (req, res) => {
       igstAmount += Number(d.igst || 0);
       cgstAmount += Number(d.cgst || 0);
       sgstAmount += Number(d.sgst || 0);
-      netAmount += Number(d.totalAmount || 0);
+      totalAmount += Number(d.totalAmount || 0);
     });
+    
+    totalAmount = +totalAmount.toFixed(2);
+    const netAmount = Math.floor(totalAmount);
+    const roundOff = +(netAmount - totalAmount).toFixed(2);
 
     const po = await PurchaseOrder.create({
       poNo,
+      poType,
       date,
       supplierId: supplierId || null,
       supplierName: finalSupplierName,
@@ -218,6 +226,8 @@ exports.create = async (req, res) => {
       cgstAmount,
       sgstAmount,
       netAmount,
+      totalAmount,
+      roundoff: roundOff,
       totalItems: computedDetails.length,
       details: computedDetails,
     }, { include: ["details"] });
@@ -239,8 +249,14 @@ exports.create = async (req, res) => {
 // ─── PUT /api/purchase-orders/:id ────────────────────────────────────────────
 exports.update = async (req, res) => {
   try {
+
+    // return res.status(400).json({ message: req.body });
+
     const po = await PurchaseOrder.findByPk(req.params.id);
     if (!po) return res.status(404).json({ message: "PO not found" });
+
+
+    
 
     const {
       poNo,
@@ -254,6 +270,7 @@ exports.update = async (req, res) => {
       createdOn,
       status,
       remarks,
+      poType,
       details = [],
     } = req.body;
 
@@ -274,10 +291,11 @@ exports.update = async (req, res) => {
     } else {
       ptId = null;
     }
-
+    
     const computedDetails = details.map((d) => calcDetail(d, gstEnabled, gstType));
 
-    let grossAmount = 0, discAmount = 0, poAmount = 0, igstAmount = 0, cgstAmount = 0, sgstAmount = 0, netAmount = 0;
+    let grossAmount = 0, discAmount = 0, poAmount = 0, igstAmount = 0, cgstAmount = 0, sgstAmount = 0;
+    let totalAmount = 0;
     computedDetails.forEach(d => {
       const qty = Number(d.poQty || 0);
       const rate = Number(d.poRate || 0);
@@ -287,8 +305,12 @@ exports.update = async (req, res) => {
       igstAmount += Number(d.igst || 0);
       cgstAmount += Number(d.cgst || 0);
       sgstAmount += Number(d.sgst || 0);
-      netAmount += Number(d.totalAmount || 0);
+      totalAmount += Number(d.totalAmount || 0);
     });
+    
+    totalAmount = +totalAmount.toFixed(2);
+    const netAmount = Math.round(totalAmount);
+    const roundOff = +(totalAmount - netAmount).toFixed(2);
 
     // Track affected indents before and after update
     const oldDetails = await PurchaseOrderDetail.findAll({ where: { purchaseOrderId: po.id } });
@@ -296,6 +318,7 @@ exports.update = async (req, res) => {
 
     await po.update({
       poNo,
+      poType,
       date,
       supplierId: supplierId || null,
       supplierName: finalSupplierName,
@@ -314,6 +337,8 @@ exports.update = async (req, res) => {
       cgstAmount,
       sgstAmount,
       netAmount,
+      totalAmount,
+      roundoff: roundOff,
       totalItems: computedDetails.length,
     });
     

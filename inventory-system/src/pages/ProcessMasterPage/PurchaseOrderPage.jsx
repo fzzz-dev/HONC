@@ -17,6 +17,9 @@ const getFY = () => {
   return m < 4 ? `${y - 1}-${y}` : `${y}-${y + 1}`;
 };
 
+
+
+
 const sid = (v) => {
   if (!v) return "";
   if (typeof v === "object") return String(v.id || v._id || "");
@@ -24,31 +27,72 @@ const sid = (v) => {
 };
 const toTitleCase = (str) => {
   if (!str) return "";
-  return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  // return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  return str;
 };
 
 const numberToWords = (num) => {
-  if (num === 0) return "Zero Only";
-  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  const g = ['', 'Thousand', 'Lakh', 'Crore'];
+  if (num === 0) return "Rupees Zero Only";
+
+  const ones = [
+    '', 'One', 'Two', 'Three', 'Four', 'Five',
+    'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+    'Eleven', 'Twelve', 'Thirteen', 'Fourteen',
+    'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'
+  ];
+
+  const tens = [
+    '', '', 'Twenty', 'Thirty', 'Forty',
+    'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'
+  ];
+
+  const places = ['', 'Thousand', 'Lakh', 'Crore'];
+
   const makeGroup = (n) => {
-    let res = '';
-    if (n >= 100) { res += a[Math.floor(n / 100)] + ' Hundred '; n %= 100; }
-    if (n >= 20) { res += b[Math.floor(n / 20)] + ' ' + a[n % 20]; }
-    else if (n > 0) { res += a[n]; }
-    return res.trim();
+    let str = '';
+
+    if (n >= 100) {
+      str += ones[Math.floor(n / 100)] + ' Hundred ';
+      n %= 100;
+    }
+
+    if (n >= 20) {
+      str += tens[Math.floor(n / 10)] + ' ';
+      n %= 10;
+    }
+
+    if (n > 0) {
+      str += ones[n] + ' ';
+    }
+
+    return str.trim();
   };
-  let word = '';
-  let i = 0;
+
+  let words = '';
+
+  // First 3 digits
+  let group = num % 1000;
+  if (group > 0) {
+    words = makeGroup(group);
+  }
+
+  num = Math.floor(num / 1000);
+
+  // Remaining 2-digit groups
+  let i = 1;
+
   while (num > 0) {
-    let divisor = (i === 1 || i === 2) ? 100 : 1000;
-    let n = num % divisor;
-    if (n > 0) word = makeGroup(n) + ' ' + g[i] + ' ' + word;
-    num = Math.floor(num / divisor);
+    group = num % 100;
+
+    if (group > 0) {
+      words = makeGroup(group) + ' ' + places[i] + ' ' + words;
+    }
+
+    num = Math.floor(num / 100);
     i++;
   }
-  return word.trim() + " Only";
+
+  return `Rupees ${words.trim()} Only`;
 };
 
 const ViewIcon = () => (
@@ -57,6 +101,8 @@ const ViewIcon = () => (
     <circle cx="12" cy="12" r="3" />
   </svg>
 );
+
+
 
 const SupplierDetailsModal = ({ supplier, onClose }) => {
   const Row = ({ label, value }) => !value ? null : (
@@ -110,20 +156,22 @@ const SupplierDetailsModal = ({ supplier, onClose }) => {
 const emptyDetail = () => ({
   _rowId: Math.random(), indentDetailId: "", indentNo: "", itemId: "", itemName: "", uom: "", balQty: 0,
   poQty: 0, poRate: 0, discMode: "pct", discPct: 0, discPrice: 0, poAmount: 0,
-  gstPct: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0
+  gstPct: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0, netAmount: 0,
 });
+
+
 
 const emptyHeader = () => ({
   poNo: "", date: today(), supplierId: "", supplierName: "", supplierAddress: "", supplierGst: "",
   purchaseIndentId: "", purchaseIndentNo: "",
   refNo: "", refDate: "", paymentTermsId: "", paymentTermsName: "", deliveryDate: "",
   createdBy: "Admin", createdOn: today(), status: "Open", remarks: "",
-  poType: "",
+  poType: "", roundoff: 0, totalAmount: 0,
   preparedBy: "System Administrator"
 });
 
 const FormGrid = ({ children }) => (
-  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>{children}</div>
+  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "5px" }}>{children}</div>
 );
 
 const Field = ({ label, children, horizontal = true }) => (
@@ -135,13 +183,201 @@ const Field = ({ label, children, horizontal = true }) => (
 
 function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) {
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  
 
+
+  const ITEMS_PER_PAGE = 15;
+  const totalPages = Math.ceil(detailRows.length / ITEMS_PER_PAGE);
+  
+  // Calculate totals for all items
   const grossValue = detailRows.reduce((s, d) => s + (Number(d.poQty || 0) * Number(d.poRate || 0)), 0);
   const discountAmount = grossValue - totals.poAmount;
   const igstAmount = detailRows.reduce((s, d) => s + (d.igst || 0), 0);
   const cgstAmount = detailRows.reduce((s, d) => s + (d.cgst || 0), 0);
   const sgstAmount = detailRows.reduce((s, d) => s + (d.sgst || 0), 0);
+  
+  // Build all pages
+  let allPagesHtml = '';
+  
+  for (let page = 1; page <= totalPages; page++) {
+    const startIndex = (page - 1) * ITEMS_PER_PAGE;
+    const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, detailRows.length);
+    const pageItems = detailRows.slice(startIndex, endIndex);
+    const isLastPage = page === totalPages;
+    const startSerial = (page - 1) * ITEMS_PER_PAGE;
+    
+    allPagesHtml += `
+      <div ${page < totalPages ? 'style="page-break-after: always;"' : ''}>
+        <table style="border: none; margin-bottom: 2px;">
+          <tr>
+            <td class="no-border text-center bold" style="font-size: 15px; width: 80%; vertical-align: middle;">Purchase Order</td>
+            <td class="no-border text-right bold" style="width: 20%; vertical-align: middle; font-size: 9px;">Page ${page} of ${totalPages}</td>
+          </tr>
+        </table>
+        
+        <div class="container">
+          <table class="grid-table">
+            <tr>
+              <td colspan="2" style="width: 66.66%; border-bottom: 1px solid #000; padding: 0;">
+                <table style="width: 100%; height: 100%; border: none;">
+                  <tr>
+                    <td style="width: 30%; border: none; text-align: center; vertical-align: middle; padding: 10px;">
+                      ${company?.logo ? `<img src="${company.logo}" style="height: 55px; max-width: 100%; object-fit: contain;" />` : ''}
+                    </td>
+                    <td class="text-center" style="width: 70%; border: none; vertical-align: middle; padding: 10px 10px 10px 0;">
+                      <div class="bold" style="font-size: 14px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+                      <div style="font-size: 8.5px; margin-top: 4px;">${esc(company?.address || "Company Address")}</div>
+                      <div style="font-size: 8.5px;">Tel: ${esc(company?.phone || "")}, E-Mail: ${esc(company?.email || "")}</div>
+                      <div style="font-size: 8.5px;">GSTIN: ${esc(company?.gstin || "")}</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+              <td style="width: 33.33%; padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
+                <table style="height: 100%; border: none;">
+                  <tr>
+                    <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-left: none; width: 50%; font-size: 9px;">PO Number</td>
+                    <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-right: none; width: 50%; font-size: 9px;">PO Date</td>
+                  </tr>
+                  <tr>
+                    <td class="text-center bold" style="border-left: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(header.poNo)}</td>
+                    <td class="text-center bold" style="border-right: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(new Date(header.date).toLocaleDateString("en-GB"))}</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" style="border-bottom: 1px solid #000; padding: 5px;">
+                <div><span class="bold">Party:</span> <span class="bold" style="margin-left: 10px; font-size: 11px;">${esc(header.supplierName)}</span></div>
+                <div style="margin-top: 4px;">${esc(header.supplierAddress)}</div>
+                <div style="margin-top: 4px;">GST: ${esc(header.supplierGst)}</div>
+              </td>
+              <td style="padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
+                <table style="height: 100%; border: none;">
+                  <tr><td style="border-top: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Reference:</span> ${esc(header.refNo || "")}</td></tr>
+                  <tr><td style="border-bottom: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Delivery Date:</span> <span style="margin-left: 10px;" class="bold">${esc(header.deliveryDate ? new Date(header.deliveryDate).toLocaleDateString("en-GB") : "")}</span></td></tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="width: 33.33%; border-bottom: none;">
+                <div class="bold">Place of Delivery</div>
+                <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+                <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
+                <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
+              </td>
+              <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
+                <div class="bold">Transported</div>
+                <div style="margin-top: 4px;"></div>
+              </td>
+              <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
+                <div class="bold">Invoice to be Sent to</div>
+                <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+                <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
+                <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
+              </td>
+            </tr>
+          </table>
 
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 4%; border-left: none;">S.No</th>
+                <th style="width: 12%;">Indent No</th>
+                <th style="width: 24%;">Item Description</th>
+                <th style="width: 9%;">Discount%</th>
+                <th style="width: 6%;">Tax%</th>
+                <th style="width: 7%;">Uom</th>
+                <th style="width: 10%;">Quantity</th>
+                <th style="width: 13%;">Unit Price</th>
+                <th style="width: 15%; border-right: none;">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pageItems.map((d, i) => `
+              <tr>
+                <td class="text-left" style="border-left: none;">${startSerial + i + 1}</td>
+                <td class="text-left" style="font-size: 8.5px;">${esc(d.indentNo || "Direct")}</td>
+                <td class="text-left" style="font-size: 8.5px;">${esc(d.itemName)}</td>
+                <td class="text-right">${d.discMode === 'pct' ? Number(d.discPct || 0).toFixed(2) : ''}</td>
+                <td class="text-right">${Number(d.gstPct || 0).toFixed(2)}</td>
+                <td class="text-center">${esc(d.uom)}</td>
+                <td class="text-right">${Number(d.poQty || 0).toFixed(3)}</td>
+                <td class="text-right">${Number(d.poRate || 0).toFixed(2)}</td>
+                <td class="text-right" style="border-right: none;">${Number((d.poQty || 0) * (d.poRate || 0)).toFixed(2)}</td>
+              </tr>
+              `).join("")}
+            </tbody>
+          </table>
+
+          ${isLastPage ? `
+          <table style="border: none; width: 100%;">
+            <tr>
+              <td style="width: 70%; padding: 0; border: none; border-right: 1px solid #000; vertical-align: top;">
+                <table style="border: none; width: 100%; height: 100%;">
+                  <tr>
+                    <td style="border: none; border-bottom: 1px solid #000; height: 100px; vertical-align: top; padding: 5px;">
+                      <div class="bold" style="font-size: 8.5px; margin-bottom: 4px;">Remarks</div>
+                      <div style="font-size: 9px;">${esc(header.remarks || "")}</div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
+                      <span class="bold" style="font-size: 8px;">Value in Words</span> <span style="font-size: 9px; margin-left: 4px;">${numberToWords(Math.round(totals.totalAmount))}</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+              <td style="width: 30%; padding: 0; border: none; vertical-align: top;">
+                <table class="summary-table" style="width: 100%;">
+                  <tr><td class="bold text-left">Gross Value</td><td class="text-right">${fmt(grossValue)}</td></tr>
+                  <tr><td class="bold text-left">Discount</td><td class="text-right">${fmt(discountAmount)}</td></tr>
+                  <tr><td class="bold text-left">Basic Value</td><td class="text-right">${fmt(totals.poAmount)}</td></tr>
+                  <tr><td class="text-left">IGST</td><td class="text-right">${fmt(igstAmount)}</td></tr>
+                  <tr><td class="text-left">CGST</td><td class="text-right">${fmt(cgstAmount)}</td></tr>
+                  <tr><td class="text-left">SGST</td><td class="text-right">${fmt(sgstAmount)}</td></tr>
+                  <tr><td class="text-left">Other Charges</td><td class="text-right">0.00</td></tr>
+                  <tr><td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off</td><td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">${fmt(totals.roundoff)}</td></tr>
+                  <tr><td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value</td><td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(Math.round(totals.totalAmount))}</td></tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <table style="border: none; width: 100%; margin-top: -1px;">
+            <tr class="signature-row">
+              <td style="width: 20%; border-left: none; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">
+                <div>Prepared By</div>
+                <div style="margin-top: 20px; font-weight: normal; font-size: 10px;">${esc(header.preparedBy || "")}</div>
+              </td>
+              <td style="width: 20%; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">Verified By</td>
+              <td style="width: 30%; padding: 5px 10px 10px 10px;">
+                <table style="border: none; width: 100%; margin-bottom: 8px;">
+                  <tr>
+                    <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 15%; font-size: 9px;">Name:</td>
+                    <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 35%;"></td>
+                    <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 20%; font-size: 9px;">Mobile:</td>
+                    <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 30%;"></td>
+                  </tr>
+                  <tr>
+                    <td style="border: none; padding: 2px; font-weight: bold; text-align: right; font-size: 9px;">Sign:</td>
+                    <td colspan="3" style="border: none; padding: 2px; border-bottom: 1px dotted #000;"></td>
+                  </tr>
+                </table>
+                <div style="text-align: right; font-weight: bold; font-size: 9px; padding-right: 5px;">Received By</div>
+              </td>
+              <td style="width: 30%; border-right: none; text-align: center; position: relative; padding-bottom: 10px;">
+                <div class="bold" style="font-size: 9px; position: absolute; top: 5px; left: 0; right: 0;">For ${esc(company?.companyName || "TEST COMPANY")}</div>
+                <div style="font-weight: bold; font-size: 9px; font-style: italic;">Authorised Signatory</div>
+              </td>
+            </tr>
+          </table>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+  
   const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -168,8 +404,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
     
     .items-table { border-left: none; border-right: none; border-bottom: none; }
     .items-table th { background: #f0f0f0; border-top: 1px solid #000; }
-    .items-table td { border-top: none; border-bottom: none; height: 25px; }
-    .items-table tr.last-row td { height: 400px; border-bottom: 1px solid #000; } /* Spacer */
+    .items-table td { border-top: none; border-bottom: 1px solid #ddd; height: 25px; }
     
     .footer-table { border: none; }
     .footer-table td { border: none; }
@@ -180,190 +415,268 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
   </style>
 </head>
 <body>
-  <table style="border: none; margin-bottom: 2px;">
-    <tr>
-      <td class="no-border text-center bold" style="font-size: 15px; width: 80%; vertical-align: middle;">Purchase Order</td>
-      <td class="no-border text-right bold" style="width: 20%; vertical-align: middle; font-size: 9px;">Page 1 of 1</td>
-    </tr>
-  </table>
+  ${allPagesHtml}
   
-  <div class="container">
-    <table class="grid-table">
-      <tr>
-        <td colspan="2" style="width: 66.66%; border-bottom: 1px solid #000; padding: 0;">
-          <table style="width: 100%; height: 100%; border: none;">
-            <tr>
-              <td style="width: 30%; border: none; text-align: center; vertical-align: middle; padding: 10px;">
-                ${company?.logo ? `<img src="${company.logo}" style="height: 55px; max-width: 100%; object-fit: contain;" />` : ''}
-              </td>
-              <td class="text-center" style="width: 70%; border: none; vertical-align: middle; padding: 10px 10px 10px 0;">
-                <div class="bold" style="font-size: 14px;">${esc(company?.companyName || "TEST COMPANY")}</div>
-                <div style="font-size: 8.5px; margin-top: 4px;">${esc(company?.address || "Company Address")}</div>
-                <div style="font-size: 8.5px;">Tel: ${esc(company?.phone || "")}, E-Mail: ${esc(company?.email || "")}</div>
-                <div style="font-size: 8.5px;">GSTIN: ${esc(company?.gstin || "")}</div>
-              </td>
-            </tr>
-          </table>
-        </td>
-        <td style="width: 33.33%; padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
-          <table style="height: 100%; border: none;">
-            <tr>
-              <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-left: none; width: 50%; font-size: 9px;">PO Number</td>
-              <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-right: none; width: 50%; font-size: 9px;">PO Date</td>
-            </tr>
-            <tr>
-              <td class="text-center bold" style="border-left: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(header.poNo)}</td>
-              <td class="text-center bold" style="border-right: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(new Date(header.date).toLocaleDateString("en-GB"))}</td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2" style="border-bottom: 1px solid #000; padding: 5px;">
-          <div><span class="bold">Party:</span> <span class="bold" style="margin-left: 10px; font-size: 11px;">${esc(header.supplierName)}</span></div>
-          <div style="margin-top: 4px;">${esc(header.supplierAddress)}</div>
-          <div style="margin-top: 4px;">GST: ${esc(header.supplierGst)}</div>
-        </td>
-        <td style="padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
-          <table style="height: 100%; border: none;">
-            <tr><td style="border-top: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Reference:</span> ${esc(header.refNo || "")}</td></tr>
-            <tr><td style="border-bottom: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Delivery Date:</span> <span style="margin-left: 10px;" class="bold">${esc(header.deliveryDate ? new Date(header.deliveryDate).toLocaleDateString("en-GB") : "")}</span></td></tr>
-          </table>
-        </td>
-      </tr>
-      <tr>
-        <td style="width: 33.33%; border-bottom: none;">
-          <div class="bold">Place of Delivery</div>
-          <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
-          <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
-          <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
-        </td>
-        <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
-          <div class="bold">Transported</div>
-          <div style="margin-top: 4px;"></div>
-        </td>
-        <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
-          <div class="bold">Invoice to be Sent to</div>
-          <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
-          <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
-          <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
-        </td>
-      </tr>
-    </table>
-
-    <table class="items-table">
-      <thead>
-        <tr>
-          <th style="width: 4%; border-left: none;">S.No</th>
-          <th style="width: 12%;">Indent No</th>
-          <th style="width: 24%;">Item Description</th>
-          <th style="width: 9%;">Discount%</th>
-          <th style="width: 6%;">Tax%</th>
-          <th style="width: 7%;">Uom</th>
-          <th style="width: 10%;">Quantity</th>
-          <th style="width: 13%;">Unit Price</th>
-          <th style="width: 15%; border-right: none;">Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${detailRows.map((d, i) => `
-        <tr>
-          <td class="text-left" style="border-left: none;">${i + 1}</td>
-          <td class="text-left" style="font-size: 8.5px;">${esc(d.indentNo || "Direct")}</td>
-          <td class="text-left" style="font-size: 8.5px;">${esc(d.itemName)}</td>
-          <td class="text-right">${d.discMode === 'pct' ? Number(d.discPct || 0).toFixed(2) : ''}</td>
-          <td class="text-right">${Number(d.gstPct || 0).toFixed(2)}</td>
-          <td class="text-center">${esc(d.uom)}</td>
-          <td class="text-right">${Number(d.poQty || 0).toFixed(3)}</td>
-          <td class="text-right">${Number(d.poRate || 0).toFixed(2)}</td>
-          <td class="text-right" style="border-right: none;">${Number((d.poQty || 0) * (d.poRate || 0)).toFixed(2)}</td>
-        </tr>
-        `).join("")}
-        <tr class="last-row">
-          <td style="border-left: none;"></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td style="border-right: none;"></td>
-        </tr>
-      </tbody>
-    </table>
-
-    <table style="border: none; width: 100%;">
-      <tr>
-        <td style="width: 70%; padding: 0; border: none; border-right: 1px solid #000; vertical-align: top;">
-          <table style="border: none; width: 100%; height: 100%;">
-            <tr>
-              <td style="border: none; border-bottom: 1px solid #000; height: 100px; vertical-align: top; padding: 5px;">
-                <div class="bold" style="font-size: 8.5px; margin-bottom: 4px;">Remarks</div>
-                <div style="font-size: 9px;">${esc(header.remarks || "")}</div>
-              </td>
-            </tr>
-            <tr>
-              <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
-                <span class="bold" style="font-size: 8px;">Value in Words</span> <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(Math.round(totals.totalAmount))}</span>
-              </td>
-            </tr>
-          </table>
-        </td>
-        <td style="width: 30%; padding: 0; border: none; vertical-align: top;">
-          <table class="summary-table" style="width: 100%;">
-            <tr><td class="bold text-left">Gross Value</td><td class="text-right">${fmt(grossValue)}</td></tr>
-            <tr><td class="bold text-left">Discount</td><td class="text-right">${fmt(discountAmount)}</td></tr>
-            <tr><td class="bold text-left">Basic Value</td><td class="text-right">${fmt(totals.poAmount)}</td></tr>
-            <tr><td class="text-left">IGST</td><td class="text-right">${fmt(igstAmount)}</td></tr>
-            <tr><td class="text-left">CGST</td><td class="text-right">${fmt(cgstAmount)}</td></tr>
-            <tr><td class="text-left">SGST</td><td class="text-right">${fmt(sgstAmount)}</td></tr>
-            <tr><td class="text-left">Other Charges</td><td class="text-right">0.00</td></tr>
-            <tr><td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off</td><td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">0.00</td></tr>
-            <tr><td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value</td><td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(totals.totalAmount)}</td></tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-
-    <table style="border: none; width: 100%; margin-top: -1px;">
-      <tr class="signature-row">
-        <td style="width: 20%; border-left: none; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">
-          <div>Prepared By</div>
-          <div style="margin-top: 20px; font-weight: normal; font-size: 10px;">${esc(header.preparedBy || "")}</div>
-        </td>
-        <td style="width: 20%; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">Verified By</td>
-        <td style="width: 30%; padding: 5px 10px 10px 10px;">
-          <table style="border: none; width: 100%; margin-bottom: 8px;">
-            <tr>
-              <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 15%; font-size: 9px;">Name:</td>
-              <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 35%;"></td>
-              <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 20%; font-size: 9px;">Mobile:</td>
-              <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 30%;"></td>
-            </tr>
-            <tr>
-              <td style="border: none; padding: 2px; font-weight: bold; text-align: right; font-size: 9px;">Sign:</td>
-              <td colspan="3" style="border: none; padding: 2px; border-bottom: 1px dotted #000;"></td>
-            </tr>
-          </table>
-          <div style="text-align: right; font-weight: bold; font-size: 9px; padding-right: 5px;">Received By</div>
-        </td>
-        <td style="width: 30%; border-right: none; text-align: center; position: relative; padding-bottom: 10px;">
-          <div class="bold" style="font-size: 9px; position: absolute; top: 5px; left: 0; right: 0;">For ${esc(company?.companyName || "TEST COMPANY")}</div>
-          <div style="font-weight: bold; font-size: 9px; font-style: italic;">Authorised Signatory</div>
-        </td>
-      </tr>
-    </table>
-  </div>
-
   <script>
     window.onload = () => { setTimeout(() => window.print(), 300); }
   </script>
 </body>
 </html>`;
+  
   const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); }
+  if (w) { 
+    w.document.write(html); 
+    w.document.close(); 
+  }
 }
+
+
+const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) => {
+  const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  
+  const ITEMS_PER_PAGE = 15;
+  const totalPages = Math.ceil(detailRows.length / ITEMS_PER_PAGE);
+  
+  // Calculate totals for all items
+  const grossValue = detailRows.reduce((s, d) => s + (Number(d.poQty || 0) * Number(d.poRate || 0)), 0);
+  const discountAmount = grossValue - totals.poAmount;
+  const igstAmount = detailRows.reduce((s, d) => s + (d.igst || 0), 0);
+  const cgstAmount = detailRows.reduce((s, d) => s + (d.cgst || 0), 0);
+  const sgstAmount = detailRows.reduce((s, d) => s + (d.sgst || 0), 0);
+  
+  // Build all pages
+  let allPagesHtml = '';
+  
+  for (let page = 1; page <= totalPages; page++) {
+    const startIndex = (page - 1) * ITEMS_PER_PAGE;
+    const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, detailRows.length);
+    const pageItems = detailRows.slice(startIndex, endIndex);
+    const isLastPage = page === totalPages;
+    const startSerial = (page - 1) * ITEMS_PER_PAGE;
+    
+    allPagesHtml += `
+      <div ${page < totalPages ? 'style="page-break-after: always;"' : ''}>
+        <table style="border: none; margin-bottom: 2px;">
+          <tr>
+            <td class="no-border text-center bold" style="font-size: 15px; width: 80%; vertical-align: middle;">Purchase Order<\/td>
+            <td class="no-border text-right bold" style="width: 20%; vertical-align: middle; font-size: 9px;">Page ${page} of ${totalPages}<\/td>
+          <\/tr>
+        <\/table>
+        
+        <div class="container">
+          <table class="grid-table">
+            <tr>
+              <td colspan="2" style="width: 66.66%; border-bottom: 1px solid #000; padding: 0;">
+                <table style="width: 100%; height: 100%; border: none;">
+                  <tr>
+                    <td style="width: 30%; border: none; text-align: center; vertical-align: middle; padding: 10px;">
+                      ${company?.logo ? `<img src="${company.logo}" style="height: 55px; max-width: 100%; object-fit: contain;" />` : ''}
+                    <\/td>
+                    <td class="text-center" style="width: 70%; border: none; vertical-align: middle; padding: 10px 10px 10px 0;">
+                      <div class="bold" style="font-size: 14px;">${esc(company?.companyName || "TEST COMPANY")}<\/div>
+                      <div style="font-size: 8.5px; margin-top: 4px;">${esc(company?.address || "Company Address")}<\/div>
+                      <div style="font-size: 8.5px;">Tel: ${esc(company?.phone || "")}, E-Mail: ${esc(company?.email || "")}<\/div>
+                      <div style="font-size: 8.5px;">GSTIN: ${esc(company?.gstin || "")}<\/div>
+                    <\/td>
+                  <\/tr>
+                <\/table>
+              <\/td>
+              <td style="width: 33.33%; padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
+                <table style="height: 100%; border: none;">
+                  <tr>
+                    <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-left: none; width: 50%; font-size: 9px;">PO Number<\/td>
+                    <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-right: none; width: 50%; font-size: 9px;">PO Date<\/td>
+                  <\/tr>
+                  <tr>
+                    <td class="text-center bold" style="border-left: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(header.poNo)}<\/td>
+                    <td class="text-center bold" style="border-right: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(new Date(header.date).toLocaleDateString("en-GB"))}<\/td>
+                  <\/tr>
+                <\/table>
+              <\/td>
+            <\/tr>
+            <tr>
+              <td colspan="2" style="border-bottom: 1px solid #000; padding: 5px;">
+                <div><span class="bold">Party:<\/span> <span class="bold" style="margin-left: 10px; font-size: 11px;">${esc(header.supplierName)}<\/span><\/div>
+                <div style="margin-top: 4px;">${esc(header.supplierAddress)}<\/div>
+                <div style="margin-top: 4px;">GST: ${esc(header.supplierGst)}<\/div>
+              <\/td>
+              <td style="padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
+                <table style="height: 100%; border: none;">
+                  <tr><td style="border-top: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Reference:<\/span> ${esc(header.refNo || "")}<\/td><\/tr>
+                  <tr><td style="border-bottom: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Delivery Date:<\/span> <span style="margin-left: 10px;" class="bold">${esc(header.deliveryDate ? new Date(header.deliveryDate).toLocaleDateString("en-GB") : "")}<\/span><\/td><\/tr>
+                <\/table>
+              <\/td>
+            <\/tr>
+            <tr>
+              <td style="width: 33.33%; border-bottom: none;">
+                <div class="bold">Place of Delivery<\/div>
+                <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}<\/div>
+                <div style="margin-top: 2px;">${esc(company?.address || "")}<\/div>
+                <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}<\/div>
+              <\/td>
+              <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
+                <div class="bold">Transported<\/div>
+                <div style="margin-top: 4px;"><\/div>
+              <\/td>
+              <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
+                <div class="bold">Invoice to be Sent to<\/div>
+                <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}<\/div>
+                <div style="margin-top: 2px;">${esc(company?.address || "")}<\/div>
+                <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}<\/div>
+              <\/td>
+            <\/tr>
+          <\/table>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 4%; border-left: none;">S.No<\/th>
+                <th style="width: 12%;">Indent No<\/th>
+                <th style="width: 24%;">Item Description<\/th>
+                <th style="width: 9%;">Discount%<\/th>
+                <th style="width: 6%;">Tax%<\/th>
+                <th style="width: 7%;">Uom<\/th>
+                <th style="width: 10%;">Quantity<\/th>
+                <th style="width: 13%;">Unit Price<\/th>
+                <th style="width: 15%; border-right: none;">Value<\/th>
+              <\/tr>
+            <\/thead>
+            <tbody>
+              ${pageItems.map((d, i) => `
+              <tr>
+                <td class="text-left" style="border-left: none;">${startSerial + i + 1}<\/td>
+                <td class="text-left" style="font-size: 8.5px;">${esc(d.indentNo || "Direct")}<\/td>
+                <td class="text-left" style="font-size: 8.5px;">${esc(d.itemName)}<\/td>
+                <td class="text-right">${d.discMode === 'pct' ? Number(d.discPct || 0).toFixed(2) : ''}<\/td>
+                <td class="text-right">${Number(d.gstPct || 0).toFixed(2)}<\/td>
+                <td class="text-center">${esc(d.uom)}<\/td>
+                <td class="text-right">${Number(d.poQty || 0).toFixed(3)}<\/td>
+                <td class="text-right">${Number(d.poRate || 0).toFixed(2)}<\/td>
+                <td class="text-right" style="border-right: none;">${Number((d.poQty || 0) * (d.poRate || 0)).toFixed(2)}<\/td>
+              </tr>
+              `).join("")}
+            <\/tbody>
+          <\/table>
+
+          ${isLastPage ? `
+          <table style="border: none; width: 100%;">
+            <tr>
+              <td style="width: 70%; padding: 0; border: none; border-right: 1px solid #000; vertical-align: top;">
+                <table style="border: none; width: 100%; height: 100%;">
+                  <tr>
+                    <td style="border: none; border-bottom: 1px solid #000; height: 100px; vertical-align: top; padding: 5px;">
+                      <div class="bold" style="font-size: 8.5px; margin-bottom: 4px;">Remarks<\/div>
+                      <div style="font-size: 9px;">${esc(header.remarks || "")}<\/div>
+                    <\/td>
+                  <\/tr>
+                  <tr>
+                    <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
+                      <span class="bold" style="font-size: 8px;">Value in Words<\/span> <span style="font-size: 9px; margin-left: 4px;">${numberToWords(Math.round(totals.totalAmount))}<\/span>
+                    <\/td>
+                  <\/tr>
+                <\/table>
+              <\/td>
+              <td style="width: 30%; padding: 0; border: none; vertical-align: top;">
+                <table class="summary-table" style="width: 100%;">
+                  <tr><td class="bold text-left">Gross Value<\/td><td class="text-right">${fmt(grossValue)}<\/td><\/tr>
+                  <tr><td class="bold text-left">Discount<\/td><td class="text-right">${fmt(discountAmount)}<\/td><\/tr>
+                  <tr><td class="bold text-left">Basic Value<\/td><td class="text-right">${fmt(totals.poAmount)}<\/td><\/tr>
+                  <tr><td class="text-left">IGST<\/td><td class="text-right">${fmt(igstAmount)}<\/td><\/tr>
+                  <tr><td class="text-left">CGST<\/td><td class="text-right">${fmt(cgstAmount)}<\/td><\/tr>
+                  <tr><td class="text-left">SGST<\/td><td class="text-right">${fmt(sgstAmount)}<\/td><\/tr>
+                  <tr><td class="text-left">Other Charges<\/td><td class="text-right">0.00<\/td><\/tr>
+                  <tr><td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off<\/td><td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">0.00<\/td><\/tr>
+                  <tr><td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value<\/td><td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(totals.totalAmount)}<\/td><\/tr>
+                <\/table>
+              <\/td>
+            <\/tr>
+          <\/table>
+
+          <table style="border: none; width: 100%; margin-top: -1px;">
+            <tr class="signature-row">
+              <td style="width: 20%; border-left: none; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">
+                <div>Prepared By<\/div>
+                <div style="margin-top: 20px; font-weight: normal; font-size: 10px;">${esc(header.preparedBy || "")}<\/div>
+              <\/td>
+              <td style="width: 20%; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">Verified By<\/td>
+              <td style="width: 30%; padding: 5px 10px 10px 10px;">
+                <table style="border: none; width: 100%; margin-bottom: 8px;">
+                  <tr>
+                    <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 15%; font-size: 9px;">Name:<\/td>
+                    <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 35%;"><\/td>
+                    <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 20%; font-size: 9px;">Mobile:<\/td>
+                    <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 30%;"><\/td>
+                  <\/tr>
+                  <tr>
+                    <td style="border: none; padding: 2px; font-weight: bold; text-align: right; font-size: 9px;">Sign:<\/td>
+                    <td colspan="3" style="border: none; padding: 2px; border-bottom: 1px dotted #000;"><\/td>
+                  <\/tr>
+                <\/table>
+                <div style="text-align: right; font-weight: bold; font-size: 9px; padding-right: 5px;">Received By<\/div>
+              <\/td>
+              <td style="width: 30%; border-right: none; text-align: center; position: relative; padding-bottom: 10px;">
+                <div class="bold" style="font-size: 9px; position: absolute; top: 5px; left: 0; right: 0;">For ${esc(company?.companyName || "TEST COMPANY")}<\/div>
+                <div style="font-weight: bold; font-size: 9px; font-style: italic;">Authorised Signatory<\/div>
+              <\/td>
+            <\/tr>
+          <\/table>
+          ` : ''}
+        <\/div>
+      <\/div>
+    `;
+  }
+  
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>PO ${esc(header.poNo)}</title>
+  <style>
+    @page { margin: 8mm; size: A4; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Arial', sans-serif; font-size: 9.5px; margin: 0; padding: 0; color: #000; }
+    .bold { font-weight: bold; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .text-left { text-align: left; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #000; padding: 4px; vertical-align: top; }
+    .no-border { border: none !important; }
+    
+    .container { border: 1px solid #000; margin-top: 2px; }
+    .header-info td { border-bottom: none; border-top: none; }
+    
+    /* Main grid layouts */
+    .grid-table { border: none; }
+    .grid-table td { border-top: none; border-left: none; }
+    .grid-table td:last-child { border-right: none; }
+    
+    .items-table { border-left: none; border-right: none; border-bottom: none; }
+    .items-table th { background: #f0f0f0; border-top: 1px solid #000; }
+    .items-table td { border-top: none; border-bottom: 1px solid #ddd; height: 25px; }
+    
+    .footer-table { border: none; }
+    .footer-table td { border: none; }
+    
+    .summary-table td { padding: 3px 5px; border: none; }
+    
+    .signature-row td { height: 60px; vertical-align: bottom; border-top: 1px solid #000; border-bottom: none; }
+  <\/style>
+<\/head>
+<body>
+  ${allPagesHtml}
+<\/body>
+<\/html>`;
+  
+  // Create a blob and download as HTML file
+  const blob = new Blob([html], { type: 'text/html' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `PO_${header.poNo || 'document'}.html`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+};
 
 export default function PurchaseOrderPage() {
   const { user } = useAuth();
@@ -391,6 +704,11 @@ export default function PurchaseOrderPage() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const navigate = useNavigate();
+
+
+const curdate = new Date().toISOString().split("T")[0];
+const [tmpDueDate, setTmpDueDate] = useState(curdate);
+
 
   useEffect(() => {
 
@@ -477,7 +795,9 @@ export default function PurchaseOrderPage() {
       deliveryDate: normalizeDate(po.deliveryDate || po.dueDate),
       poType: po.poType || po.purchaseOrderType || "",
       supplierGst: po.supplierGst || s?.gstNo || "",
-      preparedBy: po.preparedBy || "System Administrator"
+      preparedBy: po.preparedBy || "System Administrator",
+      roundoff: po.roundoff || 0,
+      totalAmount: po.totalAmount || 0
     });
     const gType = po.gstType || "local";
     setDetails(safeDetails(po.details).map(d => calcRow({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) }, gType)));
@@ -548,9 +868,42 @@ export default function PurchaseOrderPage() {
     }
   }
 
+
+  
   async function handleSave() {
     if (!header.poNo.trim()) return setFormError("PO No is required");
+    if (!header.poType.trim()) return setFormError("PO Type is required");
+    if (!header.supplierId.trim()) return setFormError("Supplier is required");
+
+    // setHeader({ ...emptyHeader(), netAmount: totals.netAmount }); 
+    // setHeader({ ...emptyHeader(), totalAmount: totals.totalAmount });
+    // setHeader({ ...emptyHeader(), roundoff: totals.roundoff });
+
+    
+
+    setHeader(h => ({
+      ...h,
+      roundoff: totals.roundoff,
+      netAmount: totals.netAmount,
+      totalAmount: totals.totalAmount
+    }));
+
+    for (const row of details) {
+      if (row.indentNo === "" ||row.indentNo === null) {return setFormError("Indent No is required");  }
+      if (row.itemName === "" ||row.itemName === null) {return setFormError("Item Description is required");  }
+      if (row.poQty === "" || row.poQty === null || Number(row.poQty) <= 0) {return setFormError("PO Qty is required");  }
+      if (row.poAmount === "" || row.poAmount === null || Number(row.poAmount) <= 0) {return setFormError("PO Amount is required");  }
+    }
+
     setFormError(null);
+
+    const confirmSave = window.confirm(
+      "Do you want to save this record?"
+    );
+
+    if (!confirmSave) return;
+
+
     setSaving(true);
     const payload = { ...header, gstEnabled, gstType, details: details.map(({ _rowId, ...rest }) => rest) };
     try {
@@ -562,16 +915,74 @@ export default function PurchaseOrderPage() {
     } catch (err) { setFormError(err.message); } finally { setSaving(false); }
   }
 
-  const totals = details.reduce((acc, r) => ({
-    grossAmount: (acc.grossAmount || 0) + Number(r.grossAmount || 0),
-    discPrice: (acc.discPrice || 0) + Number(r.rowDisc || 0),
-    poAmount: (acc.poAmount || 0) + Number(r.poAmount || 0),
-    totGst: (acc.totGst || 0) + Number(r.totGst || 0),
-    totalAmount: (acc.totalAmount || 0) + Number(r.totalAmount || 0),
-    sgst: (acc.sgst || 0) + Number(r.sgst || 0),
-    cgst: (acc.cgst || 0) + Number(r.cgst || 0),
-    igst: (acc.igst || 0) + Number(r.igst || 0)
-  }), { grossAmount: 0, discPrice: 0, poAmount: 0, totGst: 0, totalAmount: 0, sgst: 0, cgst: 0, igst: 0 });
+      useEffect(() => {
+        const listener = (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (view !== "list") {
+              handleSave();
+            }
+          }
+        };
+
+        document.addEventListener("keydown", listener);
+
+        return () => {
+          document.removeEventListener("keydown", listener);
+        };
+      }, [handleSave, view]);
+
+
+
+const totals = details.reduce(
+  (acc, r) => {
+    acc.grossAmount += Number(r.grossAmount || 0);
+    acc.discPrice += Number(r.rowDisc || 0);
+    acc.poAmount += Number(r.poAmount || 0);
+    acc.totGst += Number(r.totGst || 0);
+    acc.totalAmount += Number(r.totalAmount || 0);
+    acc.sgst += Number(r.sgst || 0);
+    acc.cgst += Number(r.cgst || 0);
+    acc.igst += Number(r.igst || 0);
+
+    return acc;
+  },
+  {
+    grossAmount: 0,
+    discPrice: 0,
+    poAmount: 0,
+    totGst: 0,
+    totalAmount: 0,
+    sgst: 0,
+    cgst: 0,
+    igst: 0
+  }
+);
+
+totals.netAmount = Math.round(totals.totalAmount);
+
+totals.roundoff = Number(
+  (totals.netAmount - totals.totalAmount).toFixed(2)
+);
+
+
+// setHeader(prev => ({
+//   ...prev,
+//   grossAmount: totals.grossAmount,
+//   discAmount: totals.discPrice,
+//   poAmount: totals.poAmount,
+//   totalAmount: totals.totalAmount,
+//   netAmount: totals.netAmount,
+//   roundoff: totals.roundoff,
+//   sgstAmount: totals.sgst,
+//   cgstAmount: totals.cgst,
+//   igstAmount: totals.igst
+// }));
+
+
+
 
   const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
@@ -707,7 +1118,7 @@ export default function PurchaseOrderPage() {
         <div className="inv-card">
           <table className="inv-table">
             <thead>
-              <tr><th>#</th><th>PO No</th><th>Date</th><th>Supplier</th><th>Status</th><th>Total Amount</th><th>Actions</th></tr>
+              <tr><th>#</th><th>PO No</th><th>Date</th><th>Supplier</th><th>Status</th><th style={{ textAlign: "center"}}>Total Amount</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {filteredPos.length === 0 && (
@@ -720,7 +1131,7 @@ export default function PurchaseOrderPage() {
                   <td>{po.date}</td>
                   <td>{po.supplierName}</td>
                   <td><span className={`inv-badge ${po.status === 'Open' ? 'inv-badge-yes' : 'inv-badge-no'}`}>{po.status}</span></td>
-                  <td>₹{fmt(safeDetails(po.details).reduce((s, d) => s + (d.totalAmount || 0), 0))}</td>
+                  <td style={{ textAlign: "center" }}>₹{fmt(po.netAmount || 0)}</td>
                   <td>
                     <div className="inv-actions">
                       <button className="inv-btn-icon" onClick={() => openEdit(po)}>Edit</button>
@@ -740,15 +1151,16 @@ export default function PurchaseOrderPage() {
   return (
     <div className="inv-page">
       <div className="inv-page-header">
-        <div><h1 className="inv-page-title">{editId ? "Edit Purchase Order" : "New Purchase Order"}</h1><p className="inv-page-sub">Header-Detail-Summary layout</p></div>
+        <div><h1 className="inv-page-title">{editId ? "Edit Purchase Order" : "New Purchase Order"}</h1></div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-secondary" onClick={() => setView("list")}>View List</button>
-          <button className="inv-btn-ghost" onClick={() => printPurchaseOrder({ header, details, totals, gstEnabled, gstType, company })}>Print</button>
-          <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>Save Order</button>
+           <button className="inv-btn-secondary" onClick={() => setView("list")}>View List</button>
+            <button className="inv-btn-ghost" onClick={() => printPurchaseOrder({ header, details, totals, gstEnabled, gstType, company })}> Print</button>
+            <button className="inv-btn-primary" onClick={() => downloadAsPDF({ header, details, totals, gstEnabled, gstType, company })}>Download as PDF</button>
+            <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>Save Order</button>
         </div>
       </div>
 
-      {formError && <div className="inv-error-banner" style={{ marginBottom: 16 }}>{formError}</div>}
+      {formError && <div className="inv-error-banner" style={{ marginBottom: 16, color: 'red', textAlign: 'right' }}>{formError}</div>}
       {saveToast && (
         <div style={{
           position: "fixed", top: 24, right: 24, zIndex: 9999,
@@ -764,15 +1176,15 @@ export default function PurchaseOrderPage() {
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0px" }}>
         <div className="inv-card">
           <div className="inv-card-body">
 
             <FormGrid>
               <Field label="PO No (Auto)"><input className="inv-input" value={header.poNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} placeholder="PO/0008/26-27" /></Field>
-              <Field label="Date"><input className="inv-input" type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} /></Field>
+              <Field label="PO Date"><input className="inv-input" type="date" value={new Date().toISOString().split("T")[0]} readOnly /></Field>
 
-              <Field label="PO Type">
+              <Field label="PO Type *">
                 <select className="inv-input" value={header.poType || ""} onChange={e => setHeader(h => ({ ...h, poType: e.target.value }))}>
                   <option value="">Select Type</option>
                   <option value="Consumables">Consumables</option>
@@ -844,7 +1256,37 @@ export default function PurchaseOrderPage() {
                 </div>
               </Field>
               <Field label="Reference No"><input className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" /></Field>
-              <Field label="Delivery Date"><input className="inv-input" type="date" value={header.deliveryDate} onChange={e => setHeader(h => ({ ...h, deliveryDate: e.target.value }))} placeholder="dd-mm-yyyy" /></Field>
+              <Field label="Delivery Date">
+                  <input className="inv-input" type="date" value={header.deliveryDate}  min={new Date(Date.now()).toISOString().split("T")[0]} 
+                   // onChange={e => setHeader(h => ({ ...h, deliveryDate: e.target.value})) } 
+                   onChange={e => {
+                        const value = e.target.value;
+                        // setTmpDueDate(e.target.value);
+                        setFormError("Past Date Not Allowed");
+                        // const today = new Date().toISOString().split("T")[0];
+                        setHeader(h => ({
+                          ...h,
+                          deliveryDate: value 
+                        }));
+                      }}
+                  onBlur={e => {
+                      const value = e.target.value;
+                      // const today = new Date().toISOString().split("T")[0];                    
+                      if (value < curdate) {
+                        e.target.value = null;
+                      }
+                      setHeader(h => ({
+                          ...h,
+                          deliveryDate: null 
+                      }));
+                      setTmpDueDate(null);
+                      setFormError(null);
+                  }}
+                   />
+                  {/* {tmpDueDate < curdate && (
+                    <span style={{color: 'red', textAlign: "center", padding: "0px 30px"}}>Past dates are not allowed</span>
+                  )} */}
+              </Field>
               <Field label="GST No"><input className="inv-input" value={header.supplierGst} readOnly style={{ background: "#f8fafc" }} /></Field>
               <Field label="GST Type (Auto)"><input className="inv-input" value={!gstType ? "" : (gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)")} readOnly style={{ background: "#f8fafc", color: "#64748b" }} /></Field>
             </FormGrid>
@@ -852,19 +1294,33 @@ export default function PurchaseOrderPage() {
         </div>
 
         <div className="inv-card" style={{ padding: 0, overflow: "hidden" }}>
-          <div className="inv-card-body" style={{ minHeight: "400px", padding: 0 }}>
-            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "16px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
+          <div className="inv-card-body" style={{ minHeight: "475px", padding: 0 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "8px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="inv-btn-secondary inv-btn-sm" onClick={() => setPendingModalOpen(true)} style={{ borderRadius: 4 }}>+ Pick Indent</button>
                 <button className="inv-btn-primary inv-btn-sm" onClick={addRow} style={{ borderRadius: 4 }}>+ Add Row</button>
               </div>
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table className="inv-table-premium">
-                <thead>
+            <div style={{
+    maxHeight: "450px",
+    overflowY: "auto",
+    border: "1px solid #ccc",
+  }}>
+              <table className="inv-table-premium" style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                }}>
+                <thead 
+                    style={{
+                      position: "sticky",
+                      top: 0,
+                      background: "#f5f5f5",
+                      zIndex: 1,
+                    }}
+                >
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
-                    <th style={{ width: 140 }}>Indent No</th>
+                    <th style={{ width: 180 }}>Indent No</th>
                     <th style={{ minWidth: 200 }}>Item Description</th>
                     <th style={{ width: 80, textAlign: "center" }}>UOM</th>
                     <th style={{ width: 80, textAlign: "right" }}>Bal</th>
@@ -873,7 +1329,7 @@ export default function PurchaseOrderPage() {
                     <th style={{ width: 100, textAlign: "right" }}>Disc</th>
                     <th style={{ width: 110, textAlign: "right" }}>PO Amt</th>
                     <th style={{ width: 70, textAlign: "center" }}>GST%</th>
-                    <th style={{ width: 90, textAlign: "right" }}>IGST</th>
+                    <th style={{ width: 90, textAlign: "right" }}>Total GST</th>
                     <th style={{ width: 120, textAlign: "right" }}>Total</th>
                     <th style={{ width: 40 }}></th>
                   </tr>
@@ -969,39 +1425,11 @@ export default function PurchaseOrderPage() {
 
         {/* ── Summary card ── */}
         <div className="inv-card">
-          <div className="inv-card-body">
+          <div className="inv-card-body" style={{ display: "grid", gridTemplateColumns: "1fr 3fr" }}>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, padding: "10px 20px" }}>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Gross Amount</div>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.grossAmount)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Total Discount</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#b45309" }}>−₹{fmt(totals.discPrice)}</div>
-                <div style={{ fontSize: 11, color: "#92400e" }}>{Number(effectiveDiscPct || 0).toFixed(2)}% effective</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>PO Amount (after disc, before GST)</div>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Total GST</div>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.totGst)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>IGST (Other State)</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#7c3aed" }}>₹{fmt(totals.igst)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Grand Total</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>₹{fmt(totals.totalAmount)}</div>
-              </div>
-            </div>
-
-            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
-                <div className="inv-field-v">
+            <div style={{ marginTop: 0, paddingTop: 10, borderTop: "0px solid #f1f5f9"}}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 0, width: '100%' }}>
+                <div className="inv-field-v" style={{ display: "grid", gridTemplateColumns: "1fr 3fr", gap: 2 }}>
                   <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
                   <input 
                     className="inv-input" 
@@ -1010,11 +1438,12 @@ export default function PurchaseOrderPage() {
                     placeholder="System Administrator"
                   />
                 </div>
-                <div className="inv-field-v">
+                <div className="inv-field-v" style={{marginTop: 10}}>
                   <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Remarks & Special Instructions</label>
                   <textarea
+                    rows={4}
                     className="inv-input"
-                    style={{ height: 40, resize: "none", fontSize: "13px", padding: "12px" }}
+                    style={{ fontSize: "13px", padding: "12px" }}
                     value={header.remarks || ""}
                     onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))}
                     placeholder="Enter any specific terms, instructions or internal notes..."
@@ -1022,6 +1451,61 @@ export default function PurchaseOrderPage() {
                 </div>
               </div>
             </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, padding: "10px 20px", width: '100%' }}  >
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>PO Qty</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.poQty)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>PO Amount</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.grossAmount)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total Discount</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700,  }}>−₹{fmt(totals.discPrice)}</div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#92400e", display: "none" }}>{Number(effectiveDiscPct || 0).toFixed(2)}% effective</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Amount after Disc</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>CGST</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.cgst)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>SGST</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.sgst)}</div>
+              </div>
+              <div>
+              <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>IGST </div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700,  }}>₹{fmt(totals.igst)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total GST</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.totGst)}</div>
+              </div>
+              
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total Amount</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.totalAmount)}</div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Round Off</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.roundoff)}</div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Net Amount</div>
+                <div style={{ fontSize: 24, textAlign: 'center', fontWeight: 700, color: "var(--accent)" }}>₹{fmt(totals.netAmount)}</div>
+              </div>
+
+
+            </div>
+
+            
 
           </div>
         </div>
@@ -1035,9 +1519,9 @@ export default function PurchaseOrderPage() {
           saveLabel={`Add ${pendingSelected.size} Item(s) to PO`}
           full={true}
         >
-          <div style={{ padding: "0 10px" }}>
-            <table className="inv-table-premium">
-              <thead>
+          <div style={{ padding: "0 10px", maxHeight: "350px",overflowY: "auto",border: "0px solid #ccc" }}>
+            <table className="inv-table-premium"  style={{width: "100%",borderCollapse: "collapse",}}>
+              <thead  style={{position: "sticky",top: 0,background: "#f5f5f5",zIndex: 1,}}>
                 <tr>
                   <th style={{ width: 40, textAlign: "center" }}>
                     <input 

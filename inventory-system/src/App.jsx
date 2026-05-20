@@ -33,6 +33,7 @@ import PurchaseOrderPage from "./pages/ProcessMasterPage/PurchaseOrderPage";
 import PurchaseGRNPage from "./pages/ProcessMasterPage/PurchaseGRNPage";
 import ConsumptionIssuePage from "./pages/ProcessMasterPage/ConsumptionIssuePage";
 import OpeningStockPage from "./pages/ProcessMasterPage/OpeningStockPage";
+import PurchaseIndentRegister from "./pages/RegisterPage/PurchaseIndentRegister";
 
 import "./index.css";
 
@@ -94,6 +95,10 @@ export default function App() {
                 <Route path="/purchase-grn" element={<PurchaseGRNPage />} />
                 <Route path="/consumption-issue" element={<ConsumptionIssuePage />} />
                 <Route path="/opening-stock" element={<OpeningStockPage />} />
+
+                {/* ── Register ── */}
+                <Route path="/purchase-indent-register" element={<PurchaseIndentRegister />} />
+
 
                 <Route path="*" element={<Navigate to="/inv-head" replace />} />
               </Routes>

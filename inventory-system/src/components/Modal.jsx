@@ -16,9 +16,9 @@ const styles = {
     background: "#ffffff",
     borderRadius: "16px",
     border: "1px solid #eef2f6",
-    width: "100%",
+    width: "85%",
     maxWidth: "560px",
-    maxHeight: "90vh",
+    maxHeight: "50vh",
     overflow: "hidden", // Changed from overflowY: "auto" to hidden to allow body to scroll
     boxShadow:
       "0 20px 35px -8px rgba(0, 0, 0, 0.2), 0 5px 12px -4px rgba(0, 0, 0, 0.1)",
@@ -27,9 +27,10 @@ const styles = {
   },
   fullBox: {
     maxWidth: "98vw",
-    maxHeight: "90vh",
+    maxHeight: "50vh",
     height: "90vh",
     borderRadius: "12px",
+    marginRight: "-11%"
   },
   header: {
     display: "flex",

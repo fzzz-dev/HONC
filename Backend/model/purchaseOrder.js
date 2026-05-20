@@ -79,7 +79,11 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
   cgstAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
   sgstAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
   netAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  totalAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
   totalItems: { type: DataTypes.INTEGER, defaultValue: 0 },
+  roundoff: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  poType: { type: DataTypes.STRING, defaultValue: "" },
+  
 }, {
   timestamps: true,
   hooks: {
