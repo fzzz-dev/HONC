@@ -30,27 +30,48 @@ const toTitleCase = (str) => {
 
 
 const numberToWords = (num) => {
-  if (num === 0) return "Zero Only";
+  if (num === 0 || num === null || num === undefined) return "Zero Only";
+  
+  // Ensure we're working with a whole number
+  const wholeNumber = Math.floor(Math.abs(num));
+  
   const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
   const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
   const g = ['', 'Thousand', 'Lakh', 'Crore'];
+  
   const makeGroup = (n) => {
     let res = '';
-    if (n >= 100) { res += a[Math.floor(n / 100)] + ' Hundred '; n %= 100; }
-    if (n >= 20) { res += b[Math.floor(n / 20)] + ' ' + a[n % 20]; }
-    else if (n > 0) { res += a[n]; }
+    if (n >= 100) { 
+      res += a[Math.floor(n / 100)] + ' Hundred '; 
+      n %= 100; 
+    }
+    if (n >= 20) { 
+      res += b[Math.floor(n / 10)] + ' ' + a[n % 10]; 
+    } else if (n > 0) { 
+      res += a[n]; 
+    }
     return res.trim();
   };
+  
   let word = '';
+  let remaining = wholeNumber;
   let i = 0;
-  while (num > 0) {
+  
+  while (remaining > 0) {
     let divisor = (i === 1 || i === 2) ? 100 : 1000;
-    let n = num % divisor;
-    if (n > 0) word = makeGroup(n) + ' ' + g[i] + ' ' + word;
-    num = Math.floor(num / divisor);
+    let n = remaining % divisor;
+    if (n > 0) {
+      let groupWord = makeGroup(n);
+      if (groupWord) {
+        word = groupWord + ' ' + g[i] + ' ' + word;
+      }
+    }
+    remaining = Math.floor(remaining / divisor);
     i++;
   }
-  return word.trim() + " Only";
+  
+  const result = word.trim();
+  return result ? result.charAt(0).toUpperCase() + result.slice(1) + ' Only' : 'Zero Only';
 };
 
 const ViewIcon = () => (
@@ -141,6 +162,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
   // Round the net value to whole number - THIS WILL BE THE EXACT AMOUNT FOR WORDS
   const netValueRounded = Math.round(totals.totalAmount);
   const roundOffAmount = netValueRounded - totals.totalAmount;
+  const netValueInWords = numberToWords(netValueRounded);
   
   const ITEMS_PER_PAGE = 15;
   const totalPages = Math.ceil(detailRows.length / ITEMS_PER_PAGE);
@@ -280,7 +302,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
                   <tr>
                     <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
                       <span class="bold" style="font-size: 8px;">Value in Words</span> 
-                      <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(netValueRounded)} Only</span>
+                      <span style="font-size: 9px; margin-left: 4px;">Rupees ${netValueInWords} Only</span>
                     </td>
                   </tr>
                 </table>
