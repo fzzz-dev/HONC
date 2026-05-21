@@ -138,9 +138,9 @@ const Field = ({ label, children, horizontal = true }) => (
 function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) {
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   
-  // Round the total amount for consistent display
-  const roundedTotal = Math.round(totals.totalAmount);
-  const roundOffDifference = roundedTotal - totals.totalAmount;
+  // Round the net value to whole number - THIS WILL BE THE EXACT AMOUNT FOR WORDS
+  const netValueRounded = Math.round(totals.totalAmount);
+  const roundOffAmount = netValueRounded - totals.totalAmount;
   
   const ITEMS_PER_PAGE = 15;
   const totalPages = Math.ceil(detailRows.length / ITEMS_PER_PAGE);
@@ -280,7 +280,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
                   <tr>
                     <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
                       <span class="bold" style="font-size: 8px;">Value in Words</span> 
-                      <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(roundedTotal)} Only</span>
+                      <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(netValueRounded)} Only</span>
                     </td>
                   </tr>
                 </table>
@@ -296,11 +296,11 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
                   <tr><td class="text-left">Other Charges</td><td class="text-right">0.00</td></tr>
                   <tr>
                     <td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off</td>
-                    <td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">${roundOffDifference.toFixed(2)}</td>
+                    <td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">${roundOffAmount.toFixed(2)}</td>
                   </tr>
                   <tr>
                     <td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value</td>
-                    <td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(roundedTotal)}</td>
+                    <td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(netValueRounded)}</td>
                   </tr>
                 </table>
               </td>
