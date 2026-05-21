@@ -125,6 +125,8 @@ export default function PurchaseGRNPage() {
   const [pendingPoRows, setPendingPoRows] = useState([]);
   const [batchModalOpen, setBatchModalOpen] = useState(false);
   const [batchRowIdx, setBatchRowIdx] = useState(null);
+  const [saveSuccessModal, setSaveSuccessModal] = useState(false);
+  const [formError, setFormError] = useState(null);
 
   const [header, setHeader] = useState({
     grnNo: "",
@@ -398,32 +400,55 @@ export default function PurchaseGRNPage() {
     });
   }
 
-  async function handleSave() {
-    if (!header.supplierId) return alert("Supplier is required");
-    if (!header.storeId) return alert("Store is required");
-
-    try {
-      setSaving(true);
-      const payload = { ...header, details };
-      if (editId) {
-        await grnApi.update(editId, payload);
-      } else {
-        if (payload.grnNo === "AUTO") payload.grnNo = "GRN-" + Date.now();
-        const res = await grnApi.create(payload);
-        if (res?.data?.id) {
-          setEditId(res.data.id);
-          setHeader(h => ({ ...h, grnNo: res.data.grnNo }));
-        }
-      }
-      await loadData();
-      alert("GRN saved successfully");
-
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setSaving(false);
+ async function handleSave() {
+  if (!header.supplierId) return setFormError("Supplier is required");
+  if (!header.storeId) return setFormError("Store is required");
+  
+  // Validate GRN Date
+  if (!header.grnDate) return setFormError("GRN Date is required");
+  
+  // Validate at least one item exists
+  if (details.length === 0 || !details[0].itemName) {
+    return setFormError("At least one item is required. Please add items via 'Pick Pending PO'");
+  }
+  
+  // Validate each row
+  for (const row of details) {
+    if (!row.grnQty || Number(row.grnQty) <= 0) {
+      return setFormError("GRN Qty is required and must be greater than 0 for all items");
     }
   }
+  
+  const confirmSave = window.confirm("Do you want to save this record?");
+  if (!confirmSave) return;
+  
+  setFormError(null);
+  setSaving(true);
+  
+  try {
+    const payload = { ...header, details };
+    if (editId) {
+      await grnApi.update(editId, payload);
+    } else {
+      if (payload.grnNo === "AUTO") payload.grnNo = "GRN-" + Date.now();
+      const res = await grnApi.create(payload);
+      if (res?.data?.id) {
+        setEditId(res.data.id);
+        setHeader(h => ({ ...h, grnNo: res.data.grnNo }));
+      }
+    }
+    await loadData();
+    setSaveSuccessModal(true);
+    setTimeout(() => {
+      setSaveSuccessModal(false);
+      setView("list");
+    }, 2000);
+  } catch (err) {
+    setFormError(err.message);
+  } finally {
+    setSaving(false);
+  }
+}
 
   async function handleDelete(id) {
     if (!window.confirm("Delete this GRN?")) return;
@@ -675,14 +700,14 @@ export default function PurchaseGRNPage() {
           <button 
             className="inv-btn-secondary" 
             onClick={() => setView("list")}
-            tabIndex={11}  // View GRN
+            tabIndex={11}
           >
             View GRN
           </button>
           <button 
             className="inv-btn-secondary" 
             onClick={printGRN}
-            tabIndex={12}  // Print
+            tabIndex={12}
           >
             Print
           </button>
@@ -690,11 +715,17 @@ export default function PurchaseGRNPage() {
             className="inv-btn-primary" 
             onClick={handleSave} 
             disabled={saving}
-            tabIndex={13}  // Save GRN
+            tabIndex={13}
           >
             {saving ? "Saving..." : "Save GRN"}
           </button>
         </div>
+
+      {formError && (
+        <div className="inv-error-banner" style={{ marginBottom: 16, padding: "10px 16px", background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", color: "#ef4444" }}>
+          ⚠️ {formError}
+        </div>
+      )}
       </div>
 
       {pendingModalOpen && (
@@ -1189,6 +1220,28 @@ export default function PurchaseGRNPage() {
           </p>
         </Modal>
       )}
+
+      {saveSuccessModal && (
+          <Modal 
+            title="Success" 
+            onClose={() => {
+              setSaveSuccessModal(false);
+              setView("list");
+            }} 
+            onSave={() => {
+              setSaveSuccessModal(false);
+              setView("list");
+            }} 
+            saveLabel="Go to List"
+          >
+            <div style={{ textAlign: "center", padding: 20 }}>
+              <div style={{ fontSize: 48, color: "#10b981" }}>✓</div>
+              <h3 style={{ fontSize: 18, fontWeight: 600 }}>Saved Successfully!</h3>
+              <p style={{ color: "#64748b" }}>The Goods Receipt Note has been recorded.</p>
+            </div>
+          </Modal>
+        )}
+
     </div>
   );
 }
