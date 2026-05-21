@@ -206,17 +206,17 @@ export default function PurchaseGRNPage() {
           }, []);
 
   // ── Handlers ──
-  async function openNew() {
+ async function openNew() {
   setHeader({
     grnNo: "",
-    grnDate: today(),  // Changed from 'date' to 'grnDate' and added ()
+    grnDate: today(),  // Use 'grnDate' not 'date'
     grnType: "Against PO",
     supplierId: "",
     supplierName: "",
     storeId: "",
     storeName: "",
     invoiceNo: "",
-    invoiceDate: today(),  // Added ()
+    invoiceDate: today(),
     gstType: "local",
     remarks: "",
     preparedBy: user?.name || "Admin",
@@ -412,20 +412,28 @@ export default function PurchaseGRNPage() {
   }
 
  async function handleSave() {
+  // Debug: Log current header values
+  console.log("Header values:", {
+    grnDate: header.grnDate,
+    supplierId: header.supplierId,
+    storeId: header.storeId
+  });
+  
   if (!header.supplierId) return setFormError("Supplier is required");
   if (!header.storeId) return setFormError("Store is required");
-  
-  // Validate GRN Date
   if (!header.grnDate) return setFormError("GRN Date is required");
   
   // Validate at least one item exists
-  if (details.length === 0 || !details[0].itemName) {
+  const hasValidItem = details.some(row => row.itemName || row.poNo);
+  if (!hasValidItem) {
     return setFormError("At least one item is required. Please add items via 'Pick Pending PO'");
   }
   
   // Validate each row
   for (const row of details) {
-    if (!row.grnQty || Number(row.grnQty) <= 0) {
+    if (row.grnQty && Number(row.grnQty) > 0) {
+      // Valid row
+    } else if (row.itemName) {
       return setFormError("GRN Qty is required and must be greater than 0 for all items");
     }
   }
@@ -437,11 +445,18 @@ export default function PurchaseGRNPage() {
   setSaving(true);
   
   try {
-    const payload = { ...header, details };
+    // Ensure dates are set before sending
+    const payload = { 
+      ...header, 
+      grnDate: header.grnDate || today(),
+      invoiceDate: header.invoiceDate || today(),
+      details: details.map(({ _rowId, ...rest }) => rest) 
+    };
+    
     if (editId) {
       await grnApi.update(editId, payload);
     } else {
-      if (payload.grnNo === "AUTO") payload.grnNo = "GRN-" + Date.now();
+      if (payload.grnNo === "AUTO" || !payload.grnNo) payload.grnNo = "GRN-" + Date.now();
       const res = await grnApi.create(payload);
       if (res?.data?.id) {
         setEditId(res.data.id);
@@ -460,7 +475,6 @@ export default function PurchaseGRNPage() {
     setSaving(false);
   }
 }
-
   async function handleDelete(id) {
     if (!window.confirm("Delete this GRN?")) return;
     try {
@@ -731,13 +745,8 @@ export default function PurchaseGRNPage() {
             {saving ? "Saving..." : "Save GRN"}
           </button>
         </div>
-
-      {formError && (
-        <div className="inv-error-banner" style={{ marginBottom: 16, padding: "10px 16px", background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", color: "#ef4444" }}>
-          ⚠️ {formError}
-        </div>
-      )}
       </div>
+      
 
       {pendingModalOpen && (
         <Modal
@@ -1253,6 +1262,13 @@ export default function PurchaseGRNPage() {
           </Modal>
         )}
 
+        {formError && (
+          <div className="inv-error-banner" style={{ marginBottom: 16, padding: "10px 16px", background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", color: "#ef4444" }}>
+            ⚠️ {formError}
+          </div>
+        )}
+
     </div>
   );
+   
 }
