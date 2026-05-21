@@ -702,6 +702,7 @@ export default function PurchaseOrderPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [tableEnabled, setTableEnabled] = useState(false);
   const pickIndentRef = useRef(null);
+  const [saveSuccessModal, setSaveSuccessModal] = useState(false);
 
   const navigate = useNavigate();
 
@@ -898,18 +899,42 @@ useEffect(() => {
   }
 
   async function handleSave() {
-    if (!header.poNo.trim()) return setFormError("PO No is required");
-    setFormError(null);
-    setSaving(true);
-    const payload = { ...header, gstEnabled, gstType, details: details.map(({ _rowId, ...rest }) => rest) };
-    try {
-      if (editId) await purchaseOrderApi.update(editId, payload);
-      else await purchaseOrderApi.create(payload);
-      await loadPos();
-      setSaveToast(editId ? "Purchase Order updated successfully!" : "Purchase Order saved successfully!");
-      setTimeout(() => setSaveToast(""), 4000);
-    } catch (err) { setFormError(err.message); } finally { setSaving(false); }
+  if (!header.poNo.trim()) return setFormError("PO No is required");
+  if (!header.supplierId) return setFormError("Supplier is required");
+  
+  for (const row of details) {
+    if (!row.itemId) {
+      return setFormError("Item Description is required for all rows");
+    }
+    if (!row.poQty || Number(row.poQty) <= 0) {
+      return setFormError("PO Qty is required and must be greater than 0");
+    }
+    if (!row.poRate || Number(row.poRate) <= 0) {
+      return setFormError("Unit Price is required and must be greater than 0");
+    }
   }
+  
+  const confirmSave = window.confirm("Do you want to save this record?");
+  if (!confirmSave) return;
+  
+  setFormError(null);
+  setSaving(true);
+  const payload = { ...header, gstEnabled, gstType, details: details.map(({ _rowId, ...rest }) => rest) };
+  try {
+    if (editId) await purchaseOrderApi.update(editId, payload);
+    else await purchaseOrderApi.create(payload);
+    await loadPos();
+    setSaveSuccessModal(true); // Show success modal
+    setTimeout(() => {
+      setSaveSuccessModal(false);
+      setView("list");
+    }, 2000);
+  } catch (err) { 
+    setFormError(err.message); 
+  } finally { 
+    setSaving(false); 
+  }
+}
 
   const totals = details.reduce((acc, r) => ({
     grossAmount: (acc.grossAmount || 0) + Number(r.grossAmount || 0),
@@ -1730,6 +1755,27 @@ useEffect(() => {
 
       {viewingSupplier && (
         <SupplierDetailsModal supplier={viewingSupplier} onClose={() => setViewingSupplier(null)} />
+      )}
+
+      {saveSuccessModal && (
+        <Modal 
+          title="Success" 
+          onClose={() => {
+            setSaveSuccessModal(false);
+            setView("list");
+          }} 
+          onSave={() => {
+            setSaveSuccessModal(false);
+            setView("list");
+          }} 
+          saveLabel="Go to List"
+        >
+          <div style={{ textAlign: "center", padding: 20 }}>
+            <div style={{ fontSize: 48, color: "#10b981" }}>✓</div>
+            <h3 style={{ fontSize: 18, fontWeight: 600 }}>Saved Successfully!</h3>
+            <p style={{ color: "#64748b" }}>The Purchase Order has been recorded.</p>
+          </div>
+        </Modal>
       )}
     </div>
   );
