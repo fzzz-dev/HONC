@@ -1454,13 +1454,13 @@ useEffect(() => {
                   <tbody>
                     {details.map((row, idx) => {
                       const baseTabIndex = 15 + (idx * 11);
-                      const isLastRow = idx === details.length - 1; // 11 fields per row (Indent No through Total)
+                      const isLastRow = idx === details.length - 1;
                       
                       return (
                         <tr key={row._rowId}>
                           <td style={{ textAlign: "center" }}>{idx + 1}</td>
                           
-                          {/* Indent No - tabIndex starts at baseTabIndex */}
+                          {/* Indent No */}
                           <td>
                             <input
                               tabIndex={tableEnabled ? baseTabIndex : -1}
@@ -1501,7 +1501,7 @@ useEffect(() => {
                           </td>
                           
                           {/* PO Qty */}
-                          <tr>
+                          <td>
                             <input 
                               tabIndex={tableEnabled ? baseTabIndex + 4 : -1}
                               className="inv-input-cell" 
@@ -1509,7 +1509,7 @@ useEffect(() => {
                               value={row.poQty} 
                               onChange={e => updateDetail(idx, "poQty", e.target.value)} 
                             />
-                          </tr>
+                          </td>
                           
                           {/* Unit Price */}
                           <td>
@@ -1580,31 +1580,17 @@ useEffect(() => {
                               className="inv-input-cell" 
                               value={fmt(row.totalAmount)} 
                               readOnly 
-                            />
-                          </td>
-                          
-                          {/* Delete Button - remove from tab order */}
-                          
-                           <td>
-                            <input 
-                              tabIndex={tableEnabled ? baseTabIndex + 11 : -1}
-                              className="inv-input-cell" 
-                              value={fmt(row.totalAmount)} 
-                              readOnly 
                               onKeyDown={(e) => {
-                                if (e.key === 'Tab' && !e.shiftKey) {
-                                  // Prevent default tab behavior
+                                if (e.key === 'Tab' && !e.shiftKey && isLastRow && tableEnabled) {
                                   e.preventDefault();
-                                  // Focus on Add Row button
                                   const addRowBtn = document.querySelector('button[tabIndex="10"]');
-                                  if (addRowBtn) {
-                                    addRowBtn.focus();
-                                  }
+                                  if (addRowBtn) addRowBtn.focus();
                                 }
                               }}
                             />
                           </td>
-
+                          
+                          {/* Delete Button */}
                           <td>
                             <button 
                               onClick={() => removeRow(idx)} 
@@ -1612,8 +1598,7 @@ useEffect(() => {
                             >
                               ✕
                             </button>
-                          </td> 
-
+                          </td>
                         </tr>
                       );
                     })}
