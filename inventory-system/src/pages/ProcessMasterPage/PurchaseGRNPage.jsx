@@ -416,26 +416,25 @@ export default function PurchaseGRNPage() {
   console.log("Header values:", {
     grnDate: header.grnDate,
     supplierId: header.supplierId,
-    storeId: header.storeId
+    storeId: header.storeId,
+    grnNo: header.grnNo,
+    grnType: header.grnType,
+    invoiceNo: header.invoiceNo,
+    invoiceDate: header.invoiceDate,
+    gstType: header.gstType,
+    remarks: header.remarks,
+    preparedBy: header.preparedBy
   });
   
+  // Validations
   if (!header.supplierId) return setFormError("Supplier is required");
   if (!header.storeId) return setFormError("Store is required");
   if (!header.grnDate) return setFormError("GRN Date is required");
   
-  // Validate at least one item exists
-  const hasValidItem = details.some(row => row.itemName || row.poNo);
+  // Validate at least one item exists with GRN Qty
+  const hasValidItem = details.some(row => Number(row.grnQty) > 0 && row.itemName);
   if (!hasValidItem) {
-    return setFormError("At least one item is required. Please add items via 'Pick Pending PO'");
-  }
-  
-  // Validate each row
-  for (const row of details) {
-    if (row.grnQty && Number(row.grnQty) > 0) {
-      // Valid row
-    } else if (row.itemName) {
-      return setFormError("GRN Qty is required and must be greater than 0 for all items");
-    }
+    return setFormError("At least one item with GRN Qty is required");
   }
   
   const confirmSave = window.confirm("Do you want to save this record?");
@@ -445,18 +444,30 @@ export default function PurchaseGRNPage() {
   setSaving(true);
   
   try {
-    // Ensure dates are set before sending
-    const payload = { 
-      ...header, 
-      grnDate: header.grnDate || today(),
-      invoiceDate: header.invoiceDate || today(),
-      details: details.map(({ _rowId, ...rest }) => rest) 
+    // Prepare payload with all required fields
+    const payload = {
+      grnNo: header.grnNo || "GRN-" + Date.now(),
+      grnDate: header.grnDate,
+      grnType: header.grnType || "Against PO",
+      supplierId: String(header.supplierId),
+      supplierName: header.supplierName || "",
+      storeId: String(header.storeId),
+      storeName: header.storeName || "",
+      invoiceNo: header.invoiceNo || "",
+      invoiceDate: header.invoiceDate || header.grnDate,
+      gstType: header.gstType || "local",
+      remarks: header.remarks || "",
+      preparedBy: header.preparedBy || user?.name || "Admin",
+      details: details
+        .filter(row => Number(row.grnQty) > 0 && row.itemName)
+        .map(({ _rowId, ...rest }) => rest)
     };
+    
+    console.log("Sending payload:", payload);
     
     if (editId) {
       await grnApi.update(editId, payload);
     } else {
-      if (payload.grnNo === "AUTO" || !payload.grnNo) payload.grnNo = "GRN-" + Date.now();
       const res = await grnApi.create(payload);
       if (res?.data?.id) {
         setEditId(res.data.id);
@@ -470,7 +481,8 @@ export default function PurchaseGRNPage() {
       setView("list");
     }, 2000);
   } catch (err) {
-    setFormError(err.message);
+    console.error("Save error:", err);
+    setFormError(err.message || "Failed to save GRN");
   } finally {
     setSaving(false);
   }
