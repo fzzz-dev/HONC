@@ -32,55 +32,59 @@ const toTitleCase = (str) => {
 const numberToWords = (num) => {
   if (num === 0 || num === null || num === undefined) return "Zero Only";
   
-  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
-  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
   const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
   
-  const convertBelowHundred = (n) => {
+  const convertHundreds = (n) => {
     if (n === 0) return '';
-    if (n < 10) return ones[n];
-    if (n < 20) return teens[n - 10];
-    return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
+    if (n < 20) return ones[n];
+    const ten = Math.floor(n / 10);
+    const one = n % 10;
+    return tens[ten] + (one ? ' ' + ones[one] : '');
   };
   
-  const convertBelowThousand = (n) => {
+  const convertThousands = (n) => {
     if (n === 0) return '';
-    if (n < 100) return convertBelowHundred(n);
-    return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' ' + convertBelowHundred(n % 100) : '');
+    if (n < 100) return convertHundreds(n);
+    const hundred = Math.floor(n / 100);
+    const remainder = n % 100;
+    return ones[hundred] + ' Hundred' + (remainder ? ' ' + convertHundreds(remainder) : '');
   };
   
-  let result = '';
+  let result = [];
   let remaining = num;
   
-  // Crores (1 Crore = 10,000,000)
+  // Crores (10000000)
   if (remaining >= 10000000) {
     const crores = Math.floor(remaining / 10000000);
-    result += convertBelowHundred(crores) + ' Crore ';
+    result.push(convertHundreds(crores) + ' Crore');
     remaining %= 10000000;
   }
   
-  // Lakhs (1 Lakh = 100,000)
+  // Lakhs (100000)
   if (remaining >= 100000) {
     const lakhs = Math.floor(remaining / 100000);
-    result += convertBelowHundred(lakhs) + ' Lakh ';
+    result.push(convertHundreds(lakhs) + ' Lakh');
     remaining %= 100000;
   }
   
-  // Thousands (1 Thousand = 1,000)
+  // Thousands (1000)
   if (remaining >= 1000) {
     const thousands = Math.floor(remaining / 1000);
-    result += convertBelowHundred(thousands) + ' Thousand ';
+    result.push(convertThousands(thousands) + ' Thousand');
     remaining %= 1000;
   }
   
-  // Hundreds
-  if (remaining >= 100) {
-    result += convertBelowThousand(remaining);
-  } else if (remaining > 0) {
-    result += convertBelowHundred(remaining);
+  // Remaining hundreds and below
+  if (remaining > 0) {
+    if (remaining < 100) {
+      result.push(convertHundreds(remaining));
+    } else {
+      result.push(convertThousands(remaining));
+    }
   }
   
-  return result.trim() + ' Only';
+  return result.join(' ').trim() ;
 };
 
 const ViewIcon = () => (
