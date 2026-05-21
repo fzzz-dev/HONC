@@ -116,7 +116,7 @@ const emptyDetail = () => ({
 });
 
 const emptyHeader = () => ({
-  poNo: "", date: today(), supplierId: "", supplierName: "", supplierAddress: "", supplierGst: "",
+  poNo: "", dueDate: today(), supplierId: "", supplierName: "", supplierAddress: "", supplierGst: "",
   purchaseIndentId: "", purchaseIndentNo: "",
   refNo: "", refDate: "", paymentTermsId: "", paymentTermsName: "", deliveryDate: "",
   createdBy: "Admin", createdOn: today(), status: "Open", remarks: "",
@@ -137,6 +137,10 @@ const Field = ({ label, children, horizontal = true }) => (
 
 function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) {
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  
+  // Round the total amount for consistent display
+  const roundedTotal = Math.round(totals.totalAmount);
+  const roundOffDifference = roundedTotal - totals.totalAmount;
   
   const ITEMS_PER_PAGE = 15;
   const totalPages = Math.ceil(detailRows.length / ITEMS_PER_PAGE);
@@ -275,7 +279,8 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
                   </tr>
                   <tr>
                     <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
-                      <span class="bold" style="font-size: 8px;">Value in Words</span> <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(Math.round(totals.totalAmount))}</span>
+                      <span class="bold" style="font-size: 8px;">Value in Words</span> 
+                      <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(roundedTotal)} Only</span>
                     </td>
                   </tr>
                 </table>
@@ -289,8 +294,14 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
                   <tr><td class="text-left">CGST</td><td class="text-right">${fmt(cgstAmount)}</td></tr>
                   <tr><td class="text-left">SGST</td><td class="text-right">${fmt(sgstAmount)}</td></tr>
                   <tr><td class="text-left">Other Charges</td><td class="text-right">0.00</td></tr>
-                  <tr><td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off</td><td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">0.00</td></tr>
-                  <tr><td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value</td><td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(totals.totalAmount)}</td></tr>
+                  <tr>
+                    <td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off</td>
+                    <td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">${roundOffDifference.toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value</td>
+                    <td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(roundedTotal)}</td>
+                  </tr>
                 </table>
               </td>
             </tr>
@@ -320,7 +331,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
               </td>
               <td style="width: 30%; border-right: none; text-align: center; position: relative; padding-bottom: 10px;">
                 <div class="bold" style="font-size: 9px; position: absolute; top: 5px; left: 0; right: 0;">For ${esc(company?.companyName || "TEST COMPANY")}</div>
-                <div style="font-weight: bold; font-size: 9px; font-style: italic;">Authorised Signatory</div>
+                <div style="font-weight: bold; font-size: 9px; font-style: italic; margin-top: 25px;">Authorised Signatory</div>
               </td>
             </tr>
           </table>
@@ -381,6 +392,8 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
     w.document.close(); 
   }
 }
+
+
 const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) => {
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   
@@ -666,6 +679,14 @@ export default function PurchaseOrderPage() {
     pickIndentRef.current.focus();
   }
 }, [pendingModalOpen]);
+
+useEffect(() => {
+          // Find the first focusable element (with tabIndex >= 1) inside the page
+          const firstField = document.querySelector('[tabIndex="1"]');
+          if (firstField) {
+            firstField.focus();
+          }
+        }, []);
 
   async function loadLookups() {
     try {
@@ -1101,30 +1122,30 @@ export default function PurchaseOrderPage() {
                 />
               </Field>
               
-               <Field label="PO Date *">
-              <input 
-                className="inv-input" 
-                tabIndex={2}
-                type="date"  
-                min="2026-05-01"
-                value={header.dueDate || "2026-05-20"}
-                onChange={e => {
-                  const selectedDate = e.target.value;
-                  const minDate = "2026-05-01";
-                  
-                  if (selectedDate < minDate) {
-                    setHeader(h => ({ ...h, dueDate: minDate, dueDateError: "Past dates are not allowed." }));
-                  } else {
-                    setHeader(h => ({ ...h, dueDate: selectedDate, dueDateError: "" }));
-                  }
-                }}
-              />
-              {header.dueDateError && (
-                <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
-                  ⚠️ {header.dueDateError}
-                </div>
-              )}
-            </Field>  
+              <Field label="PO Date *">
+                <input 
+                  className="inv-input" 
+                  tabIndex={2}
+                  type="date"  
+                  min="2026-05-01"
+                  value={header.dueDate || today()}
+                  onChange={e => {
+                    const selectedDate = e.target.value;
+                    const minDate = "2026-05-01";
+                    
+                    if (selectedDate < minDate) {
+                      setHeader(h => ({ ...h, dueDate: minDate, dueDateError: "Past dates are not allowed." }));
+                    } else {
+                      setHeader(h => ({ ...h, dueDate: selectedDate, dueDateError: "" }));
+                    }
+                  }}
+                />
+                {header.dueDateError && (
+                  <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+                    ⚠️ {header.dueDateError}
+                  </div>
+                )}
+              </Field>  
 
               <Field label="PO Type">
                 <select 

@@ -184,6 +184,14 @@ export default function PurchaseGRNPage() {
     openNew();
   }, [loadData]);
 
+  useEffect(() => {
+            // Find the first focusable element (with tabIndex >= 1) inside the page
+            const firstField = document.querySelector('[tabIndex="1"]');
+            if (firstField) {
+              firstField.focus();
+            }
+          }, []);
+
   // ── Handlers ──
   async function openNew() {
     setHeader({

@@ -57,15 +57,12 @@ const MASTERS = [
   { path: "/process", label: "Process Master", icon: Icons.Process },
 ];
 
-
 const ADMIN = [
   { path: "/admin/users", label: "User Management", icon: Icons.Admin },
   { path: "/admin/permissions", label: "Access Control", icon: Icons.Shield },
 ];
 
 function NavGroup({ label, items, navigate, pathname, onHover, onLeave }) {
-  const isAnyActive = items.some((i) => pathname === i.path);
-
   return (
     <div className="inv-nav-section" style={{ marginBottom: '24px' }}>
       <div className="inv-section-label">{label}</div>
@@ -100,6 +97,7 @@ export default function Sidebar() {
     setHoveredLabel(label);
   };
 
+  // Fetch permissions
   useEffect(() => {
     const fetchPerms = async () => {
       try {
@@ -112,6 +110,73 @@ export default function Sidebar() {
       }
     };
     fetchPerms();
+  }, []);
+
+  // Focus on first sidebar icon when on non-form pages
+  useEffect(() => {
+    const isFormPage = pathname === "/purchase-indent" || 
+                       pathname === "/purchase-order" || 
+                       pathname === "/item" ||
+                       pathname === "/supplier" ||
+                       pathname === "/purchase-grn" ||
+                       pathname === "/consumption-issue";
+    
+    if (!isFormPage) {
+      const firstNavItem = document.querySelector('.inv-nav-item');
+      if (firstNavItem) {
+        firstNavItem.focus();
+      }
+    }
+  }, [pathname]);
+
+  // Circular keyboard navigation for sidebar
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Only handle these keys
+      if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+        return;
+      }
+
+      const sidebar = document.querySelector('.inv-sidebar');
+      if (!sidebar) return;
+
+      // Get all focusable elements in sidebar
+      const allFocusable = Array.from(sidebar.querySelectorAll('.inv-nav-item, [tabindex="0"], button'));
+      const currentFocused = document.activeElement;
+      const currentIndex = allFocusable.indexOf(currentFocused);
+
+      if (currentIndex === -1) return;
+
+      let nextIndex;
+
+      if (e.key === 'Tab') {
+        // Tab key behavior
+        if (e.shiftKey) {
+          // Shift + Tab = go backward
+          nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
+        } else {
+          // Tab = go forward
+          nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
+        }
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        // Arrow Down / Arrow Right = go forward
+        nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
+        e.preventDefault();
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        // Arrow Up / Arrow Left = go backward
+        nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
+        e.preventDefault();
+      }
+
+      const nextElement = allFocusable[nextIndex];
+      if (nextElement) {
+        nextElement.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const hasAccess = (path) => {
@@ -127,7 +192,13 @@ export default function Sidebar() {
 
   return (
     <aside className="inv-sidebar no-scrollbar">
-      <div className="inv-logo" style={{ cursor: 'pointer', padding: '32px 0', border: 'none' }} onClick={() => navigate('/')}>
+      <div 
+        className="inv-logo" 
+        style={{ cursor: 'pointer', padding: '32px 0', border: 'none' }} 
+        onClick={() => navigate('/')}
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/'); }}
+      >
         <img src="/logo-full-white.png" alt="HONC" style={{ width: '100px', height: 'auto', borderRadius: '0', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }} />
       </div>
 
@@ -143,11 +214,13 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* ... footer ... */}
-
-
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '20px 0', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
-        <div className="inv-nav-item" data-tooltip={`${user?.username} (${user?.role})`}>
+        <div 
+          className="inv-nav-item" 
+          data-tooltip={`${user?.username} (${user?.role})`}
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { /* optional action */ } }}
+        >
           <div style={{ width: '36px', height: '36px', background: 'linear-gradient(135deg, #3b6ef8, #10b981)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', fontWeight: 'bold', flexShrink: 0, boxShadow: '0 4px 12px rgba(59, 110, 248, 0.3)' }}>
             {user?.username?.charAt(0).toUpperCase()}
           </div>
@@ -197,5 +270,3 @@ export default function Sidebar() {
     </aside>
   );
 }
-
-

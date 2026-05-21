@@ -93,6 +93,14 @@ export default function PurchaseIndentPage() {
     loadLookups(); loadIndents(); openNew();
   }, []);
 
+   useEffect(() => {
+          // Find the first focusable element (with tabIndex >= 1) inside the page
+          const firstField = document.querySelector('[tabIndex="1"]');
+          if (firstField) {
+            firstField.focus();
+          }
+        }, []);
+
   async function loadLookups() {
     try {
       const [depts, headsData, catsData, itemsData, comp] = await Promise.all([
@@ -226,7 +234,9 @@ export default function PurchaseIndentPage() {
               handleSave();
             }
           }
-        };
+        };  
+
+       
 
         document.addEventListener("keydown", listener);
 
