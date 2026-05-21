@@ -32,46 +32,55 @@ const toTitleCase = (str) => {
 const numberToWords = (num) => {
   if (num === 0 || num === null || num === undefined) return "Zero Only";
   
-  // Ensure we're working with a whole number
-  const wholeNumber = Math.floor(Math.abs(num));
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
   
-  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  const g = ['', 'Thousand', 'Lakh', 'Crore'];
-  
-  const makeGroup = (n) => {
-    let res = '';
-    if (n >= 100) { 
-      res += a[Math.floor(n / 100)] + ' Hundred '; 
-      n %= 100; 
-    }
-    if (n >= 20) { 
-      res += b[Math.floor(n / 10)] + ' ' + a[n % 10]; 
-    } else if (n > 0) { 
-      res += a[n]; 
-    }
-    return res.trim();
+  const convertBelowHundred = (n) => {
+    if (n === 0) return '';
+    if (n < 10) return ones[n];
+    if (n < 20) return teens[n - 10];
+    return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
   };
   
-  let word = '';
-  let remaining = wholeNumber;
-  let i = 0;
+  const convertBelowThousand = (n) => {
+    if (n === 0) return '';
+    if (n < 100) return convertBelowHundred(n);
+    return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' ' + convertBelowHundred(n % 100) : '');
+  };
   
-  while (remaining > 0) {
-    let divisor = (i === 1 || i === 2) ? 100 : 1000;
-    let n = remaining % divisor;
-    if (n > 0) {
-      let groupWord = makeGroup(n);
-      if (groupWord) {
-        word = groupWord + ' ' + g[i] + ' ' + word;
-      }
-    }
-    remaining = Math.floor(remaining / divisor);
-    i++;
+  let result = '';
+  let remaining = num;
+  
+  // Crores (1 Crore = 10,000,000)
+  if (remaining >= 10000000) {
+    const crores = Math.floor(remaining / 10000000);
+    result += convertBelowHundred(crores) + ' Crore ';
+    remaining %= 10000000;
   }
   
-  const result = word.trim();
-  return result ? result.charAt(0).toUpperCase() + result.slice(1) + ' Only' : 'Zero Only';
+  // Lakhs (1 Lakh = 100,000)
+  if (remaining >= 100000) {
+    const lakhs = Math.floor(remaining / 100000);
+    result += convertBelowHundred(lakhs) + ' Lakh ';
+    remaining %= 100000;
+  }
+  
+  // Thousands (1 Thousand = 1,000)
+  if (remaining >= 1000) {
+    const thousands = Math.floor(remaining / 1000);
+    result += convertBelowHundred(thousands) + ' Thousand ';
+    remaining %= 1000;
+  }
+  
+  // Hundreds
+  if (remaining >= 100) {
+    result += convertBelowThousand(remaining);
+  } else if (remaining > 0) {
+    result += convertBelowHundred(remaining);
+  }
+  
+  return result.trim() + ' Only';
 };
 
 const ViewIcon = () => (
