@@ -89,7 +89,17 @@ export default function PurchaseIndentPage() {
   const [formError, setFormError] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  
+  useEffect(() => {
+    loadLookups(); loadIndents(); openNew();
+  }, []);
+
+   useEffect(() => {
+          // Find the first focusable element (with tabIndex >= 1) inside the page
+          const firstField = document.querySelector('[tabIndex="1"]');
+          if (firstField) {
+            firstField.focus();
+          }
+        }, []);
 
   async function loadLookups() {
     try {
