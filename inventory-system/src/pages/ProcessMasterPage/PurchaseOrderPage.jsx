@@ -150,10 +150,24 @@ const emptyDetail = () => ({
 });
 
 const emptyHeader = () => ({
-  poNo: "", dueDate: today(), supplierId: "", supplierName: "", supplierAddress: "", supplierGst: "",
-  purchaseIndentId: "", purchaseIndentNo: "",
-  refNo: "", refDate: "", paymentTermsId: "", paymentTermsName: "", deliveryDate: "",
-  createdBy: "Admin", createdOn: today(), status: "Open", remarks: "",
+  poNo: "", 
+  date: today(),  // Add this line
+  dueDate: today(), 
+  supplierId: "", 
+  supplierName: "", 
+  supplierAddress: "", 
+  supplierGst: "",
+  purchaseIndentId: "", 
+  purchaseIndentNo: "",
+  refNo: "", 
+  refDate: "", 
+  paymentTermsId: "", 
+  paymentTermsName: "", 
+  deliveryDate: "",
+  createdBy: "Admin", 
+  createdOn: today(), 
+  status: "Open", 
+  remarks: "",
   poType: "",
   preparedBy: "System Administrator"
 });
@@ -1188,21 +1202,21 @@ useEffect(() => {
                   tabIndex={2}
                   type="date"  
                   min="2026-05-01"
-                  value={header.dueDate || today()}
+                  value={header.date || today()}
                   onChange={e => {
                     const selectedDate = e.target.value;
                     const minDate = "2026-05-01";
                     
                     if (selectedDate < minDate) {
-                      setHeader(h => ({ ...h, dueDate: minDate, dueDateError: "Past dates are not allowed." }));
+                      setHeader(h => ({ ...h, date: minDate, dateError: "Past dates are not allowed." }));
                     } else {
-                      setHeader(h => ({ ...h, dueDate: selectedDate, dueDateError: "" }));
+                      setHeader(h => ({ ...h, date: selectedDate, dateError: "" }));
                     }
                   }}
                 />
-                {header.dueDateError && (
+                {header.dateError && (
                   <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
-                    ⚠️ {header.dueDateError}
+                    ⚠️ {header.dateError}
                   </div>
                 )}
               </Field>  
