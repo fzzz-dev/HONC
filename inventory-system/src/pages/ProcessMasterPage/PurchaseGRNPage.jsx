@@ -60,7 +60,18 @@ const emptyDetail = () => ({
 });
 
 const emptyHeader = () => ({
-  "GRN Date": today()
+  grnDate: today(),
+  grnNo: "",
+  grnType: "Against PO",
+  supplierId: "",
+  supplierName: "",
+  storeId: "",
+  storeName: "",
+  invoiceNo: "",
+  invoiceDate: today(),
+  gstType: "local",
+  remarks: "",
+  preparedBy: "",
 });
 
 function calcRow(row, gstType = "local") {
@@ -196,28 +207,28 @@ export default function PurchaseGRNPage() {
 
   // ── Handlers ──
   async function openNew() {
-    setHeader({
-      grnNo: "",
-      date: today,
-      grnType: "Against PO",
-      supplierId: "",
-      supplierName: "",
-      storeId: "",
-      storeName: "",
-      invoiceNo: "",
-      invoiceDate: today,
-      gstType: "local",
-      remarks: "",
-      preparedBy: user?.name || "Admin",
-    });
-    setDetails([emptyDetail()]);
-    setEditId(null);
-    setView("form");
-    try {
-      const res = await grnApi.getNextNumber();
-      if (res?.nextGRNNo) setHeader(h => ({ ...h, grnNo: res.nextGRNNo }));
-    } catch (e) { console.error("Failed to get next GRN number", e); }
-  }
+  setHeader({
+    grnNo: "",
+    grnDate: today(),  // Changed from 'date' to 'grnDate' and added ()
+    grnType: "Against PO",
+    supplierId: "",
+    supplierName: "",
+    storeId: "",
+    storeName: "",
+    invoiceNo: "",
+    invoiceDate: today(),  // Added ()
+    gstType: "local",
+    remarks: "",
+    preparedBy: user?.name || "Admin",
+  });
+  setDetails([emptyDetail()]);
+  setEditId(null);
+  setView("form");
+  try {
+    const res = await grnApi.getNextNumber();
+    if (res?.nextGRNNo) setHeader(h => ({ ...h, grnNo: res.nextGRNNo }));
+  } catch (e) { console.error("Failed to get next GRN number", e); }
+}
 
   function openEdit(rec) {
     setHeader({
