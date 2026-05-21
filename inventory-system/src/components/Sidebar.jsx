@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -71,7 +71,23 @@ function NavGroup({ label, items, navigate, pathname, onHover, onLeave }) {
           <button
             key={item.path}
             className={`inv-nav-item ${pathname === item.path ? "active" : ""}`}
-            onClick={() => navigate(item.path)}
+            onClick={() => {
+              navigate(item.path);
+              setTimeout(() => {
+                const firstField = document.querySelector('[tabIndex="1"]');
+                if (firstField) firstField.focus();
+              }, 150);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                navigate(item.path);
+                setTimeout(() => {
+                  const firstField = document.querySelector('[tabIndex="1"]');
+                  if (firstField) firstField.focus();
+                }, 150);
+              }
+            }}
             onMouseEnter={(e) => onHover(e, item.label)}
             onMouseLeave={onLeave}
           >
@@ -112,7 +128,21 @@ export default function Sidebar() {
     fetchPerms();
   }, []);
 
-  // Focus on first sidebar icon when on non-form pages
+  // Focus on first sidebar icon when page loads/refreshes
+  useEffect(() => {
+    const attemptFocus = (attempt = 0) => {
+      const firstNavItem = document.querySelector('.inv-nav-item');
+      if (firstNavItem) {
+        firstNavItem.focus();
+      } else if (attempt < 10) {
+        setTimeout(() => attemptFocus(attempt + 1), 100);
+      }
+    };
+    const timer = setTimeout(() => attemptFocus(), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Focus on first sidebar icon when navigating to non-form pages
   useEffect(() => {
     const isFormPage = pathname === "/purchase-indent" || 
                        pathname === "/purchase-order" || 
@@ -122,17 +152,32 @@ export default function Sidebar() {
                        pathname === "/consumption-issue";
     
     if (!isFormPage) {
-      const firstNavItem = document.querySelector('.inv-nav-item');
-      if (firstNavItem) {
-        firstNavItem.focus();
-      }
+      setTimeout(() => {
+        const firstNavItem = document.querySelector('.inv-nav-item');
+        if (firstNavItem) {
+          firstNavItem.focus();
+        }
+      }, 100);
     }
   }, [pathname]);
+
+  // Press Escape to focus on sidebar
+  useEffect(() => {
+    const handleEscKey = (e) => {
+      if (e.key === 'Escape') {
+        const firstNavItem = document.querySelector('.inv-nav-item');
+        if (firstNavItem) {
+          firstNavItem.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, []);
 
   // Circular keyboard navigation for sidebar
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Only handle these keys
       if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
         return;
       }
@@ -140,7 +185,6 @@ export default function Sidebar() {
       const sidebar = document.querySelector('.inv-sidebar');
       if (!sidebar) return;
 
-      // Get all focusable elements in sidebar
       const allFocusable = Array.from(sidebar.querySelectorAll('.inv-nav-item, [tabindex="0"], button'));
       const currentFocused = document.activeElement;
       const currentIndex = allFocusable.indexOf(currentFocused);
@@ -150,21 +194,16 @@ export default function Sidebar() {
       let nextIndex;
 
       if (e.key === 'Tab') {
-        // Tab key behavior
         if (e.shiftKey) {
-          // Shift + Tab = go backward
           nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
         } else {
-          // Tab = go forward
           nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
         }
         e.preventDefault();
       } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-        // Arrow Down / Arrow Right = go forward
         nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
         e.preventDefault();
       } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-        // Arrow Up / Arrow Left = go backward
         nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
         e.preventDefault();
       }
@@ -197,7 +236,16 @@ export default function Sidebar() {
         style={{ cursor: 'pointer', padding: '32px 0', border: 'none' }} 
         onClick={() => navigate('/')}
         tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/'); }}
+        onKeyDown={(e) => { 
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            navigate('/');
+            setTimeout(() => {
+              const firstField = document.querySelector('[tabIndex="1"]');
+              if (firstField) firstField.focus();
+            }, 150);
+          }
+        }}
       >
         <img src="/logo-full-white.png" alt="HONC" style={{ width: '100px', height: 'auto', borderRadius: '0', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }} />
       </div>
