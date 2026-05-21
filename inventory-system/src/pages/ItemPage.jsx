@@ -67,6 +67,12 @@ export default function ItemPage() {
   const [modal, setModal] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [bulkUploadResult, setBulkUploadResult] = useState(null);
+  const [makeModalOpen, setMakeModalOpen] = useState(false);
+  const [makeForm, setMakeForm] = useState({ name: "", description: "" });
+  const [makeSaving, setMakeSaving] = useState(false);
+  const [specModalOpen, setSpecModalOpen] = useState(false);
+  const [specForm, setSpecForm] = useState({ name: "" });
+  const [specSaving, setSpecSaving] = useState(false);
   const fileRef = useRef();
   const bulkFileRef = useRef();
 
@@ -312,6 +318,47 @@ export default function ItemPage() {
     setSaving(false);
   }
 }
+
+  async function handleQuickAddMake() {
+    if (!makeForm.name.trim()) return alert("Make Name is required");
+    setMakeSaving(true);
+    try {
+      const payload = {
+        name: makeForm.name.trim(),
+        description: makeForm.description?.trim() || "",
+        active: true,
+      };
+      const saved = await makeApi.create(payload);
+      setMakeOptions((prev) => [...prev, saved]);
+      setForm((f) => ({ ...f, make: saved.name }));
+      setMakeModalOpen(false);
+      setMakeForm({ name: "", description: "" });
+    } catch (err) {
+      alert(err.message || "Failed to add Make");
+    } finally {
+      setMakeSaving(false);
+    }
+  }
+
+  async function handleQuickAddSpec() {
+    if (!specForm.name.trim()) return alert("Spec Name is required");
+    setSpecSaving(true);
+    try {
+      const payload = {
+        name: specForm.name.trim(),
+        active: true,
+      };
+      const saved = await specApi.create(payload);
+      setSpecOptions((prev) => [...prev, saved]);
+      setForm((f) => ({ ...f, spec: saved.name }));
+      setSpecModalOpen(false);
+      setSpecForm({ name: "" });
+    } catch (err) {
+      alert(err.message || "Failed to add Spec");
+    } finally {
+      setSpecSaving(false);
+    }
+  }
 
   // ── Delete ────────────────────────────────────────────────────────────────────
   async function handleDelete(id) {
@@ -623,20 +670,76 @@ export default function ItemPage() {
 
           <FormGrid>
             <Field label="Make">
-              <Select
-                value={form.make}
-                onChange={(v) => setForm((f) => ({ ...f, make: v }))}
-                options={makeSelectOptions}
-                placeholder="Select make..."
-              />
+              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                <div style={{ flex: 1 }}>
+                  <Select
+                    value={form.make}
+                    onChange={(v) => setForm((f) => ({ ...f, make: v }))}
+                    options={makeSelectOptions}
+                    placeholder="Select make..."
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="inv-btn-ghost"
+                  style={{
+                    padding: 0,
+                    width: "32px",
+                    height: "32px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    borderRadius: "6px",
+                  }}
+                  onClick={() => {
+                    setMakeForm({ name: "", description: "" });
+                    setMakeModalOpen(true);
+                  }}
+                  title="Add Make"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
+              </div>
             </Field>
             <Field label="Spec">
-              <Select
-                value={form.spec}
-                onChange={(v) => setForm((f) => ({ ...f, spec: v }))}
-                options={specSelectOptions}
-                placeholder="Select spec..."
-              />
+              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                <div style={{ flex: 1 }}>
+                  <Select
+                    value={form.spec}
+                    onChange={(v) => setForm((f) => ({ ...f, spec: v }))}
+                    options={specSelectOptions}
+                    placeholder="Select spec..."
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="inv-btn-ghost"
+                  style={{
+                    padding: 0,
+                    width: "32px",
+                    height: "32px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    borderRadius: "6px",
+                  }}
+                  onClick={() => {
+                    setSpecForm({ name: "" });
+                    setSpecModalOpen(true);
+                  }}
+                  title="Add Spec"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
+              </div>
             </Field>
           </FormGrid>
 
@@ -843,6 +946,49 @@ export default function ItemPage() {
               </div>
             </div>
           )}
+        </Modal>
+      )}
+
+      {/* Quick Add Make Modal */}
+      {makeModalOpen && (
+        <Modal
+          title="Add Make"
+          onClose={() => setMakeModalOpen(false)}
+          onSave={handleQuickAddMake}
+          saveLabel={makeSaving ? "Saving…" : "Save"}
+        >
+          <Field label="Name" required>
+            <Input
+              value={makeForm.name}
+              onChange={(v) => setMakeForm((f) => ({ ...f, name: v }))}
+              placeholder="Enter make / brand name"
+            />
+          </Field>
+          <Field label="Description">
+            <Input
+              value={makeForm.description}
+              onChange={(v) => setMakeForm((f) => ({ ...f, description: v }))}
+              placeholder="Description (optional)"
+            />
+          </Field>
+        </Modal>
+      )}
+
+      {/* Quick Add Spec Modal */}
+      {specModalOpen && (
+        <Modal
+          title="Add Spec Name"
+          onClose={() => setSpecModalOpen(false)}
+          onSave={handleQuickAddSpec}
+          saveLabel={specSaving ? "Saving…" : "Save"}
+        >
+          <Field label="Name" required>
+            <Input
+              value={specForm.name}
+              onChange={(v) => setSpecForm((f) => ({ ...f, name: v }))}
+              placeholder="Enter specification name"
+            />
+          </Field>
         </Modal>
       )}
     </div>
