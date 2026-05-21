@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback  } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { purchaseIndentApi, inventoryHeadApi, mainCategoryApi, itemApi, departmentApi } from "../../services/inventoryApi";
 import Modal from "../../components/Modal";
@@ -84,6 +84,9 @@ export default function PurchaseIndentPage() {
   const [details, setDetails] = useState([emptyDetail()]);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isDepartmentOpen, setIsDepartmentOpen] = useState(false);
+  const departmentRef = useRef(null);
+  const departmentContainerRef = useRef(null);
 
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [formError, setFormError] = useState(null);
@@ -414,48 +417,58 @@ export default function PurchaseIndentPage() {
                 ⚠️ {header.dueDateError}
               </div>
             )}
-          </Field>            
-              <Field label="Department *">
-                <div 
-                  className="inv-input" 
-                  style={{ padding: 0, overflow: "hidden", cursor: "pointer" }}
-                  tabIndex={3}
-                  onFocus={() => {
-                    // Focus the SearchSelect when div gets focus
-                    const searchSelect = document.querySelector('.department-select .search-select__control');
-                    if (searchSelect) searchSelect.focus();
-                  }}
-                >
-                  <SearchSelect
-                    className="department-select"
-                    style={{ 
-                      border: "none",
-                      boxShadow: "none",
-                      outline: "none",
-                      width: "100%",
-                      padding: "7px 10px",
-                      background: "transparent"
-                    }}
-                    value={header.departmentId}
-                    onChange={(val) => {
-                      const d = departments.find(x => sid(x) === val);
-                      setHeader(h => ({
-                        ...h,
-                        departmentId: val,
-                        departmentName: toTitleCase(
-                          d?.name || d?.departmentName || ""
-                        )
-                      }));
-                    }}
-                    options={departments.map(d => ({ 
-                      value: sid(d), 
-                      label: d.name || d.departmentName 
-                    }))}
-                    placeholder="Select Department"
-                    autoFocus={false}
-                  />
-                </div>
-              </Field>                                                                                                                                                                                
+          </Field>
+          
+          <Field label="Department *">
+            <div 
+              style={{ flex: 1 }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  
+                  // Open the dropdown
+                  const control = document.querySelector('.department-select .search-select__control');
+                  if (control) {
+                    control.click();
+                    // Focus on search input
+                    setTimeout(() => {
+                      const searchInput = document.querySelector('.department-select .search-select__input input');
+                      if (searchInput) {
+                        searchInput.focus();
+                      }
+                    }, 150);
+                  }
+                }
+              }}
+            >
+              <SearchSelect
+                className="department-select"
+                tabIndex={3}
+                style={{ width: "100%" }}
+                value={header.departmentId}
+                onChange={(val) => {
+                  const d = departments.find(x => sid(x) === val);
+                  setHeader(h => ({
+                    ...h,
+                    departmentId: val,
+                    departmentName: toTitleCase(d?.name || d?.departmentName || "")
+                  }));
+                }}
+                options={departments.map(d => ({ 
+                  value: sid(d), 
+                  label: d.name || d.departmentName 
+                }))}
+                placeholder="Select Department"
+                menuPortalTarget={document.body}
+                // These props control the Enter behavior
+                blurInputOnSelect={false}
+                closeMenuOnSelect={false}
+                openMenuOnClick={true}
+                openMenuOnFocus={true}
+              />
+            </div>
+          </Field>
               <Field label="Requested By"><input  tabIndex={4} className="inv-input" value={header.createdBy} onChange={e => setHeader(h => ({ ...h, createdBy: e.target.value }))} /></Field>
             </FormGrid>
           </div>

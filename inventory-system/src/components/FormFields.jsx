@@ -39,7 +39,6 @@ export function Input({
 }
 
 // ── Select ────────────────────────────────────────────────────────────────────
-// options can be: string[] | { value, label }[]
 export function Select({ value, onChange, options = [], placeholder }) {
   const normalised = options.map((o) =>
     typeof o !== "object" || o === null ? { value: String(o), label: String(o) } : o,
@@ -66,50 +65,13 @@ export function SearchSelect({ value, onChange, options = [], placeholder, class
   const [search, setSearch] = useState("");
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
+  const optionsContainerRef = useRef(null);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-  const handleKeyDown = (e) => {
-  if (!isOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-    setIsOpen(true);
-    setHighlightedIndex(0);
-    return;
-  }
-
-  switch (e.key) {
-    case "ArrowDown":
-      e.preventDefault();
-      setHighlightedIndex((prev) =>
-        prev < filtered.length - 1 ? prev + 1 : 0
-      );
-      break;
-
-    case "ArrowUp":
-      e.preventDefault();
-      setHighlightedIndex((prev) =>
-        prev > 0 ? prev - 1 : filtered.length - 1
-      );
-      break;
-
-    case "Enter":
-      e.preventDefault();
-      if (filtered[highlightedIndex]) {
-        onChange(filtered[highlightedIndex].value);
-        setIsOpen(false);
-        setSearch("");
-      }
-      break;
-
-    case "Escape":
-      setIsOpen(false);
-      break;
-  }
-};
-
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
   const normalised = options.map((o) =>
     typeof o !== "object" || o === null ? { value: String(o), label: String(o) } : o,
   );
-
-const [highlightedIndex, setHighlightedIndex] = useState(0); 
 
   const filtered = normalised.filter(o => 
     String(o.label).toLowerCase().includes(search.toLowerCase())
@@ -117,13 +79,93 @@ const [highlightedIndex, setHighlightedIndex] = useState(0);
 
   const selectedOption = normalised.find(o => String(o.value) === String(value));
 
+  // Scroll the highlighted option into view
+  const scrollIntoView = (index) => {
+    setTimeout(() => {
+      if (optionsContainerRef.current) {
+        const optionElements = optionsContainerRef.current.querySelectorAll('.search-select-option');
+        if (optionElements[index]) {
+          optionElements[index].scrollIntoView({
+            block: 'nearest',
+            behavior: 'smooth'
+          });
+        }
+      }
+    }, 10);
+  };
+
+  const handleKeyDown = (e) => {
+    // Only open dropdown on ArrowDown/ArrowUp if closed
+    if (!isOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      setIsOpen(true);
+      setHighlightedIndex(0);
+      scrollIntoView(0);
+      return;
+    }
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        if (filtered.length > 0) {
+          let newIndex;
+          if (highlightedIndex === -1) {
+            newIndex = 0;
+          } else {
+            newIndex = highlightedIndex < filtered.length - 1 ? highlightedIndex + 1 : 0;
+          }
+          setHighlightedIndex(newIndex);
+          scrollIntoView(newIndex);
+        }
+        break;
+
+      case "ArrowUp":
+        e.preventDefault();
+        if (filtered.length > 0) {
+          let newIndex;
+          if (highlightedIndex === -1) {
+            newIndex = filtered.length - 1;
+          } else {
+            newIndex = highlightedIndex > 0 ? highlightedIndex - 1 : filtered.length - 1;
+          }
+          setHighlightedIndex(newIndex);
+          scrollIntoView(newIndex);
+        }
+        break;
+
+      case "Enter":
+    e.preventDefault();
+    if (isOpen && highlightedIndex >= 0 && filtered[highlightedIndex]) {
+      onChange(filtered[highlightedIndex].value);
+      setIsOpen(false);
+      setSearch("");
+      setHighlightedIndex(-1);
+      // Keep focus on the SearchSelect component after selection
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.focus();
+        }
+      }, 10);
+    } else if (!isOpen) {
+      setIsOpen(true);
+      setHighlightedIndex(0);
+      scrollIntoView(0);
+    }
+    break;
+
+        case "Escape":
+          setIsOpen(false);
+          setHighlightedIndex(-1);
+          break;
+      }
+    };
+
   const updateCoords = () => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const dropdownWidth = Math.max(rect.width, 220);
       let left = rect.left + window.scrollX;
       
-      // Prevent going off screen right
       if (rect.left + dropdownWidth > window.innerWidth - 20) {
         left = window.innerWidth - dropdownWidth - 20;
       }
@@ -138,12 +180,12 @@ const [highlightedIndex, setHighlightedIndex] = useState(0);
 
   useEffect(() => {
     function handleClickOutside(event) {
-      // If the click is outside BOTH the trigger container AND the dropdown portal, close it
       const isOutsideTrigger = containerRef.current && !containerRef.current.contains(event.target);
       const isOutsideDropdown = dropdownRef.current && !dropdownRef.current.contains(event.target);
       
       if (isOutsideTrigger && isOutsideDropdown) {
         setIsOpen(false);
+        setHighlightedIndex(-1);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -162,170 +204,168 @@ const [highlightedIndex, setHighlightedIndex] = useState(0);
     };
   }, [isOpen]);
 
-  // Determine if we are in a table cell by checking the className or style
   const isCell = className?.includes("cell") || style?.border === "none";
 
   return (
-  <div
-    ref={containerRef}
-    tabIndex={tabIndex}
-    onKeyDown={handleKeyDown}
-    className={className}
-    style={{
-      position: "relative",
-      width: "100%",
-      ...style,
-    }}
-  >
-    {/* Trigger */}
     <div
-      className={isCell ? "inv-input-cell" : "inv-input"}
-      onClick={() => !disabled && setIsOpen(!isOpen)}
+      ref={containerRef}
+      tabIndex={tabIndex}
+      onKeyDown={handleKeyDown}
+      className={className}
       style={{
-        cursor: disabled ? "not-allowed" : "pointer",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        minHeight: isCell ? 5 : 0,
-        background: disabled ? "#f9fafb" : "transparent",
-        opacity: disabled ? 0.7 : 1,
-        border: style?.border || undefined,
-        backgroundImage: "none",
-        paddingRight: 12,
+        position: "relative",
+        width: "100%",
+        ...style,
       }}
     >
-      <span
+      {/* Trigger */}
+      <div
+        className={isCell ? "inv-input-cell" : "inv-input"}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
         style={{
-          color: selectedOption ? "inherit" : "var(--text-secondary)",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          marginRight: 8,
-          fontSize: isCell ? "12.5px" : "inherit",
+          cursor: disabled ? "not-allowed" : "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          minHeight: isCell ? 5 : 0,
+          background: disabled ? "#f9fafb" : "transparent",
+          opacity: disabled ? 0.7 : 1,
+          border: style?.border || undefined,
+          backgroundImage: "none",
+          paddingRight: 12,
         }}
       >
-        {selectedOption
-          ? selectedOption.label
-          : placeholder || "Select..."}
-      </span>
-
-      <svg
-        width="10"
-        height="6"
-        viewBox="0 0 10 6"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        style={{ flexShrink: 0 }}
-      >
-        <path
-          d="M1 1L5 5L9 1"
-          stroke="#64748B"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </div>
-
-    {/* Dropdown */}
-    {isOpen &&
-      createPortal(
-        <div
-          ref={dropdownRef}
+        <span
           style={{
-            position: "absolute",
-            top: coords.top + 4,
-            left: coords.left,
-            width: coords.width,
-            zIndex: 10000,
-            background: "#fff",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            boxShadow:
-              "0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)",
-            maxHeight: 250,
-            display: "flex",
-            flexDirection: "column",
+            color: selectedOption ? "inherit" : "var(--text-secondary)",
+            whiteSpace: "nowrap",
             overflow: "hidden",
+            textOverflow: "ellipsis",
+            marginRight: 8,
+            fontSize: isCell ? "12.5px" : "inherit",
           }}
         >
-          {/* Search */}
+          {selectedOption
+            ? selectedOption.label
+            : placeholder || "Select..."}
+        </span>
+
+        <svg
+          width="10"
+          height="6"
+          viewBox="0 0 10 6"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          style={{ flexShrink: 0 }}
+        >
+          <path
+            d="M1 1L5 5L9 1"
+            stroke="#64748B"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
+
+      {/* Dropdown */}
+      {isOpen &&
+        createPortal(
           <div
+            ref={dropdownRef}
             style={{
-              padding: 8,
-              borderBottom: "1px solid var(--border-subtle)",
-              background: "#f8fafc",
+              position: "absolute",
+              top: coords.top + 4,
+              left: coords.left,
+              width: coords.width,
+              zIndex: 10000,
+              background: "#fff",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              boxShadow:
+                "0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)",
+              maxHeight: 250,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
             }}
           >
-            <input
-              autoFocus
-              className="inv-input"
-              style={{ fontSize: 12, height: 32, padding: "0 10px" }}
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
+            {/* Search */}
+            <div
+              style={{
+                padding: 8,
+                borderBottom: "1px solid var(--border-subtle)",
+                background: "#f8fafc",
+              }}
+            >
+              <input
+                autoFocus
+                className="inv-input"
+                style={{ fontSize: 12, height: 32, padding: "0 10px" }}
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
 
-          {/* Options */}
-          <div
-            style={{ overflowY: "auto", flex: 1 }}
-            className="no-scrollbar"
-          >
-            {filtered.length === 0 && (
-              <div
-                style={{
-                  padding: "12px",
-                  fontSize: 12,
-                  color: "var(--text-secondary)",
-                  textAlign: "center",
-                }}
-              >
-                No results found
-              </div>
-            )}
+            {/* Options */}
+            <div
+              ref={optionsContainerRef}
+              className="search-select-options-container"
+              style={{ overflowY: "auto", flex: 1 }}
+            >
+              {filtered.length === 0 && (
+                <div
+                  style={{
+                    padding: "12px",
+                    fontSize: 12,
+                    color: "var(--text-secondary)",
+                    textAlign: "center",
+                  }}
+                >
+                  No results found
+                </div>
+              )}
 
-            {filtered.map((o, index) => (
-              <div
-                key={o.value}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onChange(o.value);
-                  setIsOpen(false);
-                  setSearch("");
-                  setHighlightedIndex(index);
-                }}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                style={{
-                  padding: "10px 14px",
-                  cursor: "pointer",
-                  fontSize: 13,
-
-                  background:
-                    index === highlightedIndex
-                      ? "#e2e8f0"
-                      : String(o.value) === String(value)
-                      ? "var(--accent-light)"
-                      : "transparent",
-
-                  color:
-                    String(o.value) === String(value)
-                      ? "var(--accent)"
-                      : "#334155",
-
-                  transition: "all 0.1s",
-                }}
-              >
-                {o.label}
-              </div>
-            ))}
-          </div>
-        </div>,
-        document.body
-      )}
-  </div>
-);
+              {filtered.map((o, index) => (
+                <div
+                  key={o.value}
+                  className="search-select-option"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(o.value);
+                    setIsOpen(false);
+                    setSearch("");
+                    setHighlightedIndex(index);
+                  }}
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  style={{
+                    padding: "10px 14px",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    background:
+                      index === highlightedIndex
+                        ? "#e2e8f0"
+                        : String(o.value) === String(value)
+                        ? "var(--accent-light)"
+                        : "transparent",
+                    color:
+                      String(o.value) === String(value)
+                        ? "var(--accent)"
+                        : "#334155",
+                    transition: "all 0.1s",
+                  }}
+                >
+                  {o.label}
+                </div>
+              ))}
+            </div>
+          </div>,
+          document.body
+        )}
+    </div>
+  );
 }
 
 // ── Textarea ──────────────────────────────────────────────────────────────────

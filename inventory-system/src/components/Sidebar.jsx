@@ -1,4 +1,4 @@
-import { useState, useEffect,useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -73,7 +73,6 @@ function NavGroup({ label, items, navigate, pathname, onHover, onLeave }) {
             className={`inv-nav-item ${pathname === item.path ? "active" : ""}`}
             onClick={() => {
               navigate(item.path);
-              // Focus on first form field after navigation
               setTimeout(() => {
                 const firstField = document.querySelector('[tabIndex="1"]');
                 if (firstField) firstField.focus();
@@ -83,7 +82,6 @@ function NavGroup({ label, items, navigate, pathname, onHover, onLeave }) {
               if (e.key === 'Enter') {
                 e.preventDefault();
                 navigate(item.path);
-                // Focus on first form field after navigation
                 setTimeout(() => {
                   const firstField = document.querySelector('[tabIndex="1"]');
                   if (firstField) firstField.focus();
@@ -108,7 +106,6 @@ export default function Sidebar() {
   const [permissions, setPermissions] = useState([]);
   const [hoveredLabel, setHoveredLabel] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
-   const isInitialMount = useRef(true);
 
   const handleMouseEnter = (e, label) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -117,131 +114,109 @@ export default function Sidebar() {
   };
 
   // Fetch permissions
- useEffect(() => {
-  const fetchPerms = async () => {
-    try {
-      const BASE_URL = import.meta.env.VITE_API_URL || "/api";
-      const res = await fetch(`${BASE_URL}/permissions`);
-      const data = await res.json();
-      setPermissions(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-  fetchPerms();
-}, []);
+  useEffect(() => {
+    const fetchPerms = async () => {
+      try {
+        const BASE_URL = import.meta.env.VITE_API_URL || "/api";
+        const res = await fetch(`${BASE_URL}/permissions`);
+        const data = await res.json();
+        setPermissions(data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchPerms();
+  }, []);
 
-// Focus on first sidebar icon when page loads/refreshes from ANYWHERE
-useEffect(() => {
-  // Use multiple attempts to ensure DOM is ready
-  const attemptFocus = (attempt = 0) => {
-    const firstNavItem = document.querySelector('.inv-nav-item');
-    if (firstNavItem) {
-      firstNavItem.focus();
-    } else if (attempt < 10) {
-      setTimeout(() => attemptFocus(attempt + 1), 100);
-    }
-  };
-  
-  // Start the attempt after a short delay
-  const timer = setTimeout(() => attemptFocus(), 50);
-  
-  return () => clearTimeout(timer);
-}, []); // Empty array = runs once on mount/refresh
-
-// Focus on first sidebar icon when on non-form pages
-useEffect(() => {
-  const isFormPage = pathname === "/purchase-indent" || 
-                     pathname === "/purchase-order" || 
-                     pathname === "/item" ||
-                     pathname === "/supplier" ||
-                     pathname === "/purchase-grn" ||
-                     pathname === "/consumption-issue";
-  
-  if (!isFormPage) {
-    // Add a small delay to ensure DOM is fully rendered
-    setTimeout(() => {
+  // Focus on first sidebar icon when page loads/refreshes
+  useEffect(() => {
+    const attemptFocus = (attempt = 0) => {
       const firstNavItem = document.querySelector('.inv-nav-item');
       if (firstNavItem) {
         firstNavItem.focus();
+      } else if (attempt < 10) {
+        setTimeout(() => attemptFocus(attempt + 1), 100);
       }
-    }, 100);
-  }
-}, [pathname]);
+    };
+    const timer = setTimeout(() => attemptFocus(), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
- useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      // This is a fresh page load or refresh
-      const attemptFocus = (attempt = 0) => {
+  // Focus on first sidebar icon when navigating to non-form pages
+  useEffect(() => {
+    const isFormPage = pathname === "/purchase-indent" || 
+                       pathname === "/purchase-order" || 
+                       pathname === "/item" ||
+                       pathname === "/supplier" ||
+                       pathname === "/purchase-grn" ||
+                       pathname === "/consumption-issue";
+    
+    if (!isFormPage) {
+      setTimeout(() => {
         const firstNavItem = document.querySelector('.inv-nav-item');
         if (firstNavItem) {
           firstNavItem.focus();
-        } else if (attempt < 10) {
-          setTimeout(() => attemptFocus(attempt + 1), 100);
         }
-      };
-      setTimeout(() => attemptFocus(), 100);
+      }, 100);
     }
+  }, [pathname]);
+
+  // Press Escape to focus on sidebar
+  useEffect(() => {
+    const handleEscKey = (e) => {
+      if (e.key === 'Escape') {
+        const firstNavItem = document.querySelector('.inv-nav-item');
+        if (firstNavItem) {
+          firstNavItem.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
   }, []);
 
-// Circular keyboard navigation for sidebar
-useEffect(() => {
-  const handleKeyDown = (e) => {
-    // Only handle these keys
-    if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
-      return;
-    }
-
-    const sidebar = document.querySelector('.inv-sidebar');
-    if (!sidebar) return;
-
-    // Get all focusable elements in sidebar
-    const allFocusable = Array.from(sidebar.querySelectorAll('.inv-nav-item, [tabindex="0"], button'));
-    const currentFocused = document.activeElement;
-    const currentIndex = allFocusable.indexOf(currentFocused);
-
-    if (currentIndex === -1) return;
-
-    let nextIndex;
-
-    if (e.key === 'Tab') {
-      if (e.shiftKey) {
-        nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
-      } else {
-        nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
+  // Circular keyboard navigation for sidebar
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+        return;
       }
-      e.preventDefault();
-    } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-      nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-      nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
-      e.preventDefault();
-    }
 
-    const nextElement = allFocusable[nextIndex];
-    if (nextElement) {
-      nextElement.focus();
-    }
-  };
+      const sidebar = document.querySelector('.inv-sidebar');
+      if (!sidebar) return;
 
-  window.addEventListener('keydown', handleKeyDown);
-  return () => window.removeEventListener('keydown', handleKeyDown);
-}, []);
+      const allFocusable = Array.from(sidebar.querySelectorAll('.inv-nav-item, [tabindex="0"], button'));
+      const currentFocused = document.activeElement;
+      const currentIndex = allFocusable.indexOf(currentFocused);
 
-// Focus on first sidebar icon when page loads/refreshes from anywhere
-useEffect(() => {
-  // Small delay to ensure DOM is fully rendered
-  const timer = setTimeout(() => {
-    const firstNavItem = document.querySelector('.inv-nav-item');
-    if (firstNavItem) {
-      firstNavItem.focus();
-    }
-  }, 100);
-  
-  return () => clearTimeout(timer);
-}, []); // Empty array = runs only once on mount/refresh
+      if (currentIndex === -1) return;
+
+      let nextIndex;
+
+      if (e.key === 'Tab') {
+        if (e.shiftKey) {
+          nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
+        } else {
+          nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
+        }
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
+        e.preventDefault();
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
+        e.preventDefault();
+      }
+
+      const nextElement = allFocusable[nextIndex];
+      if (nextElement) {
+        nextElement.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const hasAccess = (path) => {
     if (!user) return false;
@@ -272,7 +247,7 @@ useEffect(() => {
           }
         }}
       >
-        <img src="/logo-full-white.png" alt="HONC" />
+        <img src="/logo-full-white.png" alt="HONC" style={{ width: '100px', height: 'auto', borderRadius: '0', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }} />
       </div>
 
       <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '10px 0' }}>
