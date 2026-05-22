@@ -131,7 +131,8 @@ exports.getGRNById = async (req, res) => {
 // @desc    Create new GRN
 exports.createGRN = async (req, res) => {
   try {
-    const { grnNo, date, grnType, supplierId, storeId, invoiceNo, invoiceDate, vehicleNo, lrNo, transporterName, gstEnabled, gstType, status, remarks, details, createdBy } = req.body;
+    const { grnNo, grnType, supplierId, storeId, invoiceNo, invoiceDate, vehicleNo, lrNo, transporterName, gstEnabled, gstType, status, remarks, details, createdBy } = req.body;
+    const date = req.body.date || req.body.grnDate;
 
     console.log("Creating GRN with body:", JSON.stringify(req.body, null, 2));
 
@@ -155,11 +156,14 @@ exports.createGRN = async (req, res) => {
       return res.status(404).json({ success: false, message: "Supplier not found in database" });
     }
 
-
     let storeName = "";
+    let cleanStoreId = null;
     if (storeId) {
-      const store = await Store.findByPk(storeId);
-      if (store) storeName = store.name;
+      cleanStoreId = !isNaN(parseInt(storeId, 10)) ? parseInt(storeId, 10) : null;
+      if (cleanStoreId) {
+        const store = await Store.findByPk(cleanStoreId);
+        if (store) storeName = store.name;
+      }
     }
 
     const processedDetails = (details || []).map((detail) => {
@@ -178,10 +182,22 @@ exports.createGRN = async (req, res) => {
         ...rest 
       } = detail;
       
+      const cleanPoId = detail.poId && !isNaN(parseInt(detail.poId, 10)) ? parseInt(detail.poId, 10) : null;
+      const cleanItemId = detail.itemId && !isNaN(parseInt(detail.itemId, 10)) ? parseInt(detail.itemId, 10) : null;
+      const rawPoDetailId = detail.poDetailId || detail.id || oldPoDetailId;
+      const cleanPoDetailId = rawPoDetailId && !isNaN(parseInt(rawPoDetailId, 10)) ? parseInt(rawPoDetailId, 10) : null;
+
       return {
         ...rest,
-        // Use poDetailId from the object if present, otherwise fallback
-        poDetailId: detail.poDetailId || detail.id || oldPoDetailId,
+        poId: cleanPoId,
+        itemId: cleanItemId,
+        poDetailId: cleanPoDetailId,
+        poQty: Number(detail.poQty || 0),
+        alGrnQty: Number(detail.alGrnQty || 0),
+        balQty: Number(detail.balQty || 0),
+        phyQty: Number(detail.phyQty || 0),
+        batchQty: Number(detail.batchQty || 0),
+        gstPct,
         grnQty,
         grnRate,
         grnAmount: parseFloat(grnAmount.toFixed(2)),
@@ -193,8 +209,6 @@ exports.createGRN = async (req, res) => {
       };
     });
 
-
-
     let totalQty = 0;
     let totalAmount = 0;
     processedDetails.forEach(d => {
@@ -204,7 +218,7 @@ exports.createGRN = async (req, res) => {
 
     const grn = await PurchaseGRN.create({
       grnNo, date, grnType: grnType || "Against PO", supplierId: cleanSupplierId, supplierName: supplier.supplierName,
-      storeId: storeId || null, storeName, invoiceNo: invoiceNo || "", invoiceDate: invoiceDate || "",
+      storeId: cleanStoreId, storeName, invoiceNo: invoiceNo || "", invoiceDate: invoiceDate || "",
       vehicleNo: vehicleNo || "", lrNo: lrNo || "", transporterName: transporterName || "",
       gstEnabled: gstEnabled !== false, gstType: gstType || "local",
       status: status || "Completed", remarks: remarks || "",
@@ -233,19 +247,29 @@ exports.updateGRN = async (req, res) => {
     if (!grn) return res.status(404).json({ success: false, message: "GRN not found" });
     if (grn.status === "Cancelled") return res.status(400).json({ success: false, message: "Cannot edit cancelled GRN" });
 
-    const { date, grnType, supplierId, storeId, invoiceNo, invoiceDate, vehicleNo, lrNo, transporterName, gstEnabled, gstType, status, remarks, details } = req.body;
+    const { grnType, supplierId, storeId, invoiceNo, invoiceDate, vehicleNo, lrNo, transporterName, gstEnabled, gstType, status, remarks, details } = req.body;
+    const date = req.body.date || req.body.grnDate || grn.date;
 
-    const updateData = { date, grnType, supplierId, storeId, invoiceNo, invoiceDate, vehicleNo, lrNo, transporterName, gstEnabled, gstType, status, remarks };
+    const updateData = { date, grnType, invoiceNo, invoiceDate, vehicleNo, lrNo, transporterName, gstEnabled, gstType, status, remarks };
 
-    if (supplierId && supplierId !== grn.supplierId) {
-      const supplier = await Supplier.findByPk(supplierId);
-      if (supplier) updateData.supplierName = supplier.supplierName;
+    if (supplierId) {
+      const cleanSupplierId = parseInt(String(supplierId).split(':')[0], 10);
+      if (!isNaN(cleanSupplierId) && cleanSupplierId !== grn.supplierId) {
+        const supplier = await Supplier.findByPk(cleanSupplierId);
+        if (supplier) {
+          updateData.supplierName = supplier.supplierName;
+          updateData.supplierId = cleanSupplierId;
+        }
+      }
     }
 
-    if (storeId !== undefined && storeId !== grn.storeId) {
-      const store = await Store.findByPk(storeId);
-      updateData.storeName = store ? store.name : "";
-      updateData.storeId = storeId || null;
+    if (storeId !== undefined) {
+      const cleanStoreId = storeId && !isNaN(parseInt(storeId, 10)) ? parseInt(storeId, 10) : null;
+      if (cleanStoreId !== grn.storeId) {
+        const store = cleanStoreId ? await Store.findByPk(cleanStoreId) : null;
+        updateData.storeName = store ? store.name : "";
+        updateData.storeId = cleanStoreId;
+      }
     }
 
     if (details) {
@@ -258,11 +282,25 @@ exports.updateGRN = async (req, res) => {
         const gstPct = detail.gstPct !== undefined ? Number(detail.gstPct) : 0;
         const gst = grnAmount * (gstPct / 100);
 
-        const { id, _rowId, createdAt, updatedAt, purchaseGRNId, ...rest } = detail;
+        const { id, _rowId, createdAt, updatedAt, purchaseGRNId, poDetailId: oldPoDetailId, ...rest } = detail;
+
+        const cleanPoId = detail.poId && !isNaN(parseInt(detail.poId, 10)) ? parseInt(detail.poId, 10) : null;
+        const cleanItemId = detail.itemId && !isNaN(parseInt(detail.itemId, 10)) ? parseInt(detail.itemId, 10) : null;
+        const rawPoDetailId = detail.poDetailId || detail.id || oldPoDetailId;
+        const cleanPoDetailId = rawPoDetailId && !isNaN(parseInt(rawPoDetailId, 10)) ? parseInt(rawPoDetailId, 10) : null;
 
         return {
           ...rest,
           purchaseGRNId: grn.id,
+          poId: cleanPoId,
+          itemId: cleanItemId,
+          poDetailId: cleanPoDetailId,
+          poQty: Number(detail.poQty || 0),
+          alGrnQty: Number(detail.alGrnQty || 0),
+          balQty: Number(detail.balQty || 0),
+          phyQty: Number(detail.phyQty || 0),
+          batchQty: Number(detail.batchQty || 0),
+          gstPct,
           grnQty,
           grnRate,
           grnAmount: parseFloat(grnAmount.toFixed(2)),
@@ -323,15 +361,14 @@ exports.getPendingPOItems = async (req, res) => {
     // Build PO query - show all Open POs, optionally filtered by supplier
     const query = { status: "Open" };
     
-    if (supplierId) {
-      let cleanId = supplierId;
-      if (typeof supplierId === 'string' && supplierId.includes(':')) {
-        cleanId = supplierId.split(':')[0];
+    if (supplierId && String(supplierId).trim() !== "") {
+      let cleanId = String(supplierId).trim();
+      if (cleanId.includes(':')) {
+        cleanId = cleanId.split(':')[0];
       }
-      if (!isNaN(cleanId)) {
-        query.supplierId = parseInt(cleanId, 10);
-      } else {
-        query.supplierId = cleanId;
+      const parsedId = parseInt(cleanId, 10);
+      if (!isNaN(parsedId)) {
+        query.supplierId = parsedId;
       }
     }
 
@@ -361,10 +398,16 @@ exports.getPendingPOItems = async (req, res) => {
 
       grnDetails.forEach((gd) => {
         if (!gd || !gd.poId) return;
-        const itemKey = gd.itemId || gd.itemName;
-        if (!itemKey) return;
-        const key = `${gd.poId}-${itemKey}`;
-        receivedMap[key] = (receivedMap[key] || 0) + Number(gd.grnQty || 0);
+        if (gd.poDetailId) {
+          const key = `podetail-${gd.poDetailId}`;
+          receivedMap[key] = (receivedMap[key] || 0) + Number(gd.grnQty || 0);
+        } else {
+          const itemKey = gd.itemId || gd.itemName;
+          if (itemKey) {
+            const key = `poitem-${gd.poId}-${itemKey}`;
+            receivedMap[key] = (receivedMap[key] || 0) + Number(gd.grnQty || 0);
+          }
+        }
       });
     });
 
@@ -383,19 +426,26 @@ exports.getPendingPOItems = async (req, res) => {
         const poQty = Number(detail.poQty || 0);
         if (poQty <= 0) continue; // Skip rows with no quantity
         
+        const detailId = detail.id || detail._id;
         const itemKey = detail.itemId || detail.itemName || "unknown";
-        const key = `${po.id}-${itemKey}`;
-        const alreadyReceived = receivedMap[key] || 0;
+        
+        let alreadyReceived = 0;
+        if (detailId && receivedMap[`podetail-${detailId}`] !== undefined) {
+          alreadyReceived = receivedMap[`podetail-${detailId}`];
+        } else {
+          alreadyReceived = receivedMap[`poitem-${po.id}-${itemKey}`] || 0;
+        }
+
         const balanceQty = poQty - alreadyReceived;
 
         if (balanceQty > 0) {
-          const rowId = `${po.id}-${detail.id || detail._id || itemKey}`;
+          const rowId = `${po.id}-${detailId || itemKey}`;
           pendingItems.push({
             rowId,
             poId: po.id,
             poNo: po.poNo,
             poDate: po.date,
-            poDetailId: detail.id || detail._id || rowId,
+            poDetailId: detailId || rowId,
             indentId: detail.indentId,
             indentNo: detail.indentNo || "",
             itemId: detail.itemId,

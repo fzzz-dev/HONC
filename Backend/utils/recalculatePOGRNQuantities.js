@@ -10,17 +10,20 @@ const { Op } = require("sequelize");
  */
 async function recalculatePOGRNQuantities() {
   try {
-    // 1. Build map: poDetailId -> total grnQty across all active GRNs
-    const grnDetails = await PurchaseGRNDetail.findAll({
-      attributes: ["poDetailId", "grnQty"],
-      raw: true,
+    // 1. Build map: poDetailId -> total grnQty across all active (non-cancelled) GRNs
+    const grns = await PurchaseGRN.findAll({
+      where: { status: { [Op.ne]: "Cancelled" } },
+      include: [{ association: "details", attributes: ["poDetailId", "grnQty"] }]
     });
 
     const grnQtyMap = {};
-    for (const d of grnDetails) {
-      if (!d.poDetailId) continue;
-      const key = String(d.poDetailId);
-      grnQtyMap[key] = (grnQtyMap[key] || 0) + Number(d.grnQty || 0);
+    for (const grn of grns) {
+      if (!grn.details) continue;
+      for (const d of grn.details) {
+        if (!d.poDetailId) continue;
+        const key = String(d.poDetailId);
+        grnQtyMap[key] = (grnQtyMap[key] || 0) + Number(d.grnQty || 0);
+      }
     }
 
     // 2. Load all PO details and update those whose balance changed

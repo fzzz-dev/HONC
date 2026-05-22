@@ -18,6 +18,8 @@ const toTitleCase = (str) => {
   return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
+const getTodayDate = () => new Date().toISOString().split("T")[0];
+
 const FormGrid = ({ children }) => <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>{children}</div>;
 const Field = ({ label, children, horizontal = true }) => (
   <div className={`inv-field ${horizontal ? 'inv-field-h' : ''}`}>
@@ -35,32 +37,32 @@ const emptyDetail = () => ({
   itemId: "",
   itemName: "",
   uom: "",
-  poQty: "0.000",
-  alGrnQty: "0.000",
-  balQty: "0.000",
-  grnQty: "0.000",
-  phyQty: "0.000",
-  poRate: "0.00",
-  grnRate: "0.00",
-  discPct: "0.00",
-  grnAmount: "0.00",
-  gstPct: "0.00",
-  sgst: "0.00",
-  cgst: "0.00",
-  igst: "0.00",
-  totGst: "0.00",
-  totalAmount: "0.00",
+  poQty: 0,
+  alGrnQty: 0,
+  balQty: 0,
+  grnQty: 0,
+  phyQty: 0,
+  poRate: 0,
+  grnRate: 0,
+  discPct: 0,
+  grnAmount: 0,
+  gstPct: 0,
+  sgst: 0,
+  cgst: 0,
+  igst: 0,
+  totGst: 0,
+  totalAmount: 0,
   remarks: "",
   isBatch: "No",
   batchNo: "",
   mfgDate: "",
   expDate: "",
-  batchQty: "0.000",
+  batchQty: 0,
   poDetailId: "",
 });
 
 const emptyHeader = () => ({
-  grnDate: today(),
+  grnDate: getTodayDate(),
   grnNo: "",
   grnType: "Against PO",
   supplierId: "",
@@ -68,7 +70,7 @@ const emptyHeader = () => ({
   storeId: "",
   storeName: "",
   invoiceNo: "",
-  invoiceDate: today(),
+  invoiceDate: getTodayDate(),
   gstType: "local",
   remarks: "",
   preparedBy: "",
@@ -117,7 +119,6 @@ const getFY = () => {
 
 export default function PurchaseGRNPage() {
   const { user } = useAuth();
-  const today = () => new Date().toISOString().split("T")[0];
 
   // ── State ──
   const [grns, setGrns] = useState([]);
@@ -141,14 +142,14 @@ export default function PurchaseGRNPage() {
 
   const [header, setHeader] = useState({
     grnNo: "",
-    date: today,
+    grnDate: getTodayDate(),
     grnType: "Against PO",
     supplierId: "",
     supplierName: "",
     storeId: "",
     storeName: "",
     invoiceNo: "",
-    invoiceDate: today,
+    invoiceDate: getTodayDate(),
     gstType: "local",
     remarks: "",
     preparedBy: "",
@@ -209,14 +210,14 @@ export default function PurchaseGRNPage() {
  async function openNew() {
   setHeader({
     grnNo: "",
-    grnDate: today(),  // Use 'grnDate' not 'date'
+    grnDate: getTodayDate(),
     grnType: "Against PO",
     supplierId: "",
     supplierName: "",
     storeId: "",
     storeName: "",
     invoiceNo: "",
-    invoiceDate: today(),
+    invoiceDate: getTodayDate(),
     gstType: "local",
     remarks: "",
     preparedBy: user?.name || "Admin",
@@ -233,14 +234,14 @@ export default function PurchaseGRNPage() {
   function openEdit(rec) {
     setHeader({
       grnNo: rec.grnNo,
-      date: rec.date,
+      grnDate: rec.date || rec.grnDate || getTodayDate(),
       grnType: rec.grnType || "Against PO",
       supplierId: rec.supplierId,
       supplierName: rec.supplierName,
       storeId: rec.storeId,
       storeName: rec.storeName,
       invoiceNo: rec.invoiceNo || "",
-      invoiceDate: rec.invoiceDate || today,
+      invoiceDate: rec.invoiceDate || getTodayDate(),
       gstType: rec.gstType || "local",
       remarks: rec.remarks || "",
       preparedBy: rec.preparedBy || "",
@@ -318,7 +319,7 @@ export default function PurchaseGRNPage() {
         </td>
         <td style="width: 50%;">
           <div style={{ marginBottom: "8px" }}><span className="bold">GRN Number:</span> <span style={{ fontSize: "12px" }} className="bold">{header.grnNo}</span></div>
-          <div style={{ marginBottom: "8px" }}><span className="bold">GRN Date:</span> {new Date(header.date).toLocaleDateString("en-GB")}</div>
+          <div style={{ marginBottom: "8px" }}><span className="bold">GRN Date:</span> {header.grnDate ? new Date(header.grnDate).toLocaleDateString("en-GB") : ""}</div>
           <div style={{ marginBottom: "8px" }}><span className="bold">Store / Location:</span> {header.storeName}</div>
         </td>
       </tr>
@@ -430,6 +431,7 @@ export default function PurchaseGRNPage() {
   if (!header.supplierId) return setFormError("Supplier is required");
   if (!header.storeId) return setFormError("Store is required");
   if (!header.grnDate) return setFormError("GRN Date is required");
+  if (header.grnDateError) return setFormError(header.grnDateError);
   
   // Validate at least one item exists with GRN Qty
   const hasValidItem = details.some(row => Number(row.grnQty) > 0 && row.itemName);
@@ -447,6 +449,7 @@ export default function PurchaseGRNPage() {
     // Prepare payload with all required fields
     const payload = {
       grnNo: header.grnNo || "GRN-" + Date.now(),
+      date: header.grnDate,
       grnDate: header.grnDate,
       grnType: header.grnType || "Against PO",
       supplierId: String(header.supplierId),
@@ -849,7 +852,7 @@ export default function PurchaseGRNPage() {
                 tabIndex={1}
                 type="date"  
                 min="2026-05-01"
-                value={header.grnDate || today()}  // Uses today() as fallback
+                value={header.grnDate || getTodayDate()}  // Uses getTodayDate() as fallback
                 onChange={e => {
                   const selectedDate = e.target.value;
                   const minDate = "2026-05-01";
