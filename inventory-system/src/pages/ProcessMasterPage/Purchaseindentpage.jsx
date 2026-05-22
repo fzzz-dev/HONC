@@ -142,18 +142,25 @@ export default function PurchaseIndentPage() {
     try { const { indentNo } = await purchaseIndentApi.getNextNumber(); if (indentNo) setHeader(h => ({ ...h, indentNo })); } catch (e) { }
   }
 
-  function openEdit(indent) {
-    setEditId(sid(indent));
-    setHeader({
-      ...indent,
-      departmentId: sid(indent.departmentId),
-      preparedBy: indent.preparedBy || indent.createdBy || ""
-    });
-    setDetails(safeDetails(indent.details).map(d => ({
-      ...d, _rowId: Math.random(), mainCategoryId: sid(d.mainCategoryId), itemId: sid(d.itemId)
-    })));
-    setView("form");
-  }
+function openEdit(indent) {
+  setEditId(sid(indent));
+  
+  setHeader({
+    ...indent,
+    departmentId: sid(indent.departmentId),
+    preparedBy: indent.preparedBy || indent.createdBy || "",
+    indentDate: indent.indentDate || indent.date || today(),  // Prefer indentDate
+    dueDate: indent.dueDate || today(),
+  });
+  
+  setDetails(safeDetails(indent.details).map(d => ({
+    ...d, 
+    _rowId: Math.random(), 
+    mainCategoryId: sid(d.mainCategoryId), 
+    itemId: sid(d.itemId),
+  })));
+  setView("form");
+}
 
   function updateDetail(idx, field, val) {
     setDetails(prev => {
@@ -216,7 +223,12 @@ export default function PurchaseIndentPage() {
       setSaving(true);
       const cleanDetails = details.filter(d => d.itemId).map(({ _rowId, ...rest }) => rest);
       if (cleanDetails.length === 0) { setSaving(false); return setFormError("Add at least one item"); }
-      const payload = { ...header, details: cleanDetails };
+      const payload = { 
+  ...header, 
+  indentDate: header.indentDate,  // Explicitly include indentDate
+  date: header.indentDate,        // Also set date field to same value
+  details: cleanDetails 
+};
       try {
         if (editId) await purchaseIndentApi.update(editId, payload);
         else await purchaseIndentApi.create(payload);
@@ -316,7 +328,7 @@ export default function PurchaseIndentPage() {
               {filteredIndents.map((indent, i) => (
                 <tr key={sid(indent)}>
                   <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
-                  <td style={{ fontWeight: 600, color: "var(--accent)" }}>{indent.indentNo}</td><td>{indent.date}</td><td>{indent.departmentName}</td><td>{indent.createdBy}</td>
+                  <td style={{ fontWeight: 600, color: "var(--accent)" }}>{indent.indentNo}</td><td>{indent.indentDate || indent.date}</td><td>{indent.departmentName}</td><td>{indent.createdBy}</td>
                   <td className="inv-muted-sm">{safeDetails(indent.details).length} lines</td>
                   <td>{fmt(safeDetails(indent.details).reduce((s, d) => s + Number(d.indentQty || 0), 0))}</td>
                   <td><span className={`inv-badge ${indent.status === 'Open' ? 'inv-badge-yes' : 'inv-badge-no'}`}>{indent.status}</span></td>

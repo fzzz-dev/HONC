@@ -151,8 +151,9 @@ const emptyDetail = () => ({
 
 const emptyHeader = () => ({
   poNo: "", 
-  date: today(),  // Add this line
+  date: today(),
   dueDate: today(), 
+  deliveryDate: "", // Keep this
   supplierId: "", 
   supplierName: "", 
   supplierAddress: "", 
@@ -163,7 +164,7 @@ const emptyHeader = () => ({
   refDate: "", 
   paymentTermsId: "", 
   paymentTermsName: "", 
-  deliveryDate: "",
+  deliveryDate: "", // Make sure this exists
   createdBy: "Admin", 
   createdOn: today(), 
   status: "Open", 
@@ -470,10 +471,10 @@ const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstTyp
       <div ${page < totalPages ? 'style="page-break-after: always;"' : ''}>
         <table style="border: none; margin-bottom: 2px;">
           <tr>
-            <td class="no-border text-center bold" style="font-size: 15px; width: 80%; vertical-align: middle;">Purchase Order<\/td>
-            <td class="no-border text-right bold" style="width: 20%; vertical-align: middle; font-size: 9px;">Page ${page} of ${totalPages}<\/td>
-          <\/tr>
-        <\/table>
+            <td class="no-border text-center bold" style="font-size: 15px; width: 80%; vertical-align: middle;">Purchase Order</td>
+            <td class="no-border text-right bold" style="width: 20%; vertical-align: middle; font-size: 9px;">Page ${page} of ${totalPages}</td>
+          </tr>
+        </table>
         
         <div class="container">
           <table class="grid-table">
@@ -483,88 +484,88 @@ const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstTyp
                   <tr>
                     <td style="width: 30%; border: none; text-align: center; vertical-align: middle; padding: 10px;">
                       ${company?.logo ? `<img src="${company.logo}" style="height: 55px; max-width: 100%; object-fit: contain;" />` : ''}
-                    <\/td>
+                    </td>
                     <td class="text-center" style="width: 70%; border: none; vertical-align: middle; padding: 10px 10px 10px 0;">
-                      <div class="bold" style="font-size: 14px;">${esc(company?.companyName || "TEST COMPANY")}<\/div>
-                      <div style="font-size: 8.5px; margin-top: 4px;">${esc(company?.address || "Company Address")}<\/div>
-                      <div style="font-size: 8.5px;">Tel: ${esc(company?.phone || "")}, E-Mail: ${esc(company?.email || "")}<\/div>
-                      <div style="font-size: 8.5px;">GSTIN: ${esc(company?.gstin || "")}<\/div>
-                    <\/td>
-                  <\/tr>
-                <\/table>
-              <\/td>
+                      <div class="bold" style="font-size: 14px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+                      <div style="font-size: 8.5px; margin-top: 4px;">${esc(company?.address || "Company Address")}</div>
+                      <div style="font-size: 8.5px;">Tel: ${esc(company?.phone || "")}, E-Mail: ${esc(company?.email || "")}</div>
+                      <div style="font-size: 8.5px;">GSTIN: ${esc(company?.gstin || "")}</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
               <td style="width: 33.33%; padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
                 <table style="height: 100%; border: none;">
                   <tr>
-                    <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-left: none; width: 50%; font-size: 9px;">PO Number<\/td>
-                    <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-right: none; width: 50%; font-size: 9px;">PO Date<\/td>
-                  <\/tr>
+                    <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-left: none; width: 50%; font-size: 9px;">PO Number</td>
+                    <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-right: none; width: 50%; font-size: 9px;">PO Date</td>
+                  </tr>
                   <tr>
-                    <td class="text-center bold" style="border-left: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(header.poNo)}<\/td>
-                    <td class="text-center bold" style="border-right: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(new Date(header.date).toLocaleDateString("en-GB"))}<\/td>
-                  <\/tr>
-                <\/table>
-              <\/td>
-            <\/tr>
+                    <td class="text-center bold" style="border-left: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(header.poNo)}</td>
+                    <td class="text-center bold" style="border-right: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(new Date(header.date).toLocaleDateString("en-GB"))}</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
             <tr>
               <td colspan="2" style="border-bottom: 1px solid #000; padding: 5px;">
-                <div><span class="bold">Party:<\/span> <span class="bold" style="margin-left: 10px; font-size: 11px;">${esc(header.supplierName)}<\/span><\/div>
-                <div style="margin-top: 4px;">${esc(header.supplierAddress)}<\/div>
-                <div style="margin-top: 4px;">GST: ${esc(header.supplierGst)}<\/div>
-              <\/td>
+                <div><span class="bold">Party:</span> <span class="bold" style="margin-left: 10px; font-size: 11px;">${esc(header.supplierName)}</span></div>
+                <div style="margin-top: 4px;">${esc(header.supplierAddress)}</div>
+                <div style="margin-top: 4px;">GST: ${esc(header.supplierGst)}</div>
+              </td>
               <td style="padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
                 <table style="height: 100%; border: none;">
-                  <tr><td style="border-top: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Reference:<\/span> ${esc(header.refNo || "")}<\/td><\/tr>
-                  <tr><td style="border-bottom: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Delivery Date:<\/span> <span style="margin-left: 10px;" class="bold">${esc(header.deliveryDate ? new Date(header.deliveryDate).toLocaleDateString("en-GB") : "")}<\/span><\/td><\/tr>
-                <\/table>
-              <\/td>
-            <\/tr>
+                  <tr><td style="border-top: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Reference:</span> ${esc(header.refNo || "")}</td></tr>
+                  <tr><td style="border-bottom: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Delivery Date:</span> <span style="margin-left: 10px;" class="bold">${esc(header.deliveryDate ? new Date(header.deliveryDate).toLocaleDateString("en-GB") : "")}</span></td></tr>
+                </table>
+              </td>
+            </tr>
             <tr>
               <td style="width: 33.33%; border-bottom: none;">
-                <div class="bold">Place of Delivery<\/div>
-                <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}<\/div>
-                <div style="margin-top: 2px;">${esc(company?.address || "")}<\/div>
-                <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}<\/div>
-              <\/td>
+                <div class="bold">Place of Delivery</div>
+                <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+                <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
+                <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
+              </td>
               <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
-                <div class="bold">Transported<\/div>
-                <div style="margin-top: 4px;"><\/div>
-              <\/td>
+                <div class="bold">Transported</div>
+                <div style="margin-top: 4px;"></div>
+              </td>
               <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
-                <div class="bold">Invoice to be Sent to<\/div>
-                <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}<\/div>
-                <div style="margin-top: 2px;">${esc(company?.address || "")}<\/div>
-                <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}<\/div>
-              <\/td>
-            <\/tr>
-          <\/table>
+                <div class="bold">Invoice to be Sent to</div>
+                <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+                <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
+                <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
+              </td>
+            </tr>
+          </table>
 
           <table class="items-table">
             <thead>
               <tr>
-                <th style="width: 4%; border-left: none;">S.No<\/th>
-                <th style="width: 12%;">Indent No<\/th>
-                <th style="width: 24%;">Item Description<\/th>
-                <th style="width: 9%;">Discount%<\/th>
-                <th style="width: 6%;">Tax%<\/th>
-                <th style="width: 7%;">Uom<\/th>
-                <th style="width: 10%;">Quantity<\/th>
-                <th style="width: 13%;">Unit Price<\/th>
-                <th style="width: 15%; border-right: none;">Value<\/th>
-              <\/tr>
-            <\/thead>
+                <th style="width: 4%; border-left: none;">S.No</th>
+                <th style="width: 12%;">Indent No</th>
+                <th style="width: 24%;">Item Description</th>
+                <th style="width: 9%;">Discount%</th>
+                <th style="width: 6%;">Tax%</th>
+                <th style="width: 7%;">Uom</th>
+                <th style="width: 10%;">Quantity</th>
+                <th style="width: 13%;">Unit Price</th>
+                <th style="width: 15%; border-right: none;">Value</th>
+              </tr>
+            </thead>
             <tbody>
               ${pageItems.map((d, i) => `
               <tr>
-                <td class="text-left" style="border-left: none;">${startSerial + i + 1}<\/td>
-                <td class="text-left" style="font-size: 8.5px;">${esc(d.indentNo || "Direct")}<\/td>
-                <td class="text-left" style="font-size: 8.5px;">${esc(d.itemName)}<\/td>
-                <td class="text-right">${d.discMode === 'pct' ? Number(d.discPct || 0).toFixed(2) : ''}<\/td>
-                <td class="text-right">${Number(d.gstPct || 0).toFixed(2)}<\/td>
-                <td class="text-center">${esc(d.uom)}<\/td>
-                <td class="text-right">${Number(d.poQty || 0).toFixed(3)}<\/td>
-                <td class="text-right">${Number(d.poRate || 0).toFixed(2)}<\/td>
-                <td class="text-right" style="border-right: none;">${Number((d.poQty || 0) * (d.poRate || 0)).toFixed(2)}<\/td>
+                <td class="text-left" style="border-left: none;">${startSerial + i + 1}</td>
+                <td class="text-left" style="font-size: 8.5px;">${esc(d.indentNo || "Direct")}</td>
+                <td class="text-left" style="font-size: 8.5px;">${esc(d.itemName)}</td>
+                <td class="text-right">${d.discMode === 'pct' ? Number(d.discPct || 0).toFixed(2) : ''}</td>
+                <td class="text-right">${Number(d.gstPct || 0).toFixed(2)}</td>
+                <td class="text-center">${esc(d.uom)}</td>
+                <td class="text-right">${Number(d.poQty || 0).toFixed(3)}</td>
+                <td class="text-right">${Number(d.poRate || 0).toFixed(2)}</td>
+                <td class="text-right" style="border-right: none;">${Number((d.poQty || 0) * (d.poRate || 0)).toFixed(2)}</td>
               </tr>
               `).join("")}
             <\/tbody>
@@ -690,7 +691,7 @@ const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstTyp
   URL.revokeObjectURL(link.href);
 };
 
-export default function PurchaseOrderPage() {
+export default function PurchaseOrderPage(){
   const { user } = useAuth();
   const [suppliers, setSuppliers] = useState([]);
   const [indents, setIndents] = useState([]);
@@ -714,34 +715,40 @@ export default function PurchaseOrderPage() {
   const [saving, setSaving] = useState(false);
   const [viewingSupplier, setViewingSupplier] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [tableEnabled, setTableEnabled] = useState(false);
+  const [tableEnabled, setTableEnabled] = useState(true);
   const pickIndentRef = useRef(null);
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
+  const [itemsFromPickIndent, setItemsFromPickIndent] = useState(false);
+  const addRowBtnRef = useRef(null);
 
   const navigate = useNavigate();
 
   useEffect(() => {
-
     loadLookups(); loadPos(); openNew();
   }, []);
-  useEffect(() => {
-  if (!pendingModalOpen && pickIndentRef.current) {
-    pickIndentRef.current.focus();
-  }
-}, [pendingModalOpen]);
 
-useEffect(() => {
-          // Find the first focusable element (with tabIndex >= 1) inside the page
-          const firstField = document.querySelector('[tabIndex="1"]');
-          if (firstField) {
-            firstField.focus();
-          }
-        }, []);
+  useEffect(() => {
+    if (!pendingModalOpen && pickIndentRef.current) {
+      setTimeout(() => {
+        pickIndentRef.current.focus();
+      }, 100);
+    }
+  }, [pendingModalOpen]);
+
+  useEffect(() => {
+    setTimeout(() => {
+      const firstField = document.querySelector('[tabIndex="1"]');
+      if (firstField) firstField.focus();
+    }, 100);
+  }, []);
 
   async function loadLookups() {
     try {
       const [supps, inds, its, pterms, comp] = await Promise.all([
-        purchaseOrderApi.getSuppliers(), purchaseOrderApi.getIndents(), itemApi.getAll(), paymentTermsApi.getAll(),
+        purchaseOrderApi.getSuppliers(),
+        purchaseOrderApi.getIndents(),
+        itemApi.getAll(),
+        paymentTermsApi.getAll(),
         fetch((import.meta.env.VITE_API_URL || "/api") + "/company").then(res => res.json()).catch(() => null)
       ]);
       setSuppliers(Array.isArray(supps) ? supps : []);
@@ -752,80 +759,103 @@ useEffect(() => {
     } catch (e) { console.error(e); }
   }
 
-  async function loadPos() {
-    setLoadingList(true);
-    try {
-      const data = await purchaseOrderApi.getAll();
-      setPos(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Failed to load POs:", err);
-      if (typeof setListError === "function") {
-        setListError(err.message);
-      }
-    } finally {
-      setLoadingList(false);
+async function loadPos() {
+  setLoadingList(true);
+  try {
+    const data = await purchaseOrderApi.getAll();
+    console.log("=== LOAD POS DEBUG ===");
+    console.log("First PO in list:", data[0]);
+    console.log("Delivery date field:", data[0]?.deliveryDate);
+    console.log("Due date field:", data[0]?.dueDate);
+    setPos(Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.error("Failed to load POs:", err);
+    if (typeof setListError === "function") {
+      setListError(err.message);
     }
+  } finally {
+    setLoadingList(false);
   }
+}
 
   async function openNew() {
     setHeader({ ...emptyHeader(), preparedBy: "System Administrator" }); 
-    setDetails([emptyDetail()]); setEditId(null); setView("form"); setGstType("");
-    try { const res = await purchaseOrderApi.getNextNumber(); if (res?.poNo) setHeader(h => ({ ...h, poNo: res.poNo })); } catch (e) { }
+    setDetails([emptyDetail()]); 
+    setEditId(null); 
+    setView("form"); 
+    setGstType("");
+    setItemsFromPickIndent(false);
+    try { 
+      const res = await purchaseOrderApi.getNextNumber(); 
+      if (res?.poNo) setHeader(h => ({ ...h, poNo: res.poNo })); 
+    } catch (e) { }
   }
 
-  function openEdit(po) {
-    const sId = sid(po.supplierId);
-    const s = suppliers.find(x => sid(x) === sId);
-    let addrText = "";
-    if (s) {
-      const parsedAddresses = safeDetails(s?.addresses);
-      const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
-      if (primaryAddr) {
-        const parts = [
-          primaryAddr.address || primaryAddr.line1,
-          primaryAddr.cityName,
-          primaryAddr.stateName,
-          primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""
-        ].filter(Boolean);
-        addrText = parts.join(", ");
-      }
+function openEdit(po) {
+  const sId = sid(po.supplierId);
+  const s = suppliers.find(x => sid(x) === sId);
+  let addrText = "";
+  if (s) {
+    const parsedAddresses = safeDetails(s?.addresses);
+    const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
+    if (primaryAddr) {
+      const parts = [
+        primaryAddr.address || primaryAddr.line1,
+        primaryAddr.cityName,
+        primaryAddr.stateName,
+        primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""
+      ].filter(Boolean);
+      addrText = parts.join(", ");
     }
-
-    setEditId(sid(po));
-    const normalizeDate = (d) => {
-      if (!d) return "";
-      // If already YYYY-MM-DD or ISO
-      if (typeof d === "string" && d.includes("-")) {
-        const parts = d.split("T")[0].split("-");
-        if (parts[0].length === 4) return d.split("T")[0]; // YYYY-MM-DD
-        if (parts[2]?.length === 4) return `${parts[2]}-${parts[1]}-${parts[0]}`; // DD-MM-YYYY to YYYY-MM-DD
-      }
-      try {
-        const dt = new Date(d);
-        if (!isNaN(dt.getTime())) return dt.toISOString().split("T")[0];
-      } catch (e) {}
-      return "";
-    };
-
-    setHeader({
-      ...po,
-      poNo: po.poNo || po.poNumber || "",
-      date: normalizeDate(po.date),
-      supplierId: sId,
-      paymentTermsId: sid(po.paymentTermsId),
-      supplierAddress: po.supplierAddress || addrText,
-      refNo: po.refNo || po.referenceNo || "",
-      deliveryDate: normalizeDate(po.deliveryDate || po.dueDate),
-      poType: po.poType || po.purchaseOrderType || "",
-      supplierGst: po.supplierGst || s?.gstNo || "",
-      preparedBy: po.preparedBy || "System Administrator"
-    });
-    const gType = po.gstType || "local";
-    setDetails(safeDetails(po.details).map(d => calcRow({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) }, gType)));
-    setGstType(po.gstType || "local");
-    setGstEnabled(po.gstEnabled !== false);
-    setView("form");
   }
+
+  setEditId(sid(po));
+  
+  const normalizeDate = (d) => {
+    if (!d) return "";
+    if (typeof d === "string" && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return d;
+    }
+    if (typeof d === "string" && d.includes("T")) {
+      return d.split("T")[0];
+    }
+    try {
+      const dt = new Date(d);
+      if (!isNaN(dt.getTime())) {
+        return dt.toISOString().split("T")[0];
+      }
+    } catch (e) {}
+    return "";
+  };
+
+  // IMPORTANT: Log to see what's coming from the API
+  console.log("=== OPEN EDIT DEBUG ===");
+  console.log("Full po object:", po);
+  console.log("po.deliveryDate:", po.deliveryDate);
+  console.log("po.dueDate:", po.dueDate);
+  console.log("po.date:", po.date);
+
+  setHeader({
+    ...po,
+    poNo: po.poNo || po.poNumber || "",
+    date: normalizeDate(po.date),
+    supplierId: sId,
+    paymentTermsId: sid(po.paymentTermsId),
+    supplierAddress: po.supplierAddress || addrText,
+    refNo: po.refNo || po.referenceNo || "",
+    deliveryDate: normalizeDate(po.deliveryDate || po.dueDate), // Try both field names
+    poType: po.poType || po.purchaseOrderType || "",
+    supplierGst: po.supplierGst || s?.gstNo || "",
+    preparedBy: po.preparedBy || "System Administrator"
+  });
+  
+  const gType = po.gstType || "local";
+  setDetails(safeDetails(po.details).map(d => calcRow({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) }, gType)));
+  setGstType(po.gstType || "local");
+  setGstEnabled(po.gstEnabled !== false);
+  setView("form");
+  setItemsFromPickIndent(true);
+}
 
   const calcRow = (row, gType = gstType) => {
     const qty = Number(row.poQty || 0); 
@@ -857,10 +887,6 @@ useEffect(() => {
     setDetails(prev => {
       const rows = [...prev];
       let row = { ...rows[idx], [field]: val };
-
-      // Manual selection restricted as per user request. 
-      // Items must be added via 'Pick Indent' modal.
-      
       rows[idx] = calcRow(row);
       return rows;
     });
@@ -874,7 +900,7 @@ useEffect(() => {
     });
   }
 
-    const addRow = () => { 
+  const addRow = () => { 
     const newRow = {
       _rowId: Math.random(),
       indentDetailId: "",
@@ -898,7 +924,10 @@ useEffect(() => {
     };
     setDetails(p => [...p, newRow]);
   };
-  function removeRow(idx) { setDetails(p => p.filter((_, i) => i !== idx)); }
+  
+  function removeRow(idx) { 
+    setDetails(p => p.filter((_, i) => i !== idx)); 
+  }
 
   async function handleDelete(id) {
     if (!window.confirm("Delete this purchase order?")) return;
@@ -912,7 +941,7 @@ useEffect(() => {
     }
   }
 
-  async function handleSave() {
+async function handleSave() {
   if (!header.poNo.trim()) return setFormError("PO No is required");
   if (!header.supplierId) return setFormError("Supplier is required");
   
@@ -933,12 +962,23 @@ useEffect(() => {
   
   setFormError(null);
   setSaving(true);
-  const payload = { ...header, gstEnabled, gstType, details: details.map(({ _rowId, ...rest }) => rest) };
+  
+  // Debug log to check what's being saved
+  console.log("Saving delivery date:", header.deliveryDate);
+  
+  const payload = { 
+    ...header, 
+    deliveryDate: header.deliveryDate, // Explicitly include delivery date
+    gstEnabled, 
+    gstType, 
+    details: details.map(({ _rowId, ...rest }) => rest) 
+  };
+  
   try {
     if (editId) await purchaseOrderApi.update(editId, payload);
     else await purchaseOrderApi.create(payload);
     await loadPos();
-    setSaveSuccessModal(true); // Show success modal
+    setSaveSuccessModal(true);
     setTimeout(() => {
       setSaveSuccessModal(false);
       setView("list");
@@ -947,6 +987,8 @@ useEffect(() => {
     setFormError(err.message); 
   } finally { 
     setSaving(false); 
+
+    
   }
 }
 
@@ -964,12 +1006,20 @@ useEffect(() => {
   const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
   const safeDetails = (d) => {
-    if (Array.isArray(d)) return d;
-    if (typeof d === "string") {
-      try { return JSON.parse(d); } catch (e) { return []; }
+  if (!d) return [];
+  if (Array.isArray(d)) return d;
+  if (typeof d === "string") {
+    try { 
+      const parsed = JSON.parse(d); 
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) { 
+      console.error("Error parsing details:", e);
+      return []; 
     }
-    return [];
-  };
+  }
+  return [];
+};
+  
   const indentDetailOptions = indents.flatMap(ind => safeDetails(ind.details).map(d => {
     const itMaster = items.find(i => sid(i) === sid(d.itemId));
     const realBalQty = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
@@ -986,12 +1036,10 @@ useEffect(() => {
 
   const pendingIndentRows = indents.flatMap(ind => safeDetails(ind.details)
     .filter(d => {
-      // Use actual balQty if it's set (existing rows after DB fix),
-      // else fall back to indentQty (brand-new rows not yet saved with balQty).
       const balance = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
         ? Number(d.balQty)
         : Number(d.indentQty || 0);
-      return balance > 0 && d.itemId; // must have an item selected
+      return balance > 0 && d.itemId;
     })
     .map(d => {
       const itMaster = items.find(i => sid(i) === sid(d.itemId));
@@ -1009,12 +1057,10 @@ useEffect(() => {
         categoryName: d.mainCategoryName || d.categoryName || "",
         uom: d.uom, 
         balQty: realBalQty,
-        rate: d.rate,
+        rate: itMaster?.rate || d.rate || 0,
         gstPct: itMaster?.gstPercent !== undefined ? itMaster.gstPercent : (d.gstPct !== undefined ? d.gstPct : 18)
       };
     }));
-
-  const uniqueIndentNos = [...new Set(indentDetailOptions.map(o => o.indentNo))];
 
   function addPendingLinesToDetails() {
     const selected = pendingIndentRows.filter(r => pendingSelected.has(r.rowId));
@@ -1023,34 +1069,43 @@ useEffect(() => {
       return;
     }
     
-    const newRows = selected.map(s => calcRow({
-      ...emptyDetail(), 
-      indentDetailId: s.detailId, 
-      indentNo: s.indentNo, 
-      itemId: s.itemId, 
-      itemName: s.itemName, 
-      uom: s.uom, 
-      balQty: s.balQty, 
-      poQty: s.balQty, 
-      poRate: s.rate || 0, 
-      gstPct: s.gstPct !== undefined ? s.gstPct : 0
-    }));
+    const newRows = selected.map(s => {
+      const itemMaster = items.find(i => sid(i) === sid(s.itemId));
+      return calcRow({
+        ...emptyDetail(), 
+        indentDetailId: s.detailId, 
+        indentNo: s.indentNo, 
+        itemId: s.itemId, 
+        itemName: s.itemName, 
+        uom: s.uom, 
+        balQty: s.balQty, 
+        poQty: s.balQty, 
+        poRate: itemMaster?.rate || s.rate || 0,
+        gstPct: itemMaster?.gstPercent !== undefined ? itemMaster.gstPercent : (s.gstPct !== undefined ? s.gstPct : 0)
+      });
+    });
     
     setDetails(p => {
-      // Keep existing rows that already have an item selected
       const existing = p.filter(r => r.itemId || r.itemName);
-      // If we only have one empty row, replace it
       if (existing.length === 0) return newRows;
       return [...existing, ...newRows];
     });
     
     setPendingModalOpen(false); 
     setPendingSelected(new Set());
+    setTableEnabled(true);
+    setItemsFromPickIndent(true);
+    
+    setTimeout(() => {
+      const firstPoQty = document.querySelector('tbody tr:first-child td:nth-child(6) input');
+      if (firstPoQty) firstPoQty.focus();
+    }, 150);
   }
 
+  // LIST VIEW
   if (view === "list") {
-    const filteredPos = pos.filter(po => po.poNo.toLowerCase().includes(searchTerm.toLowerCase()));
-
+    const filteredPos = (pos || []).filter(po => po?.poNo?.toLowerCase().includes(searchTerm.toLowerCase()));
+    
     const exportToExcel = () => {
       const headers = ["PO No", "Date", "Supplier", "Status", "Total Amount"];
       const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
@@ -1067,102 +1122,103 @@ useEffect(() => {
       link.click();
       document.body.removeChild(link);
     };
-
-     
-
+    
     return (
       <div className="inv-page">
         <div className="inv-page-header">
-          <div><h1 className="inv-page-title">Purchase Orders</h1><p className="inv-page-sub">Manage vendor procurement orders</p></div>
+          <div>
+            <h1 className="inv-page-title">Purchase Orders</h1>
+            <p className="inv-page-sub">Manage purchase orders</p>
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="inv-btn-secondary" onClick={exportToExcel}>Export to Excel</button>
-            <button className="inv-btn-primary" onClick={openNew}>+ New Order</button>
+            <button className="inv-btn-primary" onClick={openNew}>+ New Purchase Order</button>
           </div>
         </div>
-        
+
+        {listError && <div className="inv-error-banner" style={{ marginBottom: 16 }}>{listError}</div>}
+
         <div className="inv-card" style={{ marginBottom: 16 }}>
           <div className="inv-card-body">
             <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
               <label className="inv-label">Search PO No</label>
-              <input 
-                className="inv-input" 
-                value={searchTerm} 
-                onChange={e => setSearchTerm(e.target.value)} 
-                placeholder="Type to search PO Number..." 
+              <input
+                className="inv-input"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Type to search PO Number..."
               />
             </div>
           </div>
         </div>
 
         <div className="inv-card">
-          <table className="inv-table">
-            <thead>
-              <tr><th>#</th><th>PO No</th><th>Date</th><th>Supplier</th><th>Status</th><th>Total Amount</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-              {filteredPos.length === 0 && (
-                <tr><td colSpan={7} className="inv-empty">No records found</td></tr>
-              )}
-              {filteredPos.map((po, i) => (
-                <tr key={sid(po)}>
-                  <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
-                  <td style={{ fontWeight: 600, color: "var(--accent)" }}>{po.poNo}</td>
-                  <td>{po.date}</td>
-                  <td>{po.supplierName}</td>
-                  <td><span className={`inv-badge ${po.status === 'Open' ? 'inv-badge-yes' : 'inv-badge-no'}`}>{po.status}</span></td>
-                  <td>₹{fmt(safeDetails(po.details).reduce((s, d) => s + (d.totalAmount || 0), 0))}</td>
-                  <td>
-                    <div className="inv-actions">
-                      <button className="inv-btn-icon" onClick={() => openEdit(po)}>Edit</button>
-                      <button className="inv-btn-icon inv-btn-danger" onClick={() => handleDelete(sid(po))}>Del</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {loadingList ? (
+            <div style={{ textAlign: "center", padding: 40 }}>Loading...</div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="inv-table-premium">
+                <thead>
+                  <tr>
+                    <th>PO No</th>
+                    <th>Date</th>
+                    <th>Supplier</th>
+                    <th>Status</th>
+                    <th>Total Amount</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPos.length === 0 ? (
+                    <tr><td colSpan="6" style={{ textAlign: "center", padding: 40 }}>No purchase orders found</td></tr>
+                  ) : (
+                    filteredPos.map(po => (
+                      <tr key={po.id || po._id}>
+                        <td style={{ fontWeight: 600 }}>{po.poNo}</td>
+                        <td>{po.date}</td>
+                        <td>{po.supplierName}</td>
+                        <td>
+                          <span className={`inv-badge ${po.status === 'Open' ? 'inv-badge-success' : 'inv-badge-warning'}`}>
+                            {po.status}
+                          </span>
+                        </td>
+                        <td>
+                          ₹{fmt(
+                            (safeDetails(po.details) || []).reduce((s, d) => {
+                              const amount = Number(d.totalAmount) || Number(d.poAmount) || 0;
+                              return s + amount;
+                            }, 0)
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button className="inv-btn-sm inv-btn-secondary" onClick={() => openEdit(po)}>Edit</button>
+                            <button className="inv-btn-sm inv-btn-danger" onClick={() => handleDelete(po.id || po._id)}>Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
-
+  // FORM VIEW
   return (
     <div className="inv-page">
-  <div className="inv-page-header">
-    <div><h1 className="inv-page-title">{editId ? "Edit Purchase Order" : "New Purchase Order"}</h1><p className="inv-page-sub">Header-Detail-Summary layout</p></div>
-   <div style={{ display: "flex", gap: 8 }}>
-  <button 
-    className="inv-btn-secondary" 
-    onClick={() => setView("list")}
-    tabIndex={11}
-  >
-    View List
-  </button>
-  <button 
-    className="inv-btn-ghost" 
-    onClick={() => printPurchaseOrder({ header, details, totals, gstEnabled, gstType, company })}
-    tabIndex={12}
-  >
-    Print
-  </button>
-  <button 
-    className="inv-btn-primary" 
-    onClick={() => downloadAsPDF({ header, details, totals, gstEnabled, gstType, company })}
-    tabIndex={13}
-  >
-    Download as PDF
-  </button>
-  <button 
-    className="inv-btn-primary" 
-    onClick={handleSave} 
-    disabled={saving}
-    tabIndex={14}
-  >
-    Save Order
-  </button>
-</div>
-  </div>
+      <div className="inv-page-header">
+        <div><h1 className="inv-page-title">{editId ? "Edit Purchase Order" : "New Purchase Order"}</h1><p className="inv-page-sub">Header-Detail-Summary layout</p></div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button tabIndex={100} className="inv-btn-secondary" onClick={() => setView("list")}>View List</button>
+          <button tabIndex={101} className="inv-btn-ghost" onClick={() => printPurchaseOrder({ header, details, totals, gstEnabled, gstType, company })}>Print</button>
+          <button tabIndex={102} className="inv-btn-primary" onClick={() => downloadAsPDF({ header, details, totals, gstEnabled, gstType, company })}>Download as PDF</button>
+          <button tabIndex={103} className="inv-btn-primary" onClick={handleSave} disabled={saving}>Save Order</button>
+        </div>
+      </div>
 
       {formError && <div className="inv-error-banner" style={{ marginBottom: 16 }}>{formError}</div>}
       {saveToast && (
@@ -1183,51 +1239,26 @@ useEffect(() => {
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         <div className="inv-card">
           <div className="inv-card-body">
-
             <FormGrid>
               <Field label="PO No (Auto)">
-                <input 
-                  tabIndex={1}  // First field
-                  className="inv-input" 
-                  value={header.poNo} 
-                  readOnly 
-                  style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} 
-                  placeholder="PO/0008/26-27" 
-                />
+                <input tabIndex={1} className="inv-input" value={header.poNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} />
               </Field>
               
               <Field label="PO Date *">
-                <input 
-                  className="inv-input" 
-                  tabIndex={2}
-                  type="date"  
-                  min="2026-05-01"
-                  value={header.date || today()}
-                  onChange={e => {
-                    const selectedDate = e.target.value;
-                    const minDate = "2026-05-01";
-                    
-                    if (selectedDate < minDate) {
-                      setHeader(h => ({ ...h, date: minDate, dateError: "Past dates are not allowed." }));
-                    } else {
-                      setHeader(h => ({ ...h, date: selectedDate, dateError: "" }));
-                    }
-                  }}
-                />
-                {header.dateError && (
-                  <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
-                    ⚠️ {header.dateError}
-                  </div>
-                )}
-              </Field>  
+                <input tabIndex={2} className="inv-input" type="date" min="2026-05-01" value={header.date || today()} onChange={e => {
+                  const selectedDate = e.target.value;
+                  const minDate = "2026-05-01";
+                  if (selectedDate < minDate) {
+                    setHeader(h => ({ ...h, date: minDate, dateError: "Past dates are not allowed." }));
+                  } else {
+                    setHeader(h => ({ ...h, date: selectedDate, dateError: "" }));
+                  }
+                }} />
+                {header.dateError && <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>⚠️ {header.dateError}</div>}
+              </Field>
 
               <Field label="PO Type">
-                <select 
-                  tabIndex={3}  // Third field
-                  className="inv-input" 
-                  value={header.poType || ""} 
-                  onChange={e => setHeader(h => ({ ...h, poType: e.target.value }))}
-                >
+                <select tabIndex={3} className="inv-input" value={header.poType || ""} onChange={e => setHeader(h => ({ ...h, poType: e.target.value }))}>
                   <option value="">Select Type</option>
                   <option value="Consumables">Consumables</option>
                   <option value="Project">Project</option>
@@ -1238,74 +1269,45 @@ useEffect(() => {
               <Field label="Supplier *">
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                   <div style={{ flex: 1 }}>
-                    <SearchSelect 
-                      tabIndex={4}  // Fourth field
-                      value={header.supplierId} 
-                      onChange={val => {
-                        const s = suppliers.find(x => sid(x) === val);
-                        let newGstType = "local";
-                        if (s) {
-                          const compGst = (company?.gstin || "").trim();
-                          const suppGst = (s.gstNo || "").trim();
-                          const compCode = compGst.match(/^\d{2}/)?.[0];
-                          const suppCode = suppGst.match(/^\d{2}/)?.[0];
-                          if (compCode && suppCode) {
-                            newGstType = compCode === suppCode ? "local" : "other";
+                    <SearchSelect tabIndex={4} value={header.supplierId} onChange={val => {
+                      const s = suppliers.find(x => sid(x) === val);
+                      let newGstType = "local";
+                      if (s) {
+                        const compGst = (company?.gstin || "").trim();
+                        const suppGst = (s.gstNo || "").trim();
+                        const compCode = compGst.match(/^\d{2}/)?.[0];
+                        const suppCode = suppGst.match(/^\d{2}/)?.[0];
+                        if (compCode && suppCode) {
+                          newGstType = compCode === suppCode ? "local" : "other";
+                        } else {
+                          const compState = (company?.state || company?.address || "").toLowerCase().replace(/\s+/g, '');
+                          const parsedAddresses = safeDetails(s?.addresses);
+                          const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
+                          const suppState = (s.state || primaryAddr?.stateName || "").toLowerCase().replace(/\s+/g, '');
+                          if (compState && suppState && (compState.includes(suppState) || suppState.includes(compState))) {
+                            newGstType = "local";
                           } else {
-                            const compState = (company?.state || company?.address || "").toLowerCase().replace(/\s+/g, '');
-                            const parsedAddresses = safeDetails(s?.addresses);
-                            const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
-                            const suppState = (s.state || primaryAddr?.stateName || "").toLowerCase().replace(/\s+/g, '');
-                            if (compState && suppState && (compState.includes(suppState) || suppState.includes(compState))) {
-                              newGstType = "local";
-                            } else {
-                              newGstType = s.gstType || "local";
-                            }
+                            newGstType = s.gstType || "local";
                           }
                         }
-
-                        setGstType(newGstType);
-                        const parsedAddresses = safeDetails(s?.addresses);
-                        const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
-                        let addrText = "";
-                        if (primaryAddr) {
-                          const parts = [
-                            primaryAddr.address || primaryAddr.line1,
-                            primaryAddr.cityName,
-                            primaryAddr.stateName,
-                            primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""
-                          ].filter(Boolean);
-                          addrText = parts.join(", ");
-                        }
-
-                        setHeader(h => ({ ...h, supplierId: val, supplierName: toTitleCase(s?.supplierName || ""), supplierAddress: addrText, supplierGst: s?.gstNo || "" }));
-                        setDetails(prev => prev.map(row => calcRow(row, newGstType)));
-                      }}
-                      options={suppliers.map(s => ({ value: sid(s), label: s.supplierName }))}
-                      placeholder="Select supplier"
-                    />
+                      }
+                      setGstType(newGstType);
+                      const parsedAddresses = safeDetails(s?.addresses);
+                      const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
+                      let addrText = "";
+                      if (primaryAddr) {
+                        const parts = [primaryAddr.address || primaryAddr.line1, primaryAddr.cityName, primaryAddr.stateName, primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""].filter(Boolean);
+                        addrText = parts.join(", ");
+                      }
+                      setHeader(h => ({ ...h, supplierId: val, supplierName: toTitleCase(s?.supplierName || ""), supplierAddress: addrText, supplierGst: s?.gstNo || "" }));
+                      setDetails(prev => prev.map(row => calcRow(row, newGstType)));
+                    }} options={suppliers.map(s => ({ value: sid(s), label: s.supplierName }))} placeholder="Select supplier" />
                   </div>
-                  <button 
-                    type="button" 
-                    className="inv-btn-icon" 
-                    title="Add New Supplier" 
-                    onClick={() => navigate("/supplier")} 
-                    style={{ color: "#10b981" }}
-                    tabIndex={5}  // Remove from tab order
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  <button type="button" className="inv-btn-icon" onClick={() => navigate("/supplier")} style={{ color: "#10b981" }} tabIndex={-1}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                   </button>
                   {header.supplierId && (
-                    <button 
-                      type="button" 
-                      className="inv-btn-icon" 
-                      title="View Supplier Details" 
-                      onClick={() => {
-                        const s = suppliers.find(x => sid(x) === header.supplierId);
-                        if (s) setViewingSupplier(s);
-                      }}
-                      tabIndex={-1}  // Remove from tab order
-                    >
+                    <button type="button" className="inv-btn-icon" onClick={() => { const s = suppliers.find(x => sid(x) === header.supplierId); if (s) setViewingSupplier(s); }} tabIndex={-1}>
                       <ViewIcon />
                     </button>
                   )}
@@ -1313,398 +1315,175 @@ useEffect(() => {
               </Field>
               
               <Field label="Reference No">
-                <input 
-                  tabIndex={6}  // Fifth field
-                  className="inv-input" 
-                  value={header.refNo} 
-                  onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} 
-                  placeholder="e.g. Quote #123" 
-                />
+                <input tabIndex={5} className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" />
               </Field>
               
               <Field label="Delivery Date">
-                <input 
-                  tabIndex={7}  // Sixth field
-                  className="inv-input" 
-                  type="date" 
-                  value={header.deliveryDate} 
-                  onChange={e => setHeader(h => ({ ...h, deliveryDate: e.target.value }))} 
-                  placeholder="dd-mm-yyyy" 
-                />
-              </Field>
+  <input 
+    tabIndex={6} 
+    className="inv-input" 
+    type="date" 
+    min="2026-05-01"
+    value={header.deliveryDate || ""} 
+    onChange={e => {
+      const selectedDate = e.target.value;
+      const minDate = "2026-05-01";
+      if (selectedDate < minDate) {
+        setHeader(h => ({ ...h, deliveryDate: minDate, deliveryDateError: "Past dates are not allowed." }));
+      } else {
+        setHeader(h => ({ ...h, deliveryDate: selectedDate, deliveryDateError: "" }));
+      }
+    }} 
+  />
+  {header.deliveryDateError && (
+    <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+      ⚠️ {header.deliveryDateError}
+    </div>
+  )}
+</Field>
               
               <Field label="GST No">
-                <input 
-                  tabIndex={8}  // Seventh field
-                  className="inv-input" 
-                  value={header.supplierGst} 
-                  readOnly 
-                  style={{ background: "#f8fafc" }} 
-                />
+                <input tabIndex={7} className="inv-input" value={header.supplierGst} readOnly style={{ background: "#f8fafc" }} />
               </Field>
               
               <Field label="GST Type (Auto)">
-                <input 
-                  tabIndex={9}  // Eighth field
-                  className="inv-input" 
-                  value={!gstType ? "" : (gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)")} 
-                  readOnly 
-                  style={{ background: "#f8fafc", color: "#64748b" }} 
-                />
+                <input tabIndex={8} className="inv-input" value={!gstType ? "" : (gstType === "local" ? "Local (SGST+CGST)" : "Other State (IGST)")} readOnly style={{ background: "#f8fafc", color: "#64748b" }} />
               </Field>
-            </FormGrid>            
+            </FormGrid>
           </div>
         </div>
 
-          <div className="inv-card" style={{ padding: 0, overflow: "hidden" }}>
-            <div className="inv-card-body" style={{ minHeight: "400px", padding: 0 }}>
-              <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "16px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button 
-                className="inv-btn-secondary inv-btn-sm" 
-                onClick={() => {
-                  setPendingModalOpen(true);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    setPendingModalOpen(true);
-                  }
-                }}
-                style={{ borderRadius: 4 }}
-                tabIndex={9}
-              >
-                + Pick Indent
-              </button>
-                 <button 
-                  className="inv-btn-primary inv-btn-sm" 
-                  onClick={() => {
-                    const newRow = {
-                      _rowId: Math.random(),
-                      indentDetailId: "",
-                      indentNo: "",
-                      itemId: "",
-                      itemName: "",
-                      uom: "",
-                      balQty: 0,
-                      poQty: 0,
-                      poRate: 0,
-                      discMode: "pct",
-                      discPct: 0,
-                      discPrice: 0,
-                      poAmount: 0,
-                      gstPct: 0,
-                      sgst: 0,
-                      cgst: 0,
-                      igst: 0,
-                      totGst: 0,
-                      totalAmount: 0
-                    };
-                    setDetails(p => [...p, newRow]);
-                    setTableEnabled(true);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+        <div className="inv-card" style={{ padding: 0, overflow: "hidden" }}>
+          <div className="inv-card-body" style={{ minHeight: "400px", padding: 0 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "16px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button 
+                  ref={pickIndentRef}
+                  className="inv-btn-secondary inv-btn-sm" 
+                  onClick={() => setPendingModalOpen(true)}
+                  onKeyDown={(e) => { 
+                    if (e.key === 'Enter') { 
+                      e.preventDefault(); 
+                      setPendingModalOpen(true); 
+                    }
+                    if (e.key === 'Tab' && !e.shiftKey) {
                       e.preventDefault();
-                      const newRow = {
-                        _rowId: Math.random(),
-                        indentDetailId: "",
-                        indentNo: "",
-                        itemId: "",
-                        itemName: "",
-                        uom: "",
-                        balQty: 0,
-                        poQty: 0,
-                        poRate: 0,
-                        discMode: "pct",
-                        discPct: 0,
-                        discPrice: 0,
-                        poAmount: 0,
-                        gstPct: 0,
-                        sgst: 0,
-                        cgst: 0,
-                        igst: 0,
-                        totGst: 0,
-                        totalAmount: 0
-                      };
-                      setDetails(p => [...p, newRow]);
-                      setTableEnabled(true);
-                      
-                      setTimeout(() => {
-                        const lastRow = document.querySelector('tbody tr:last-child');
-                        if (lastRow) {
-                          const firstInput = lastRow.querySelector('input');
-                          if (firstInput) firstInput.focus();
-                        }
-                      }, 150);
+                      e.stopPropagation();
+                      const viewListBtn = document.querySelector('.inv-page-header button:first-child');
+                      if (viewListBtn) viewListBtn.focus();
                     }
                   }}
                   style={{ borderRadius: 4 }}
-                  tabIndex={10}
+                  tabIndex={9}
                 >
-                  + Add Row
+                  + Pick Indent
                 </button>
-                </div>
-              </div>
-              <div style={{ overflowX: "auto" }}>
-                <table className="inv-table-premium">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 40, textAlign: "center" }}>#</th>
-                      <th style={{ width: 140 }}>Indent No</th>
-                      <th style={{ minWidth: 200 }}>Item Description</th>
-                      <th style={{ width: 80, textAlign: "center" }}>UOM</th>
-                      <th style={{ width: 80, textAlign: "right" }}>Bal</th>
-                      <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
-                      <th style={{ width: 100, textAlign: "right" }}>Unit Price</th>
-                      <th style={{ width: 100, textAlign: "right" }}>Disc</th>
-                      <th style={{ width: 110, textAlign: "right" }}>PO Amt</th>
-                      <th style={{ width: 70, textAlign: "center" }}>GST%</th>
-                      <th style={{ width: 90, textAlign: "right" }}>IGST</th>
-                      <th style={{ width: 120, textAlign: "right" }}>Total</th>
-                      <th style={{ width: 40 }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {details.map((row, idx) => {
-                      const baseTabIndex = 15 + (idx * 11);
-                      const isLastRow = idx === details.length - 1;
-                      
-                      return (
-                        <tr key={row._rowId}>
-                          <td style={{ textAlign: "center" }}>{idx + 1}</td>
-                          
-                          {/* Indent No */}
-                          <td>
-                            <input
-                              tabIndex={tableEnabled ? baseTabIndex : -1}
-                              className="inv-input-cell"
-                              value={row.indentNo || ""}
-                              readOnly
-                            />
-                          </td>
-                          
-                          {/* Item Description */}
-                          <td>
-                            <input
-                              tabIndex={tableEnabled ? baseTabIndex + 1 : -1}
-                              className="inv-input-cell"
-                              value={row.itemName || ""}
-                              readOnly
-                            />
-                          </td>
-                          
-                          {/* UOM */}
-                          <td>
-                            <input
-                              tabIndex={tableEnabled ? baseTabIndex + 2 : -1}
-                              className="inv-input-cell"
-                              value={row.uom || ""}
-                              readOnly
-                            />
-                          </td>
-                          
-                          {/* Bal Qty */}
-                          <td>
-                            <input
-                              tabIndex={tableEnabled ? baseTabIndex + 3 : -1}
-                              className="inv-input-cell"
-                              value={row.balQty ? fmtQty(row.balQty) : "—"}
-                              readOnly
-                            />
-                          </td>
-                          
-                          {/* PO Qty */}
-                          <td>
-                            <input 
-                              tabIndex={tableEnabled ? baseTabIndex + 4 : -1}
-                              className="inv-input-cell" 
-                              type="number" 
-                              value={row.poQty} 
-                              onChange={e => updateDetail(idx, "poQty", e.target.value)} 
-                            />
-                          </td>
-                          
-                          {/* Unit Price */}
-                          <td>
-                            <input 
-                              tabIndex={tableEnabled ? baseTabIndex + 5 : -1}
-                              className="inv-input-cell" 
-                              type="number" 
-                              value={row.poRate} 
-                              onChange={e => updateDetail(idx, "poRate", e.target.value)} 
-                            />
-                          </td>
-                          
-                          {/* Discount */}
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center" }}>
-                              <input 
-                                tabIndex={tableEnabled ? baseTabIndex + 6 : -1}
-                                className="inv-input-cell" 
-                                type="number" 
-                                value={row.discMode === 'pct' ? row.discPct : row.discPrice} 
-                                onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} 
-                              />
-                              <button 
-                                type="button" 
-                                onClick={() => toggleDiscMode(idx)} 
-                                tabIndex={-1}
-                              >
-                                {row.discMode === 'pct' ? '%' : '₹'}
-                              </button>
-                            </div>
-                          </td>
-                          
-                          {/* PO Amount */}
-                          <td>
-                            <input 
-                              tabIndex={tableEnabled ? baseTabIndex + 7 : -1}
-                              className="inv-input-cell" 
-                              value={fmt(row.poAmount)} 
-                              readOnly 
-                            />
-                          </td>
-                          
-                          {/* GST% */}
-                          <td>
-                            <input
-                              tabIndex={tableEnabled ? baseTabIndex + 8 : -1}
-                              className="inv-input-cell"
-                              type="number"
-                              value={row.gstPct}
-                              onChange={e => updateDetail(idx, "gstPct", e.target.value)}
-                            />
-                          </td>
-                          
-                          {/* IGST */}
-                          <td>
-                            <input 
-                              tabIndex={tableEnabled ? baseTabIndex + 9 : -1}
-                              className="inv-input-cell" 
-                              value={fmt(row.totGst)} 
-                              readOnly 
-                            />
-                          </td>
-                          
-                          {/* Total */}
-                          <td>
-                            <input 
-                              tabIndex={tableEnabled ? baseTabIndex + 10 : -1}
-                              className="inv-input-cell" 
-                              value={fmt(row.totalAmount)} 
-                              readOnly 
-                              onKeyDown={(e) => {
-                                if (e.key === 'Tab' && !e.shiftKey && isLastRow && tableEnabled) {
-                                  e.preventDefault();
-                                  const addRowBtn = document.querySelector('button[tabIndex="10"]');
-                                  if (addRowBtn) addRowBtn.focus();
-                                }
-                              }}
-                            />
-                          </td>
-                          
-                          {/* Delete Button */}
-                          <td>
-                            <button 
-                              onClick={() => removeRow(idx)} 
-                              tabIndex={tableEnabled ? baseTabIndex + 11 : -1}
-                            >
-                              ✕
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
               </div>
             </div>
+            <div style={{ overflowX: "auto" }}>
+              <table className="inv-table-premium">
+                <thead>
+                  <tr>
+                    <th style={{ width: 40, textAlign: "center" }}>#</th>
+                    <th style={{ width: 140 }}>Indent No</th>
+                    <th style={{ minWidth: 200 }}>Item Description</th>
+                    <th style={{ width: 80, textAlign: "center" }}>UOM</th>
+                    <th style={{ width: 80, textAlign: "right" }}>Bal</th>
+                    <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
+                    <th style={{ width: 100, textAlign: "right" }}>Unit Price</th>
+                    <th style={{ width: 100, textAlign: "right" }}>Disc</th>
+                    <th style={{ width: 110, textAlign: "right" }}>PO Amt</th>
+                    <th style={{ width: 70, textAlign: "center" }}>GST%</th>
+                    <th style={{ width: 90, textAlign: "right" }}>IGST</th>
+                    <th style={{ width: 120, textAlign: "right" }}>Total</th>
+                    <th style={{ width: 40 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {details.map((row, idx) => {
+                    const baseTabIndex = 10 + (idx * 4);
+                    const isLastRow = idx === details.length - 1;
+                    const hasItems = row.itemId || row.itemName;
+                    
+                    return (
+                      <tr key={row._rowId}>
+                        <td style={{ textAlign: "center" }}>{idx + 1}</td>
+                        <td><input tabIndex={-1} className="inv-input-cell" value={row.indentNo || ""} readOnly /></td>
+                        <td><input tabIndex={-1} className="inv-input-cell" value={row.itemName || ""} readOnly /></td>
+                        <td><input tabIndex={-1} className="inv-input-cell" value={row.uom || ""} readOnly /></td>
+                        <td><input tabIndex={-1} className="inv-input-cell" value={row.balQty ? fmtQty(row.balQty) : "—"} readOnly /></td>
+                        <td><input tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex : -1} className="inv-input-cell" type="number" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} /></td>
+                        <td><input tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 1 : -1} className="inv-input-cell" type="number" value={row.poRate} onChange={e => updateDetail(idx, "poRate", e.target.value)} /></td>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center" }}>
+                            <input tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 2 : -1} className="inv-input-cell" type="number" value={row.discMode === 'pct' ? row.discPct : row.discPrice} onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} />
+                            <button type="button" onClick={() => toggleDiscMode(idx)} tabIndex={-1}>{row.discMode === 'pct' ? '%' : '₹'}</button>
+                          </div>
+                        </td>
+                        <td><input tabIndex={-1} className="inv-input-cell" value={fmt(row.poAmount)} readOnly /></td>
+                        <td><input tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 3 : -1} className="inv-input-cell" type="number" value={row.gstPct} onChange={e => updateDetail(idx, "gstPct", e.target.value)} /></td>
+                        <td><input tabIndex={-1} className="inv-input-cell" value={fmt(row.totGst)} readOnly /></td>
+                        <td><input tabIndex={-1} className="inv-input-cell" value={fmt(row.totalAmount)} readOnly /></td>
+                        <td style={{ textAlign: "center" }}>
+                          <button 
+                            onClick={() => removeRow(idx)} 
+                            tabIndex={isLastRow && (itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 4 : -1}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Tab' && !e.shiftKey && isLastRow && (itemsFromPickIndent || tableEnabled) && hasItems) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const pickIndentBtn = document.querySelector('button[tabIndex="9"]');
+                                if (pickIndentBtn) pickIndentBtn.focus();
+                              }
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
+        </div>
 
-        {/* ── Summary card ── */}
+        {/* Summary card */}
         <div className="inv-card">
           <div className="inv-card-body">
-
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, padding: "10px 20px" }}>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Gross Amount</div>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.grossAmount)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Total Discount</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#b45309" }}>−₹{fmt(totals.discPrice)}</div>
-                <div style={{ fontSize: 11, color: "#92400e" }}>{Number(effectiveDiscPct || 0).toFixed(2)}% effective</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>PO Amount (after disc, before GST)</div>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Total GST</div>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.totGst)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>IGST (Other State)</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#7c3aed" }}>₹{fmt(totals.igst)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Grand Total</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>₹{fmt(totals.totalAmount)}</div>
-              </div>
+              <div><div style={{ fontSize: 11, color: "#64748b" }}>Gross Amount</div><div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.grossAmount)}</div></div>
+              <div><div style={{ fontSize: 11, color: "#64748b" }}>Total Discount</div><div style={{ fontSize: 18, fontWeight: 700, color: "#b45309" }}>−₹{fmt(totals.discPrice)}</div><div style={{ fontSize: 11, color: "#92400e" }}>{Number(effectiveDiscPct || 0).toFixed(2)}% effective</div></div>
+              <div><div style={{ fontSize: 11, color: "#64748b" }}>PO Amount (after disc, before GST)</div><div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div></div>
+              <div><div style={{ fontSize: 11, color: "#64748b" }}>Total GST</div><div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.totGst)}</div></div>
+              <div><div style={{ fontSize: 11, color: "#64748b" }}>IGST (Other State)</div><div style={{ fontSize: 18, fontWeight: 700, color: "#7c3aed" }}>₹{fmt(totals.igst)}</div></div>
+              <div><div style={{ fontSize: 11, color: "#64748b" }}>Grand Total</div><div style={{ fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>₹{fmt(totals.totalAmount)}</div></div>
             </div>
 
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
                 <div className="inv-field-v">
                   <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
-                  <input 
-                    className="inv-input" 
-                    value={header.preparedBy || ""} 
-                    onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
-                    placeholder="System Administrator"
-                  />
+                  <input className="inv-input" value={header.preparedBy || ""} onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))} placeholder="System Administrator" />
                 </div>
                 <div className="inv-field-v">
                   <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Remarks & Special Instructions</label>
-                  <textarea
-                    className="inv-input"
-                    style={{ height: 40, resize: "none", fontSize: "13px", padding: "12px" }}
-                    value={header.remarks || ""}
-                    onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))}
-                    placeholder="Enter any specific terms, instructions or internal notes..."
-                  />
+                  <textarea className="inv-input" style={{ height: 40, resize: "none", fontSize: "13px", padding: "12px" }} value={header.remarks || ""} onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))} placeholder="Enter any specific terms, instructions or internal notes..." />
                 </div>
               </div>
             </div>
-
           </div>
         </div>
       </div>
 
       {pendingModalOpen && (
-        <Modal 
-          title="Pick Pending Indent Lines" 
-          onClose={() => setPendingModalOpen(false)} 
-          onSave={addPendingLinesToDetails} 
-          saveLabel={`Add ${pendingSelected.size} Item(s) to PO`}
-          full={true}
-        >
+        <Modal title="Pick Pending Indent Lines" onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); }} onSave={() => { addPendingLinesToDetails(); setPendingModalOpen(false); setPendingSelected(new Set()); }} saveLabel={`Add ${pendingSelected.size} Item(s) to PO`} full={true}>
           <div style={{ padding: "0 10px" }}>
             <table className="inv-table-premium">
               <thead>
                 <tr>
-                  <th style={{ width: 40, textAlign: "center" }}>
-                    <input 
-                      type="checkbox" 
-                      style={{ width: 18, height: 18, cursor: "pointer" }}
-                      checked={pendingIndentRows.length > 0 && pendingSelected.size === pendingIndentRows.length}
-                      onChange={e => { 
-                        if (e.target.checked) setPendingSelected(new Set(pendingIndentRows.map(r => r.rowId))); 
-                        else setPendingSelected(new Set()); 
-                      }} 
-                    />
-                  </th>
+                  <th style={{ width: 40, textAlign: "center" }}><input type="checkbox" style={{ width: 18, height: 18, cursor: "pointer" }} checked={pendingIndentRows.length > 0 && pendingSelected.size === pendingIndentRows.length} onChange={e => { if (e.target.checked) setPendingSelected(new Set(pendingIndentRows.map(r => r.rowId))); else setPendingSelected(new Set()); }} /></th>
                   <th style={{ width: 120 }}>Indent No</th>
                   <th style={{ width: 100 }}>Date</th>
                   <th style={{ width: 120 }}>Department</th>
@@ -1719,23 +1498,9 @@ useEffect(() => {
                   <tr><td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#64748b" }}>No pending indents available</td></tr>
                 )}
                 {pendingIndentRows.map(r => (
-                  <tr key={r.rowId} onClick={() => {
-                    const n = new Set(pendingSelected);
-                    if (n.has(r.rowId)) n.delete(r.rowId); else n.add(r.rowId);
-                    setPendingSelected(n);
-                  }} style={{ cursor: "pointer" }}>
+                  <tr key={r.rowId} onClick={() => { const n = new Set(pendingSelected); if (n.has(r.rowId)) n.delete(r.rowId); else n.add(r.rowId); setPendingSelected(n); }} style={{ cursor: "pointer" }}>
                     <td style={{ textAlign: "center" }} onClick={e => e.stopPropagation()}>
-                      <input 
-                        type="checkbox" 
-                        style={{ width: 18, height: 18, cursor: "pointer" }}
-                        checked={pendingSelected.has(r.rowId)} 
-                        onChange={() => { 
-                          const n = new Set(pendingSelected); 
-                          if (n.has(r.rowId)) n.delete(r.rowId); 
-                          else n.add(r.rowId); 
-                          setPendingSelected(n); 
-                        }} 
-                      />
+                      <input type="checkbox" style={{ width: 18, height: 18, cursor: "pointer" }} checked={pendingSelected.has(r.rowId)} onChange={() => { const n = new Set(pendingSelected); if (n.has(r.rowId)) n.delete(r.rowId); else n.add(r.rowId); setPendingSelected(n); }} />
                     </td>
                     <td style={{ fontWeight: 600, color: "var(--accent)" }}>{r.indentNo}</td>
                     <td style={{ fontSize: "12px" }}>{r.indentDate}</td>
@@ -1752,23 +1517,9 @@ useEffect(() => {
         </Modal>
       )}
 
-      {viewingSupplier && (
-        <SupplierDetailsModal supplier={viewingSupplier} onClose={() => setViewingSupplier(null)} />
-      )}
-
+      {viewingSupplier && <SupplierDetailsModal supplier={viewingSupplier} onClose={() => setViewingSupplier(null)} />}
       {saveSuccessModal && (
-        <Modal 
-          title="Success" 
-          onClose={() => {
-            setSaveSuccessModal(false);
-            setView("list");
-          }} 
-          onSave={() => {
-            setSaveSuccessModal(false);
-            setView("list");
-          }} 
-          saveLabel="Go to List"
-        >
+        <Modal title="Success" onClose={() => { setSaveSuccessModal(false); setView("list"); }} onSave={() => { setSaveSuccessModal(false); setView("list"); }} saveLabel="Go to List">
           <div style={{ textAlign: "center", padding: 20 }}>
             <div style={{ fontSize: 48, color: "#10b981" }}>✓</div>
             <h3 style={{ fontSize: 18, fontWeight: 600 }}>Saved Successfully!</h3>
