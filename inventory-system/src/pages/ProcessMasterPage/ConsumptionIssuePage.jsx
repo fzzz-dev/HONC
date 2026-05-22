@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import {
   consumptionIssueApi,
@@ -50,23 +50,23 @@ const getFY = () => {
   return m < 4 ? `${y - 1}-${y}` : `${y}-${y + 1}`;
 };
 
-
 export default function ConsumptionIssuePage() {
   const { user } = useAuth();
   const today = new Date().toISOString().split("T")[0];
 
-  // ── State ──
   const [issues, setIssues] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [stores, setStores] = useState([]);
   const [items, setItems] = useState([]);
   const [grns, setGrns] = useState([]);
+  const [tableEnabled, setTableEnabled] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("form");
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const lastRowRef = useRef(null);
 
   const [header, setHeader] = useState({
     issNo: "",
@@ -82,7 +82,6 @@ export default function ConsumptionIssuePage() {
   });
   const [details, setDetails] = useState([emptyDetail()]);
 
-  // ── Fetch ──
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -110,8 +109,13 @@ export default function ConsumptionIssuePage() {
     openNew();
   }, [loadData]);
 
+  useEffect(() => {
+    setTimeout(() => {
+      const firstField = document.querySelector('[tabIndex="1"]');
+      if (firstField) firstField.focus();
+    }, 100);
+  }, []);
 
-  // ── Handlers ──
   async function openNew() {
     let nextNo = "";
     try {
@@ -136,8 +140,8 @@ export default function ConsumptionIssuePage() {
     setDetails([emptyDetail()]);
     setEditId(null);
     setView("form");
+    setTableEnabled(true);
   }
-
 
   function openEdit(rec) {
     setHeader({
@@ -155,6 +159,7 @@ export default function ConsumptionIssuePage() {
     setDetails((rec.details || []).map((d) => ({ ...d, _rowId: Math.random() })));
     setEditId(rec.id);
     setView("form");
+    setTableEnabled(true);
   }
 
   function updateDetail(idx, field, val) {
@@ -192,9 +197,43 @@ export default function ConsumptionIssuePage() {
     });
   }
 
+  const hasTableValues = () => {
+    return details.some(row => row.itemName || row.grnNo || Number(row.issueQty) > 0);
+  };
+
+  const addRow = () => {
+    setDetails(prev => [...prev, emptyDetail()]);
+    setTableEnabled(true);
+  };
+
+  const focusOnFirstTableField = () => {
+    setTableEnabled(true);
+    setTimeout(() => {
+      const firstRow = document.querySelector('tbody tr:first-child');
+      if (firstRow) {
+        const firstSearchSelect = firstRow.querySelector('.item-select-field .search-select__control');
+        if (firstSearchSelect) {
+          firstSearchSelect.focus();
+        }
+      }
+    }, 100);
+  };
+
+  function removeRow(idx) {
+    setDetails(p => p.filter((_, i) => i !== idx));
+  }
+
   function printIssue() {
     const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const company = JSON.parse(localStorage.getItem("company") || "{}");
+
+    const totals = details.reduce(
+      (acc, r) => ({
+        issueQty: acc.issueQty + Number(r.issueQty || 0),
+        amount: acc.amount + Number(r.amount || 0),
+      }),
+      { issueQty: 0, amount: 0 },
+    );
 
     const html = `<!DOCTYPE html>
 <html>
@@ -250,11 +289,11 @@ export default function ConsumptionIssuePage() {
       </tr>
     </table>
     <table class="items-table">
-      <thead><tr><th style="width: 50px;">S.No</th><th>Item Description</th><th>GRN No</th><th style="width: 80px;">Qty</th><th style="width: 80px;">Rate</th><th style="width: 100px;">Amount</th></tr></thead>
+      <thead><tr><th style="width: 50px;">S.No</th><th>Item Description</th><th>GRN No</th><th style="width: 80px;">Qty</th><th style="width: 80px;">Rate</th><th style="width: 100px;">Amount</th></td></thead>
       <tbody>
-        ${details.map((d, i) => `<tr><td class="text-center">${i + 1}</td><td>${esc(d.itemName)}</td><td class="text-center">${esc(d.grnNo)}</td><td class="text-right">${Number(d.issueQty).toFixed(2)}</td><td class="text-right">${Number(d.rate).toFixed(2)}</td><td class="text-right">${Number(d.amount).toFixed(2)}</td></tr>`).join("")}
+        ${details.map((d, i) => `<tr><td class="text-center">${i + 1}</td><td class="text-center">${esc(d.itemName)}</td><td class="text-center">${esc(d.grnNo)}</td><td class="text-right">${Number(d.issueQty).toFixed(2)}</td><td class="text-right">${Number(d.rate).toFixed(2)}</td><td class="text-right">${Number(d.amount).toFixed(2)}</tr>`).join("")}
       </tbody>
-      <tfoot><tr class="bold"><td colspan="3" class="text-right">TOTAL</td><td class="text-right">${totals.issueQty.toFixed(2)}</td><td></td><td class="text-right">₹${totals.amount.toFixed(2)}</td></tr></tfoot>
+      <tfoot><tr class="bold"><td colspan="3" class="text-right">TOTAL</td><td class="text-right">${totals.issueQty.toFixed(2)}</td><td class="text-right">${totals.amount.toFixed(2)}</td><td class="text-right">₹${totals.amount.toFixed(2)}</td></tr></tfoot>
     </table>
     <div class="remarks-box"><div class="label">General Remarks:</div><div style="font-size: 10px;">${esc(header.remarks || "No remarks")}</div></div>
     <div class="footer-signatures">
@@ -283,7 +322,6 @@ export default function ConsumptionIssuePage() {
       } else {
         await consumptionIssueApi.create(payload);
       }
-
       await loadData();
       setView("list");
     } catch (err) {
@@ -313,7 +351,6 @@ export default function ConsumptionIssuePage() {
 
   if (loading && view === "list") return <div className="inv-empty">Loading...</div>;
 
-  /* ── LIST ── */
   if (view === "list") {
     const filteredIssues = issues.filter(iss => iss.issNo.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -348,9 +385,7 @@ export default function ConsumptionIssuePage() {
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="inv-btn-secondary" onClick={exportToExcel}>Export to Excel</button>
-            <button className="inv-btn-primary" onClick={openNew}>
-              + New Issue
-            </button>
+            <button className="inv-btn-primary" onClick={openNew}>+ New Issue</button>
           </div>
         </div>
 
@@ -387,7 +422,9 @@ export default function ConsumptionIssuePage() {
                 </thead>
                 <tbody>
                   {filteredIssues.length === 0 && (
-                    <tr><td colSpan={9} className="inv-empty">No records found</td></tr>
+                    <td>
+                      <td colSpan={9} className="inv-empty">No records found</td>
+                    </td>
                   )}
                   {filteredIssues.map((rec, i) => {
                     let safeDetails = Array.isArray(rec.details) ? rec.details : [];
@@ -408,12 +445,8 @@ export default function ConsumptionIssuePage() {
                         <td>₹{fmt(amt)}</td>
                         <td>
                           <div className="inv-actions">
-                            <button className="inv-btn-icon" onClick={() => openEdit(rec)}>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                            </button>
-                            <button className="inv-btn-icon inv-btn-danger" onClick={() => handleDelete(rec.id)}>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
-                            </button>
+                            <button className="inv-btn-icon" onClick={() => openEdit(rec)}>Edit</button>
+                            <button className="inv-btn-icon inv-btn-danger" onClick={() => handleDelete(rec.id)}>Del</button>
                           </div>
                         </td>
                       </tr>
@@ -428,7 +461,22 @@ export default function ConsumptionIssuePage() {
     );
   }
 
-  /* ── FORM ── */
+  const getAddRowTabIndex = () => {
+    return 7 + (details.length * 8);
+  };
+
+  const getViewConsumptionTabIndex = () => {
+    return 8 + (details.length * 8);
+  };
+
+  const getPrintTabIndex = () => {
+    return 9 + (details.length * 8);
+  };
+
+  const getSaveTabIndex = () => {
+    return 10 + (details.length * 8);
+  };
+
   return (
     <div className="inv-page">
       <div className="inv-page-header">
@@ -437,32 +485,30 @@ export default function ConsumptionIssuePage() {
           <p className="inv-page-sub">Issue materials from store to department</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-secondary" onClick={() => setView("list")}>View Consumption</button>
-          <button className="inv-btn-secondary" onClick={printIssue}>Print</button>
-          <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save Issue"}</button>
+          <button className="inv-btn-secondary" onClick={() => setView("list")} tabIndex={getViewConsumptionTabIndex()}>View Consumption</button>
+          <button className="inv-btn-secondary" onClick={printIssue} tabIndex={getPrintTabIndex()}>Print</button>
+          <button className="inv-btn-primary" onClick={handleSave} disabled={saving} tabIndex={getSaveTabIndex()}>{saving ? "Saving..." : "Save Issue"}</button>
         </div>
       </div>
 
       <div className="inv-card" style={{ minHeight: "160px" }}>
         <div className="inv-card-body" style={{ padding: "24px" }}>
-
           <FormGrid>
             <Field label="ISS No (Auto)">
-              <input className="inv-input" value={header.issNo} readOnly style={{ background: "#f8f9fa", color: "#4f46e5", fontWeight: 600 }} />
+              <input className="inv-input" value={header.issNo} readOnly style={{ background: "#f8f9fa", color: "#4f46e5", fontWeight: 600 }} tabIndex={1} />
             </Field>
             <Field label="Issue Date">
-              <input className="inv-input" type="date" value={header.date} onChange={(e) => setHeader(h => ({ ...h, date: e.target.value }))} />
+              <input className="inv-input" type="date" value={header.date} onChange={(e) => setHeader(h => ({ ...h, date: e.target.value }))} tabIndex={2} />
             </Field>
-
             <Field label="Issue Type">
-              <select className="inv-input" value={header.issueType} onChange={(e) => setHeader(h => ({ ...h, issueType: e.target.value }))}>
+              <select className="inv-input" value={header.issueType} onChange={(e) => setHeader(h => ({ ...h, issueType: e.target.value }))} tabIndex={3}>
                 <option value="General">General</option>
                 <option value="Product">Product</option>
               </select>
             </Field>
             {header.issueType === "Product" && (
               <Field label="Item Description *">
-                <select className="inv-input" value={header.itemId} onChange={(e) => setHeader(h => ({ ...h, itemId: e.target.value }))}>
+                <select className="inv-input" value={header.itemId} onChange={(e) => setHeader(h => ({ ...h, itemId: e.target.value }))} tabIndex={4}>
                   <option value="">Select Item Description</option>
                   {items.map(it => <option key={it.id} value={it.id}>{it.itemName}</option>)}
                 </select>
@@ -477,6 +523,7 @@ export default function ConsumptionIssuePage() {
                 }}
                 options={departments.map(d => ({ value: String(d.id), label: d.name }))}
                 placeholder="Select department"
+                tabIndex={5}
               />
             </Field>
             <Field label="Store *">
@@ -488,6 +535,7 @@ export default function ConsumptionIssuePage() {
                 }}
                 options={stores.map(s => ({ value: String(s.id), label: s.name }))}
                 placeholder="Select store"
+                tabIndex={6}
               />
             </Field>
           </FormGrid>
@@ -496,66 +544,186 @@ export default function ConsumptionIssuePage() {
 
       <div className="inv-card" style={{ minHeight: "450px" }}>
         <div className="inv-card-body">
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-            <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
+          {/* Add Row button - ABOVE the table */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+            <button 
+              className="inv-btn-primary inv-btn-sm" 
+              onClick={() => {
+                addRow();
+                // Focus on the new row's item field
+                setTimeout(() => {
+                  if (lastRowRef.current) {
+                    const itemField = lastRowRef.current.querySelector('.item-select-field .search-select__control');
+                    if (itemField) {
+                      itemField.focus();
+                    }
+                  }
+                }, 150);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  addRow();
+                  // Focus on the new row's item field
+                  setTimeout(() => {
+                    if (lastRowRef.current) {
+                      const itemField = lastRowRef.current.querySelector('.item-select-field .search-select__control');
+                      if (itemField) {
+                        itemField.focus();
+                      }
+                    }
+                  }, 150);
+                }
+              }}
+              tabIndex={getAddRowTabIndex()}
+            >
+              + Add Row
+            </button>
           </div>
+
           <div style={{ overflowX: "auto" }}>
             <table className="inv-table">
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>Item</th>
-                  <th>GRN No</th>
-                  <th>Stk Qty</th>
-                  <th>Stk Unit Price</th>
-                  <th>Issue Qty</th>
-                  <th>Unit Price</th>
-                  <th>Amount</th>
-                  <th>Remarks</th>
-                  <th></th>
+                  <th style={{ width: "5%", textAlign: "center" }}>#</th>
+                  <th style={{ width: "18%", textAlign: "left" }}>Item *</th>
+                  <th style={{ width: "12%", textAlign: "left" }}>GRN No</th>
+                  <th style={{ width: "10%", textAlign: "right" }}>Stk Qty</th>
+                  <th style={{ width: "12%", textAlign: "right" }}>Stk Unit Price</th>
+                  <th style={{ width: "10%", textAlign: "right" }}>Issue Qty *</th>
+                  <th style={{ width: "10%", textAlign: "right" }}>Unit Price</th>
+                  <th style={{ width: "8%", textAlign: "right" }}>Amount</th>
+                  <th style={{ width: "15%", textAlign: "left" }}>Remarks</th>
+                  <th style={{ width: "5%", textAlign: "center" }}></th>
                 </tr>
               </thead>
               <tbody>
-                {details.map((row, idx) => (
-                  <tr key={row._rowId}>
-                    <td>{idx + 1}</td>
-                    <td>
-                      <SearchSelect 
-                        style={{ minWidth: 200, border: "none" }}
-                        value={row.itemName} 
-                        onChange={val => updateDetail(idx, "itemName", val)}
-                        options={items.map(it => ({ value: it.itemDescription || it.itemName, label: it.itemDescription || it.itemName }))}
-                        placeholder="Select Item"
-                      />
-                    </td>
-                    <td>
-                      <SearchSelect 
-                        style={{ minWidth: 120, border: "none" }}
-                        value={row.grnNo} 
-                        onChange={val => updateDetail(idx, "grnNo", val)}
-                        options={grns.map(g => ({ value: g.grnNo, label: g.grnNo }))}
-                        placeholder="Select GRN"
-                      />
-                    </td>
-                    <td><input type="number" step="0.001" className="inv-input" style={{ border: "none", width: 80 }} value={row.stkQty} onChange={e => updateDetail(idx, "stkQty", e.target.value)} onBlur={e => updateDetail(idx, "stkQty", Number(e.target.value || 0).toFixed(3))} /></td>
-                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.stkRate} onChange={e => updateDetail(idx, "stkRate", e.target.value)} /></td>
-                    <td><input type="number" step="0.001" className="inv-input" style={{ border: "none", width: 80 }} value={row.issueQty} onChange={e => updateDetail(idx, "issueQty", e.target.value)} onBlur={e => updateDetail(idx, "issueQty", Number(e.target.value || 0).toFixed(3))} /></td>
-                    <td><input type="number" className="inv-input" style={{ border: "none", width: 80 }} value={row.rate} onChange={e => updateDetail(idx, "rate", e.target.value)} /></td>
-                    <td style={{ textAlign: "right" }}>{fmt(row.amount)}</td>
-                    <td><input className="inv-input" style={{ border: "none", width: 120 }} value={row.issueRemarks} onChange={e => updateDetail(idx, "issueRemarks", e.target.value)} placeholder="Item remarks" /></td>
-                    <td>
-                      <button className="inv-btn-icon inv-btn-danger" onClick={() => setDetails(p => p.filter((_, i) => i !== idx))}>✕</button>
-                    </td>
-                  </tr>
-                ))}
+                {details.map((row, idx) => {
+                  const baseTabIndex = 7 + (idx * 8);
+                  const isLastRow = idx === details.length - 1;
+                  
+                  return (
+                    <tr key={row._rowId} ref={isLastRow ? lastRowRef : null}>
+                      <td style={{ textAlign: "center", verticalAlign: "middle" }}>
+                        {idx + 1}
+                      </td>
+                      <td>
+                        <SearchSelect 
+                          className="inv-select-cell item-select-field"
+                          style={{ minWidth: 180, border: "none", width: "100%" }}
+                          value={row.itemName} 
+                          onChange={val => updateDetail(idx, "itemName", val)}
+                          options={items.map(it => ({ value: it.itemDescription || it.itemName, label: it.itemDescription || it.itemName }))}
+                          placeholder="Select Item"
+                          tabIndex={tableEnabled ? baseTabIndex : -1}
+                        />
+                      </td>
+                      <td>
+                        <SearchSelect 
+                          style={{ minWidth: 120, border: "none", width: "100%" }}
+                          value={row.grnNo} 
+                          onChange={val => updateDetail(idx, "grnNo", val)}
+                          options={grns.map(g => ({ value: g.grnNo, label: g.grnNo }))}
+                          placeholder="Select GRN"
+                          tabIndex={tableEnabled ? baseTabIndex + 1 : -1}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="number" 
+                          step="0.001" 
+                          className="inv-input-cell" 
+                          style={{ width: "100%", textAlign: "right" }} 
+                          value={row.stkQty} 
+                          onChange={e => updateDetail(idx, "stkQty", e.target.value)}
+                          onBlur={e => updateDetail(idx, "stkQty", Number(e.target.value || 0).toFixed(3))}
+                          tabIndex={tableEnabled ? baseTabIndex + 2 : -1}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="number" 
+                          className="inv-input-cell" 
+                          style={{ width: "100%", textAlign: "right" }} 
+                          value={row.stkRate} 
+                          onChange={e => updateDetail(idx, "stkRate", e.target.value)}
+                          tabIndex={tableEnabled ? baseTabIndex + 3 : -1}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="number" 
+                          step="0.001" 
+                          className="inv-input-cell" 
+                          style={{ width: "100%", textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} 
+                          value={row.issueQty} 
+                          onChange={e => updateDetail(idx, "issueQty", e.target.value)} 
+                          onBlur={e => updateDetail(idx, "issueQty", Number(e.target.value || 0).toFixed(3))}
+                          tabIndex={tableEnabled ? baseTabIndex + 4 : -1}
+                        />
+                      </td>
+                      <td>
+                        <input 
+                          type="number" 
+                          className="inv-input-cell" 
+                          style={{ width: "100%", textAlign: "right" }} 
+                          value={row.rate} 
+                          onChange={e => updateDetail(idx, "rate", e.target.value)}
+                          tabIndex={tableEnabled ? baseTabIndex + 5 : -1}
+                        />
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: 600, verticalAlign: "middle" }}>
+                        {fmt(row.amount)}
+                      </td>
+                      <td>
+                        <input 
+                          className="inv-input-cell" 
+                          style={{ width: "100%" }} 
+                          value={row.issueRemarks} 
+                          onChange={e => updateDetail(idx, "issueRemarks", e.target.value)} 
+                          placeholder="Notes..."
+                          tabIndex={tableEnabled ? baseTabIndex + 6 : -1}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab' && !e.shiftKey && isLastRow && tableEnabled) {
+                              e.preventDefault();
+                              const deleteBtn = document.querySelector(`button[tabIndex="${baseTabIndex + 7}"]`);
+                              if (deleteBtn) deleteBtn.focus();
+                            }
+                          }}
+                        />
+                      </td>
+                      <td style={{ textAlign: "center", verticalAlign: "middle" }}>
+                        <button 
+                          className="inv-btn-icon inv-btn-danger" 
+                          onClick={() => removeRow(idx)} 
+                          style={{ border: "none", background: "transparent", cursor: "pointer" }}
+                          tabIndex={tableEnabled ? baseTabIndex + 7 : -1}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              removeRow(idx);
+                            }
+                            if (e.key === 'Tab' && !e.shiftKey && isLastRow && tableEnabled) {
+                              e.preventDefault();
+                              const addRowBtn = document.querySelector(`button[tabIndex="${getAddRowTabIndex()}"]`);
+                              if (addRowBtn) addRowBtn.focus();
+                            }
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
-                <tr>
-                  <td colSpan={6} style={{ textAlign: "right", fontWeight: 600 }}>Total</td>
-                  <td>{fmtQty(totals.issueQty)}</td>
-                  <td></td>
-                  <td></td>
-                  <td style={{ textAlign: "right", fontWeight: 600 }}>₹{fmt(totals.amount)}</td>
+                <tr style={{ background: "#f8fafc", fontWeight: 600 }}>
+                  <td colSpan={6} style={{ textAlign: "right", padding: "10px" }}>Total</td>
+                  <td style={{ textAlign: "right", padding: "10px" }}>{fmtQty(totals.issueQty)}</td>
+                  <td style={{ textAlign: "right", padding: "10px" }}></td>
+                  <td style={{ textAlign: "right", padding: "10px", fontWeight: 700, color: "#3b6ef8" }}>₹{fmt(totals.amount)}</td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -568,7 +736,6 @@ export default function ConsumptionIssuePage() {
         <div className="inv-card-body" style={{ padding: "24px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
             <div className="inv-field-v">
-
               <input
                 className="inv-input"
                 value={header.preparedBy}
@@ -577,7 +744,6 @@ export default function ConsumptionIssuePage() {
               />
             </div>
             <div className="inv-field-v">
-
               <textarea
                 className="inv-input"
                 style={{ height: 40, resize: "none" }}
@@ -592,4 +758,3 @@ export default function ConsumptionIssuePage() {
     </div>
   );
 }
-

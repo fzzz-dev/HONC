@@ -16,6 +16,7 @@ import {
   makeApi,
   specApi,
 } from "../services/inventoryApi";
+import * as XLSX from 'xlsx'; // Add this import
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
@@ -38,11 +39,11 @@ const EMPTY = {
   rackBinNo: "",
   rate: "",
   active: true,
-  image: null, // preview URL (string) or server URL
-  imageFile: null, // actual File object for new uploads
+  image: null,
+  imageFile: null,
 };
 
-const GST_OPTIONS = [ 5, 12, 18];
+const GST_OPTIONS = [5, 12, 18];
 
 export default function ItemPage() {
   // ── Data state ───────────────────────────────────────────────────────────────
@@ -59,9 +60,9 @@ export default function ItemPage() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({
-  // ... your other fields
-  gstPercent: "",
-  gstPercentError: "", });
+    gstPercent: "",
+    gstPercentError: "",
+  });
   const [filterHead, setFilterHead] = useState("");
   const [filterGroup, setFilterGroup] = useState("");
   const [modal, setModal] = useState(null);
@@ -89,15 +90,13 @@ export default function ItemPage() {
         await Promise.all([
           itemApi.getAll(),
           inventoryHeadApi.getAll(),
-          mainCategoryApi.getAll(), // returns [{ _id, headId, groupName, ... }]
+          mainCategoryApi.getAll(),
           uomApi.getAll(),
           makeApi.getAll(),
           specApi.getAll(),
         ]);
       setItems(itemsData);
       setHeads(headsData);
-      // Normalize headId to plain string — works whether controller returns
-      // a raw ObjectId string OR a populated object { _id, headName, ... }
       const normalizedCats = catsData.map((c) => ({
         ...c,
         headId:
@@ -116,19 +115,70 @@ export default function ItemPage() {
     }
   }
 
+  // ── Export to Excel function ─────────────────────────────────────────────────
+  const exportToExcel = () => {
+    // Define the columns to export
+    const columnsToExport = [
+      { header: "Item", key: "itemName" },
+      { header: "Head", key: "head" },
+      { header: "Category", key: "group" },
+      { header: "UOM", key: "uom" },
+      { header: "Make", key: "make" },
+      { header: "Spec", key: "spec" },
+      { header: "Movement", key: "movementType", transform: (val) => val === "moving" ? "Moving" : "Non-Moving" },
+      { header: "Description", key: "itemDescription" },
+      { header: "Unit Price", key: "rate", transform: (val) => `₹${Number(val || 0).toFixed(2)}` },
+    ];
+
+    // Get filtered data
+    const exportData = filtered.map(item => {
+      const row = {};
+      columnsToExport.forEach(col => {
+        let value = item[col.key];
+        if (col.transform) {
+          value = col.transform(value);
+        }
+        row[col.header] = value || "—";
+      });
+      return row;
+    });
+
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    
+    // Set column widths
+    const colWidths = [
+      { wch: 30 }, // Item
+      { wch: 20 }, // Head
+      { wch: 25 }, // Category
+      { wch: 10 }, // UOM
+      { wch: 20 }, // Make
+      { wch: 20 }, // Spec
+      { wch: 12 }, // Movement
+      { wch: 40 }, // Description
+      { wch: 15 }, // Unit Price
+    ];
+    ws['!cols'] = colWidths;
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Items");
+
+    // Download file
+    XLSX.writeFile(wb, `items_export_${new Date().toISOString().split("T")[0]}.xlsx`);
+  };
+
   // ── Derived dropdown options ──────────────────────────────────────────────────
   const headSelectOptions = heads.map((h) => ({
     value: String(h.id || h._id),
     label: h.headName,
   }));
 
-  // Groups for filter bar — match headId as strings to avoid ObjectId mismatch
   const filterGroupOptions = categories
     .filter((c) => !filterHead || String(c.headId) === String(filterHead))
     .map((c) => c.groupName)
     .filter((v, i, a) => v && a.indexOf(v) === i);
 
-  // Groups for modal — depend on selected headId in form
   const modalGroupOptions = categories
     .filter((c) => !form.headId || String(c.headId) === String(form.headId))
     .map((c) => c.groupName)
@@ -208,7 +258,7 @@ export default function ItemPage() {
       ...f,
       headId: val,
       head: head ? head.headName : "",
-      group: "", // reset group when head changes
+      group: "",
     }));
   }
 
@@ -220,104 +270,86 @@ export default function ItemPage() {
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────────
-
   async function handleSave() {
-  // Validate Item Description
-  if (!form.itemName.trim()) return alert("Item Description is required");
-  
-  // Validate Head
-  if (!form.headId || !form.head) return alert("Head is required");
-  
-  // Validate GST % - Required field
-  if (!form.gstPercent || form.gstPercent === "") {
-    setForm(f => ({ ...f, gstPercentError: "GST % is required. Please select a value." }));
-    return;
-  }
-
-  // Clear error before saving
-  setForm(f => ({ ...f, gstPercentError: "" }));
-
-  setSaving(true);
-  try {
-    let result;
-
-    if (form.imageFile) {
-      // Multipart upload when a new image file is selected
-      const fd = new FormData();
-      fd.append("image", form.imageFile);
-      fd.append("headId", form.headId);
-      fd.append("head", form.head);
-      fd.append("group", form.group);
-      fd.append("itemName", form.itemName);
-      fd.append("uom", form.uom);
-      fd.append("make", form.make);
-      fd.append("spec", form.spec);
-      fd.append("movementType", form.movementType);
-      fd.append("itemDescription", computedItemDescription);
-      fd.append("minimumStock", parseFloat(form.minimumStock) || 0);
-      fd.append("minimumOrderQty", parseFloat(form.minimumOrderQty) || 0);
-      fd.append("leadDays", parseInt(form.leadDays, 10) || 0);
-      fd.append("inTransitDays", parseInt(form.inTransitDays, 10) || 0);
-      fd.append("hsnCode", form.hsnCode);
-      fd.append("gstPercent", parseFloat(form.gstPercent) || 0);
-      fd.append("rackBinNo", form.rackBinNo);
-      fd.append("rate", parseFloat(form.rate) || 0);
-      fd.append("active", form.active);
-
-      const url =
-        modal.mode === "add"
+    if (!form.itemName.trim()) return alert("Item Description is required");
+    if (!form.headId || !form.head) return alert("Head is required");
+    if (!form.gstPercent || form.gstPercent === "") {
+      setForm(f => ({ ...f, gstPercentError: "GST % is required. Please select a value." }));
+      return;
+    }
+    setForm(f => ({ ...f, gstPercentError: "" }));
+    setSaving(true);
+    try {
+      let result;
+      if (form.imageFile) {
+        const fd = new FormData();
+        fd.append("image", form.imageFile);
+        fd.append("headId", form.headId);
+        fd.append("head", form.head);
+        fd.append("group", form.group);
+        fd.append("itemName", form.itemName);
+        fd.append("uom", form.uom);
+        fd.append("make", form.make);
+        fd.append("spec", form.spec);
+        fd.append("movementType", form.movementType);
+        fd.append("itemDescription", computedItemDescription);
+        fd.append("minimumStock", parseFloat(form.minimumStock) || 0);
+        fd.append("minimumOrderQty", parseFloat(form.minimumOrderQty) || 0);
+        fd.append("leadDays", parseInt(form.leadDays, 10) || 0);
+        fd.append("inTransitDays", parseInt(form.inTransitDays, 10) || 0);
+        fd.append("hsnCode", form.hsnCode);
+        fd.append("gstPercent", parseFloat(form.gstPercent) || 0);
+        fd.append("rackBinNo", form.rackBinNo);
+        fd.append("rate", parseFloat(form.rate) || 0);
+        fd.append("active", form.active);
+        const url = modal.mode === "add"
           ? `${API_BASE}/items`
           : `${API_BASE}/items/${modal.id}`;
-      const method = modal.mode === "add" ? "POST" : "PUT";
-
-      const res = await fetch(url, { method, body: fd });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      result = data.data;
-    } else {
-      // JSON upload — no new image
-      const payload = {
-        headId: form.headId,
-        head: form.head,
-        group: form.group,
-        itemName: form.itemName,
-        uom: form.uom,
-        make: form.make,
-        spec: form.spec,
-        movementType: form.movementType,
-        itemDescription: computedItemDescription,
-        minimumStock: parseFloat(form.minimumStock) || 0,
-        minimumOrderQty: parseFloat(form.minimumOrderQty) || 0,
-        leadDays: parseInt(form.leadDays, 10) || 0,
-        inTransitDays: parseInt(form.inTransitDays, 10) || 0,
-        hsnCode: form.hsnCode,
-        gstPercent: parseFloat(form.gstPercent) || 0,
-        rackBinNo: form.rackBinNo,
-        rate: parseFloat(form.rate) || 0,
-        active: form.active,
-        image: form.image, // null if removed, existing URL if unchanged
-      };
-
-      result =
-        modal.mode === "add"
+        const method = modal.mode === "add" ? "POST" : "PUT";
+        const res = await fetch(url, { method, body: fd });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message);
+        result = data.data;
+      } else {
+        const payload = {
+          headId: form.headId,
+          head: form.head,
+          group: form.group,
+          itemName: form.itemName,
+          uom: form.uom,
+          make: form.make,
+          spec: form.spec,
+          movementType: form.movementType,
+          itemDescription: computedItemDescription,
+          minimumStock: parseFloat(form.minimumStock) || 0,
+          minimumOrderQty: parseFloat(form.minimumOrderQty) || 0,
+          leadDays: parseInt(form.leadDays, 10) || 0,
+          inTransitDays: parseInt(form.inTransitDays, 10) || 0,
+          hsnCode: form.hsnCode,
+          gstPercent: parseFloat(form.gstPercent) || 0,
+          rackBinNo: form.rackBinNo,
+          rate: parseFloat(form.rate) || 0,
+          active: form.active,
+          image: form.image,
+        };
+        result = modal.mode === "add"
           ? await itemApi.create(payload)
           : await itemApi.update(modal.id, payload);
+      }
+      if (modal.mode === "add") {
+        setItems((prev) => [result, ...prev]);
+      } else {
+        setItems((prev) =>
+          prev.map((it) => ((it.id || it._id) === modal.id ? result : it))
+        );
+      }
+      setModal(null);
+    } catch (err) {
+      alert(err.message || "Save failed");
+    } finally {
+      setSaving(false);
     }
-
-    if (modal.mode === "add") {
-      setItems((prev) => [result, ...prev]);
-    } else {
-      setItems((prev) =>
-        prev.map((it) => ((it.id || it._id) === modal.id ? result : it)),
-      );
-    }
-    setModal(null);
-  } catch (err) {
-    alert(err.message || "Save failed");
-  } finally {
-    setSaving(false);
   }
-}
 
   async function handleQuickAddMake() {
     if (!makeForm.name.trim()) return alert("Make Name is required");
@@ -360,7 +392,6 @@ export default function ItemPage() {
     }
   }
 
-  // ── Delete ────────────────────────────────────────────────────────────────────
   async function handleDelete(id) {
     try {
       await itemApi.remove(id);
@@ -411,6 +442,9 @@ export default function ItemPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          <button className="inv-btn-ghost" onClick={exportToExcel}>
+            Export as Excel
+          </button>
           <button className="inv-btn-ghost" onClick={handleDownloadTemplate}>
             Download Template
           </button>
@@ -490,7 +524,7 @@ export default function ItemPage() {
             <thead>
               <tr>
                 <th>Image</th>
-                <th>Item </th>
+                <th>Item</th>
                 <th>Head</th>
                 <th>Category</th>
                 <th>UOM</th>
@@ -621,6 +655,8 @@ export default function ItemPage() {
         </div>
       </div>
 
+      {/* Rest of your modals remain the same */}
+      
       {/* Add / Edit Modal */}
       {modal && (
         <Modal
@@ -629,6 +665,7 @@ export default function ItemPage() {
           onSave={handleSave}
           saveLabel={saving ? "Saving…" : "Save"}
         >
+          {/* Modal content remains the same */}
           <FormGrid>
             <Field label="Head" required>
               <Select
@@ -810,7 +847,7 @@ export default function ItemPage() {
                   setForm((f) => ({ 
                     ...f, 
                     gstPercent: Number(v), 
-                    gstPercentError: ""  // Clear error when selected
+                    gstPercentError: ""
                   }));
                 }}
                 options={GST_OPTIONS.map(v => ({ value: v, label: `${v}%` }))}
