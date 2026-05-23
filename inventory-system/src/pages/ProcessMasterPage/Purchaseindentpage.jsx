@@ -10,7 +10,7 @@ import { SearchSelect } from "../../components/FormFields";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const today = () => new Date().toISOString().split("T")[0];
+const currentDate = new Date().toISOString().split("T")[0];
 const getFY = () => {
   const d = new Date();
   const m = d.getMonth() + 1;
@@ -40,15 +40,15 @@ const emptyDetail = () => ({
 
 const emptyHeader = () => ({
   indentNo: "", 
-  indentDate: today(),  // Add this line
-  date: today(), 
+  indentDate: currentDate,  // Add this line
+  date: currentDate, 
   departmentId: "", 
   departmentName: "", 
   createdBy: "Admin", 
-  createdOn: today(), 
+  createdOn: currentDate, 
   status: "Open", 
   remarks: "",
-  dueDate: today(), 
+  dueDate: currentDate, 
   preparedBy: ""
 });
 
@@ -104,6 +104,52 @@ export default function PurchaseIndentPage() {
           }
         }, []);
 
+        // Add this useEffect inside your PurchaseIndentPage component (after other useEffects)
+
+useEffect(() => {
+  const handleTabKey = (e) => {
+    if (e.key !== 'Tab') return;
+    
+    // Get all focusable elements with tabIndex (1 to 999)
+    const focusableElements = Array.from(
+      document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
+    ).filter(el => {
+      const tabIndex = parseInt(el.getAttribute('tabIndex'));
+      return !isNaN(tabIndex) && tabIndex >= 1 && el.offsetParent !== null && !el.disabled;
+    }).sort((a, b) => {
+      const tabA = parseInt(a.getAttribute('tabIndex'));
+      const tabB = parseInt(b.getAttribute('tabIndex'));
+      return tabA - tabB;
+    });
+    
+    if (focusableElements.length === 0) return;
+    
+    const currentElement = document.activeElement;
+    const currentIndex = focusableElements.indexOf(currentElement);
+    
+    // Tab key (forward)
+    if (!e.shiftKey) {
+      if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
+        e.preventDefault();
+        focusableElements[0].focus();
+      }
+    } 
+    // Shift+Tab key (backward)
+    else {
+      if (currentIndex === 0 || currentIndex === -1) {
+        e.preventDefault();
+        focusableElements[focusableElements.length - 1].focus();
+      }
+    }
+  };
+  
+  document.addEventListener('keydown', handleTabKey);
+  
+  return () => {
+    document.removeEventListener('keydown', handleTabKey);
+  };
+}, [details.length]); // Re-run when details length changes (rows added/removed)
+
   async function loadLookups() {
     try {
       const [depts, headsData, catsData, itemsData, comp] = await Promise.all([
@@ -143,22 +189,53 @@ export default function PurchaseIndentPage() {
   }
 
 function openEdit(indent) {
+  console.log("OpenEdit called with indent:", indent);
+  
+  // Set editId
   setEditId(sid(indent));
   
+  const normalizeDate = (dateValue) => {
+  if (!dateValue) return currentDate;
+  if (typeof dateValue === "string" && dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return dateValue;
+  }
+  if (typeof dateValue === "string" && dateValue.includes("T")) {
+    return dateValue.split("T")[0];
+  }
+  try {
+    const dt = new Date(dateValue);
+    if (!isNaN(dt.getTime())) {
+      return dt.toISOString().split("T")[0];
+    }
+  } catch (e) {}
+  return currentDate;
+};
+  
   setHeader({
-    ...indent,
+    indentNo: indent.indentNo || "",
+    indentDate: normalizeDate(indent.indentDate || indent.date),
+    dueDate: normalizeDate(indent.dueDate),
     departmentId: sid(indent.departmentId),
-    preparedBy: indent.preparedBy || indent.createdBy || "",
-    indentDate: indent.indentDate || indent.date || today(),  // Prefer indentDate
-    dueDate: indent.dueDate || today(),
+    departmentName: indent.departmentName || "",
+    createdBy: indent.createdBy || "Admin",
+    preparedBy: indent.preparedBy || indent.createdBy || user?.name || "Admin",
+    remarks: indent.remarks || "",
+    status: indent.status || "Open",
   });
   
-  setDetails(safeDetails(indent.details).map(d => ({
-    ...d, 
-    _rowId: Math.random(), 
-    mainCategoryId: sid(d.mainCategoryId), 
+  const normalizedDetails = safeDetails(indent.details).map(d => ({
+    _rowId: Math.random(),
+    mainCategoryId: sid(d.mainCategoryId),
+    mainCategoryName: d.mainCategoryName || "",
     itemId: sid(d.itemId),
-  })));
+    itemName: d.itemName || "",
+    uom: d.uom || "",
+    indentQty: d.indentQty || "0.000",
+    dueDate: normalizeDate(d.dueDate),
+    remarks: d.remarks || "",
+  }));
+  
+  setDetails(normalizedDetails.length > 0 ? normalizedDetails : [emptyDetail()]);
   setView("form");
 }
 
@@ -197,46 +274,74 @@ function openEdit(indent) {
  
 
 
-    // async function handleSave() {
-    const handleSave = useCallback(async () => {
+    // async function handleSave() 
 
-      if (!header.indentNo.trim()) return setFormError("Indent No is required");
-      if (!header.departmentId) return setFormError("Department is required");
+  const handleSave = useCallback(async () => {
+  console.log("=== SAVE DEBUG ===");
+  console.log("editId:", editId);
+  console.log("header:", header);
+  console.log("details:", details);
+  
+  if (!header.indentNo.trim()) return setFormError("Indent No is required");
+  if (!header.departmentId) return setFormError("Department is required");
 
-      
+  for (const row of details) {
+    if (row.mainCategoryId === "" || row.mainCategoryId === null) {
+      return setFormError("Category is required");
+    }
+    if (row.itemId === "" || row.itemId === null) {
+      return setFormError("Item Description is required");
+    }
+    if (row.indentQty === "" || row.indentQty === null || Number(row.indentQty) <= 0) {
+      return setFormError("Indent Qty is required");
+    }
+  }
 
-      for (const row of details) {
-        if (row.mainCategoryId === "" ||row.mainCategoryId === null) {return setFormError("Category is required");  }
-        if (row.itemId === "" ||row.itemId === null) {return setFormError("Item Description is required");  }
-        if (row.indentQty === "" ||row.indentQty === null || Number(row.indentQty) <= 0) {return setFormError("Indent Qty is required");  }
-        console.log(row.itemName);  
-      }
-          
-      const confirmSave = window.confirm(
-        "Do you want to save this record?"
-      );
+  const confirmSave = window.confirm("Do you want to save this record?");
+  if (!confirmSave) return;
 
-      if (!confirmSave) return;
-
-      setFormError("");
-
-      setSaving(true);
-      const cleanDetails = details.filter(d => d.itemId).map(({ _rowId, ...rest }) => rest);
-      if (cleanDetails.length === 0) { setSaving(false); return setFormError("Add at least one item"); }
-      const payload = { 
-  ...header, 
-  indentDate: header.indentDate,  // Explicitly include indentDate
-  date: header.indentDate,        // Also set date field to same value
-  details: cleanDetails 
-};
-      try {
-        if (editId) await purchaseIndentApi.update(editId, payload);
-        else await purchaseIndentApi.create(payload);
-        await loadIndents();
-        setSaveSuccessModal(true);
-      } catch (err) { setFormError(err.message); } finally { setSaving(false); }
-
-    }, [header, details]);
+  setFormError("");
+  setSaving(true);
+  
+  const cleanDetails = details.filter(d => d.itemId).map(({ _rowId, ...rest }) => rest);
+  if (cleanDetails.length === 0) { 
+    setSaving(false); 
+    return setFormError("Add at least one item"); 
+  }
+  
+  const payload = { 
+    indentNo: header.indentNo,
+    indentDate: header.indentDate,
+    date: header.indentDate,
+    dueDate: header.dueDate,
+    departmentId: header.departmentId,
+    departmentName: header.departmentName,
+    createdBy: header.createdBy,
+    preparedBy: header.preparedBy,
+    remarks: header.remarks,
+    status: header.status,
+    details: cleanDetails 
+  };
+  
+  console.log("Payload being sent:", payload);
+  
+  try {
+    if (editId) {
+      console.log("UPDATING indent with ID:", editId);
+      await purchaseIndentApi.update(editId, payload);
+    } else {
+      console.log("CREATING new indent");
+      await purchaseIndentApi.create(payload);
+    }
+    await loadIndents();
+    setSaveSuccessModal(true);
+  } catch (err) { 
+    console.error("Save error:", err);
+    setFormError(err.message); 
+  } finally { 
+    setSaving(false); 
+  }
+}, [header, details, editId, loadIndents]);
 
     
      useEffect(() => {
