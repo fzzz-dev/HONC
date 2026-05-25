@@ -19,7 +19,7 @@ import PaymentTermsPage from "./pages/PaymentTermsPage";
 import CountryPage from "./pages/CountryPage";
 import StatePage from "./pages/StatePage";
 import CityPage from "./pages/CityPage";
-import PurchaseIndentReportPage from "./pages/Reports/PurchaseIndentReportPage";
+import PurchaseIndentReportPage from "./pages/Reports/purchaseIndentReportPage";
 import PurchaseOrderReportPage from "./pages/Reports/PurchaseOrderResult";
 import PurchaseGrnReportPage from "./pages/Reports/PurchaseGrnReportPage";
 import {
