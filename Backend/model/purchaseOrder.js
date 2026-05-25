@@ -16,6 +16,11 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  // In your PurchaseOrder model
+  deliveryDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: true, 
+  },
   purchaseIndentId: {
     type: DataTypes.INTEGER,
     allowNull: true,

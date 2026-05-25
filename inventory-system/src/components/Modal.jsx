@@ -19,7 +19,7 @@ const styles = {
     width: "85%",
     maxWidth: "560px",
     maxHeight: "50vh",
-    overflow: "hidden", // Changed from overflowY: "auto" to hidden to allow body to scroll
+    overflow: "hidden",
     boxShadow:
       "0 20px 35px -8px rgba(0, 0, 0, 0.2), 0 5px 12px -4px rgba(0, 0, 0, 0.1)",
     display: "flex",
@@ -82,6 +82,7 @@ export default function Modal({
   saveDisabled,
   maxWidth,
   full = false,
+  hideDefaultButtons = false,  // <-- added
 }) {
   const primaryDisabled = saving || saveDisabled;
   useEffect(() => {
@@ -89,7 +90,6 @@ export default function Modal({
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handler);
-    // Prevent background scrolling when modal is open
     document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener("keydown", handler);
@@ -111,36 +111,37 @@ export default function Modal({
       >
         <div style={styles.header}>
           <h2 style={styles.title}>{title}</h2>
-          <div style={styles.actions}>
-            <button
-              type="button"
-              className="inv-btn-ghost"
-              onClick={onClose}
-              disabled={primaryDisabled}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="inv-btn-primary inv-save-btn"
-              onClick={onSave}
-              disabled={primaryDisabled}
-            >
-              {saving ? "Saving…" : saveLabel}
-            </button>
-            <button
-              type="button"
-              style={styles.closeBtn}
-              onClick={onClose}
-              aria-label="Close"
-            >
-              ×
-            </button>
-          </div>
+          {!hideDefaultButtons && (                     // <-- added
+            <div style={styles.actions}>
+              <button
+                type="button"
+                className="inv-btn-ghost"
+                onClick={onClose}
+                disabled={primaryDisabled}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="inv-btn-primary inv-save-btn"
+                onClick={onSave}
+                disabled={primaryDisabled}
+              >
+                {saving ? "Saving…" : saveLabel}
+              </button>
+              <button
+                type="button"
+                style={styles.closeBtn}
+                onClick={onClose}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+          )}                                          
         </div>
         <div style={styles.body}>{children}</div>
       </div>
     </div>
   );
 }
-

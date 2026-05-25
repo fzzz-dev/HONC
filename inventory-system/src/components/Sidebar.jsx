@@ -29,6 +29,9 @@ const Icons = {
   Issue: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>,
   Logout: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>,
   Shield: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>,
+  PIresult: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path><path d="M14 2v4a2 2 0 002 2h4"></path></svg>,
+  POresult: () =><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-ordered-icon lucide-list-ordered"><path d="M11 5h10"/><path d="M11 12h10"/><path d="M11 19h10"/><path d="M4 4h1v5"/><path d="M4 9h2"/><path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02"/></svg>,
+  GRNresult :() => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-logs-icon lucide-logs"><path d="M3 5h1"/><path d="M3 12h1"/><path d="M3 19h1"/><path d="M8 5h1"/><path d="M8 12h1"/><path d="M8 19h1"/><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/></svg>
 };
 
 const TRANSACTIONS = [
@@ -62,6 +65,12 @@ const ADMIN = [
   { path: "/admin/permissions", label: "Access Control", icon: Icons.Shield },
 ];
 
+const REPORTS = [
+  { path: "/purchase-indent-report", label: "Purchase Indent Report", icon: Icons.PIresult },
+  { path: "/purchase-order-report", label: "Purchase Order Report", icon: Icons.POresult},
+  { path: "/purchase-grn-report", label: "Purchase GRN Report", icon: Icons.GRNresult },
+];
+
 function NavGroup({ label, items, navigate, pathname, onHover, onLeave }) {
   return (
     <div className="inv-nav-section" style={{ marginBottom: '24px' }}>
@@ -70,6 +79,7 @@ function NavGroup({ label, items, navigate, pathname, onHover, onLeave }) {
         {items.map((item) => (
           <button
             key={item.path}
+            data-path={item.path}
             className={`inv-nav-item ${pathname === item.path ? "active" : ""}`}
             onClick={() => {
               navigate(item.path);
@@ -79,6 +89,7 @@ function NavGroup({ label, items, navigate, pathname, onHover, onLeave }) {
               }, 150);
             }}
             onKeyDown={(e) => {
+              // Only handle Enter key to navigate
               if (e.key === 'Enter') {
                 e.preventDefault();
                 navigate(item.path);
@@ -87,6 +98,7 @@ function NavGroup({ label, items, navigate, pathname, onHover, onLeave }) {
                   if (firstField) firstField.focus();
                 }, 150);
               }
+              // Let Tab key bubble up to the sidebar's circular navigation
             }}
             onMouseEnter={(e) => onHover(e, item.label)}
             onMouseLeave={onLeave}
@@ -162,61 +174,96 @@ export default function Sidebar() {
   }, [pathname]);
 
   // Press Escape to focus on sidebar
-  useEffect(() => {
-    const handleEscKey = (e) => {
-      if (e.key === 'Escape') {
-        const firstNavItem = document.querySelector('.inv-nav-item');
-        if (firstNavItem) {
-          firstNavItem.focus();
+  // Replace the existing "Press Escape to focus on sidebar" useEffect with this:
+
+// Press Escape to focus on the current page's sidebar icon
+useEffect(() => {
+  const handleEscKey = (e) => {
+    if (e.key === 'Escape') {
+      // Find which icon corresponds to the current pathname
+      const allNavItems = document.querySelectorAll('.inv-nav-item');
+      
+      // Find the active nav item based on current pathname
+      let activeNavItem = null;
+      for (const item of allNavItems) {
+        const parent = item.closest('.inv-nav-section');
+        if (parent) {
+          // Check if this nav item's path matches current pathname
+          const button = item;
+          const onClickAttr = button.getAttribute('onclick');
+          // Better approach: find by checking if the pathname matches the href or data attribute
+          if (button.getAttribute('data-path') === pathname) {
+            activeNavItem = button;
+            break;
+          }
         }
       }
-    };
-    document.addEventListener('keydown', handleEscKey);
-    return () => document.removeEventListener('keydown', handleEscKey);
-  }, []);
+      
+      // Fallback: try to find by checking the active class
+      if (!activeNavItem) {
+        activeNavItem = document.querySelector('.inv-nav-item.active');
+      }
+      
+      // If found, focus on it, otherwise focus on first icon
+      if (activeNavItem) {
+        activeNavItem.focus();
+      } else {
+        const firstNavItem = document.querySelector('.inv-nav-item');
+        if (firstNavItem) firstNavItem.focus();
+      }
+    }
+  };
+  
+  document.addEventListener('keydown', handleEscKey);
+  return () => document.removeEventListener('keydown', handleEscKey);
+}, [pathname]);
 
   // Circular keyboard navigation for sidebar
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
-        return;
-      }
+ // Circular keyboard navigation for sidebar
+useEffect(() => {
+  const handleKeyDown = (e) => {
+    // Only handle keys when sidebar element has focus
+    const sidebar = document.querySelector('.inv-sidebar');
+    if (!sidebar || !sidebar.contains(document.activeElement)) return;
+    
+    if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+      return;
+    }
 
-      const sidebar = document.querySelector('.inv-sidebar');
-      if (!sidebar) return;
+    const allFocusable = Array.from(sidebar.querySelectorAll('.inv-nav-item, [tabindex="0"], button'));
+    const currentFocused = document.activeElement;
+    const currentIndex = allFocusable.indexOf(currentFocused);
 
-      const allFocusable = Array.from(sidebar.querySelectorAll('.inv-nav-item, [tabindex="0"], button'));
-      const currentFocused = document.activeElement;
-      const currentIndex = allFocusable.indexOf(currentFocused);
+    if (currentIndex === -1) return;
 
-      if (currentIndex === -1) return;
+    let nextIndex;
 
-      let nextIndex;
-
-      if (e.key === 'Tab') {
-        if (e.shiftKey) {
-          nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
-        } else {
-          nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
-        }
-        e.preventDefault();
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-        nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
-        e.preventDefault();
-      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+    if (e.key === 'Tab') {
+      if (e.shiftKey) {
+        // Shift+Tab: go to previous
         nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
-        e.preventDefault();
+      } else {
+        // Tab: go to next
+        nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
       }
+      e.preventDefault();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
+      e.preventDefault();
+    }
 
-      const nextElement = allFocusable[nextIndex];
-      if (nextElement) {
-        nextElement.focus();
-      }
-    };
+    const nextElement = allFocusable[nextIndex];
+    if (nextElement) {
+      nextElement.focus();
+    }
+  };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  window.addEventListener('keydown', handleKeyDown);
+  return () => window.removeEventListener('keydown', handleKeyDown);
+}, []);
 
   const hasAccess = (path) => {
     if (!user) return false;
@@ -228,6 +275,7 @@ export default function Sidebar() {
   const filteredMasters = MASTERS.filter(m => hasAccess(m.path));
   const filteredTransactions = TRANSACTIONS.filter(t => hasAccess(t.path));
   const filteredAdmin = ADMIN.filter(a => hasAccess(a.path));
+  const filteredReports = REPORTS.filter(r => hasAccess(r.path));
 
   return (
     <aside className="inv-sidebar no-scrollbar">
@@ -257,9 +305,13 @@ export default function Sidebar() {
         {filteredTransactions.length > 0 && (
           <NavGroup label="Transactions" items={filteredTransactions} navigate={navigate} pathname={pathname} onHover={handleMouseEnter} onLeave={() => setHoveredLabel(null)} />
         )}
+        {filteredReports.length > 0 && (
+          <NavGroup label="Reports" items={filteredReports} navigate={navigate} pathname={pathname} onHover={handleMouseEnter} onLeave={() => setHoveredLabel(null)} />
+        )}
         {filteredMasters.length > 0 && (
           <NavGroup label="Masters" items={filteredMasters} navigate={navigate} pathname={pathname} onHover={handleMouseEnter} onLeave={() => setHoveredLabel(null)} />
         )}
+        
       </div>
 
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '20px 0', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>

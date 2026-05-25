@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React,{ useState, useEffect, useRef,useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
@@ -94,6 +94,25 @@ const ViewIcon = () => (
   </svg>
 );
 
+// Move these outside the component, around line 100-120 after ViewIcon
+
+const EditIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+);
+
+const DeleteIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+  </svg>
+);
+
 const SupplierDetailsModal = ({ supplier, onClose }) => {
   const Row = ({ label, value }) => !value ? null : (
     <div style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: "1px solid #f1f5f9", fontSize: "13px" }}>
@@ -152,8 +171,6 @@ const emptyDetail = () => ({
 const emptyHeader = () => ({
   poNo: "", 
   date: today(),
-  dueDate: today(), 
-  deliveryDate: "", // Keep this
   supplierId: "", 
   supplierName: "", 
   supplierAddress: "", 
@@ -164,7 +181,7 @@ const emptyHeader = () => ({
   refDate: "", 
   paymentTermsId: "", 
   paymentTermsName: "", 
-  deliveryDate: "", // Make sure this exists
+  deliveryDate: "", 
   createdBy: "Admin", 
   createdOn: today(), 
   status: "Open", 
@@ -691,7 +708,8 @@ const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstTyp
   URL.revokeObjectURL(link.href);
 };
 
-export default function PurchaseOrderPage(){
+export default function PurchaseOrderPage() {
+  // 1. All useState declarations first
   const { user } = useAuth();
   const [suppliers, setSuppliers] = useState([]);
   const [indents, setIndents] = useState([]);
@@ -720,28 +738,379 @@ export default function PurchaseOrderPage(){
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [itemsFromPickIndent, setItemsFromPickIndent] = useState(false);
   const addRowBtnRef = useRef(null);
+  const [expandedGroups, setExpandedGroups] = useState({});
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadLookups(); loadPos(); openNew();
-  }, []);
-
-  useEffect(() => {
-    if (!pendingModalOpen && pickIndentRef.current) {
-      setTimeout(() => {
-        pickIndentRef.current.focus();
-      }, 100);
+  const safeDetails = (d) => {
+    if (!d) return [];
+    if (Array.isArray(d)) return d;
+    if (typeof d === "string") {
+      try { 
+        const parsed = JSON.parse(d); 
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) { 
+        console.error("Error parsing details:", e);
+        return []; 
+      }
     }
-  }, [pendingModalOpen]);
+    return [];
+  };
 
-  useEffect(() => {
-    setTimeout(() => {
-      const firstField = document.querySelector('[tabIndex="1"]');
-      if (firstField) firstField.focus();
-    }, 100);
-  }, []);
+  // 2. All useMemo hooks
+  const pendingIndentGroups = useMemo(() => {
+    const groups = {};
+    
+    indents.forEach(ind => {
+      const details_array = safeDetails(ind.details);
+      const pendingDetails = details_array.filter(d => {
+        const balance = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
+          ? Number(d.balQty)
+          : Number(d.indentQty || 0);
+        return balance > 0 && d.itemId;
+      });
+      
+      if (pendingDetails.length === 0) return;
+      
+      groups[sid(ind)] = {
+        indentNo: ind.indentNo,
+        indentDate: ind.date,
+        departmentName: ind.departmentName,
+        items: pendingDetails.map(d => {
+          const itemMaster = items.find(i => sid(i) === sid(d.itemId));
+          const realBalQty = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
+            ? Number(d.balQty)
+            : Number(d.indentQty || 0);
+          return {
+            rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`,
+            detailId: sid(d.id || d._id),
+            itemId: sid(d.itemId),
+            itemName: toTitleCase(d.itemDescription || d.itemName),
+            categoryName: d.mainCategoryName || d.categoryName || "",
+            uom: d.uom,
+            balQty: realBalQty,
+            rate: itemMaster?.rate || d.rate || 0,
+            gstPct: itemMaster?.gstPercent !== undefined ? itemMaster.gstPercent : (d.gstPct !== undefined ? d.gstPct : 18)
+          };
+        })
+      };
+    });
+    
+    return groups;
+  }, [indents, items]);
 
+  // ==================== ALL useEffect HOOKS ====================
+
+useEffect(() => {
+  loadLookups(); 
+  loadPos(); 
+  openNew();
+}, []);
+
+useEffect(() => {
+  setTimeout(() => {
+    const firstField = document.querySelector('[tabIndex="1"]');
+    if (firstField) firstField.focus();
+  }, 100);
+}, []);
+
+// Global tab navigation handler (only for main form, not modals)
+useEffect(() => {
+  const handleTabKey = (e) => {
+    if (e.key !== 'Tab') return;
+    
+    // Skip if any modal is open
+    if (pendingModalOpen || showSaveConfirm || saveSuccessModal || viewingSupplier) {
+      return;
+    }
+    
+    const focusableElements = Array.from(
+      document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
+    ).filter(el => {
+      const tabIndex = parseInt(el.getAttribute('tabIndex'));
+      return !isNaN(tabIndex) && tabIndex >= 1 && el.offsetParent !== null && !el.disabled;
+    }).sort((a, b) => {
+      const tabA = parseInt(a.getAttribute('tabIndex'));
+      const tabB = parseInt(b.getAttribute('tabIndex'));
+      return tabA - tabB;
+    });
+    
+    if (focusableElements.length === 0) return;
+    
+    const currentElement = document.activeElement;
+    const currentIndex = focusableElements.indexOf(currentElement);
+    
+    if (!e.shiftKey) {
+      if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
+        e.preventDefault();
+        focusableElements[0]?.focus();
+      }
+    } else {
+      if (currentIndex === 0 || currentIndex === -1) {
+        e.preventDefault();
+        focusableElements[focusableElements.length - 1]?.focus();
+      }
+    }
+  };
+  
+  document.addEventListener('keydown', handleTabKey);
+  return () => {
+    document.removeEventListener('keydown', handleTabKey);
+  };
+}, [details.length, pendingModalOpen, showSaveConfirm, saveSuccessModal, viewingSupplier]);
+
+// ========== TAB TRAP FOR CONFIRM SAVE MODAL ==========
+// ========== TAB HANDLER FOR CONFIRM SAVE MODAL ==========
+useEffect(() => {
+  if (!showSaveConfirm) return;
+  
+  const saveBtn = document.querySelector('#confirm-save-modal .inv-btn-primary');
+  const cancelBtn = document.querySelector('#confirm-save-modal .inv-btn-secondary');
+  
+  if (!saveBtn || !cancelBtn) return;
+  
+  const handleTab = (e) => {
+    if (e.key !== 'Tab') return;
+    
+    const current = document.activeElement;
+    const isSave = current === saveBtn;
+    const isCancel = current === cancelBtn;
+    
+    // Tab forward
+    if (!e.shiftKey) {
+      if (isSave) {
+        // From Save → Cancel
+        e.preventDefault();
+        cancelBtn.focus();
+      } else if (isCancel) {
+        // From Cancel → let focus leave modal (do NOT prevent default)
+        // Allow Tab to go to browser/page elements
+        return;
+      }
+    } 
+    // Shift+Tab backward
+    else {
+      if (isCancel) {
+        // From Cancel → Save
+        e.preventDefault();
+        saveBtn.focus();
+      } else if (isSave) {
+        // From Save → let focus leave modal backwards
+        // Allow Shift+Tab to go to browser/page elements
+        return;
+      }
+    }
+  };
+  
+  document.addEventListener('keydown', handleTab);
+  
+  // Focus Save button when modal opens
+  setTimeout(() => {
+    saveBtn.focus();
+  }, 100);
+  
+  return () => {
+    document.removeEventListener('keydown', handleTab);
+  };
+}, [showSaveConfirm]);
+
+// ========== 1. TAB NAVIGATION - Only between Cancel and Add buttons ==========
+useEffect(() => {
+  if (!pendingModalOpen) return;
+  
+  const cancelBtn = document.getElementById('cancel-pick-btn');
+  const addBtn = document.getElementById('add-items-btn');
+  
+  if (!cancelBtn || !addBtn) return;
+  
+  const handleTab = (e) => {
+    if (e.key !== 'Tab') return;
+    
+    const current = document.activeElement;
+    const isCancel = current === cancelBtn;
+    const isAdd = current === addBtn;
+    const isRow = current?.classList?.contains('indent-main-row') || 
+                  current?.classList?.contains('indent-item-row');
+    
+    e.preventDefault();
+    
+    // Tab from Cancel -> Add, Add -> First Row, Row -> Cancel
+    if (!e.shiftKey) {
+      if (isCancel) {
+        addBtn.focus();
+      } else if (isAdd) {
+        const firstRow = document.querySelector('#pick-indent-table .indent-main-row');
+        if (firstRow) firstRow.focus();
+        else addBtn.focus();
+      } else if (isRow) {
+        cancelBtn.focus();
+      } else {
+        cancelBtn.focus();
+      }
+    } 
+    // Shift+Tab
+    else {
+      if (isCancel) {
+        const lastRow = getLastVisibleRow();
+        if (lastRow) lastRow.focus();
+        else cancelBtn.focus();
+      } else if (isAdd) {
+        cancelBtn.focus();
+      } else if (isRow) {
+        addBtn.focus();
+      } else {
+        addBtn.focus();
+      }
+    }
+  };
+  
+  const getLastVisibleRow = () => {
+    const allRows = [];
+    const mainRows = document.querySelectorAll('#pick-indent-table .indent-main-row');
+    mainRows.forEach(mainRow => {
+      allRows.push(mainRow);
+      const indentNo = mainRow.getAttribute('data-row-id');
+      const isExpanded = mainRow.getAttribute('aria-expanded') === 'true';
+      if (isExpanded) {
+        const itemRows = document.querySelectorAll(`#pick-indent-table .indent-item-row[data-parent-id="${indentNo}"]`);
+        itemRows.forEach(itemRow => allRows.push(itemRow));
+      }
+    });
+    return allRows[allRows.length - 1];
+  };
+  
+  document.addEventListener('keydown', handleTab);
+  cancelBtn.focus();
+  
+  return () => document.removeEventListener('keydown', handleTab);
+}, [pendingModalOpen]);
+
+// ========== 2. ARROW KEYS + ENTER + SPACE - Full row navigation ==========
+useEffect(() => {
+  if (!pendingModalOpen) return;
+  
+  const handleRowKeys = (e) => {
+    const current = document.activeElement;
+    const isRow = current?.classList?.contains('indent-main-row') || 
+                  current?.classList?.contains('indent-item-row');
+    
+    if (!isRow) return;
+    
+    // Get all visible rows
+    const getAllRows = () => {
+      const rows = [];
+      const mainRows = document.querySelectorAll('#pick-indent-table .indent-main-row');
+      mainRows.forEach(mainRow => {
+        rows.push(mainRow);
+        const indentNo = mainRow.getAttribute('data-row-id');
+        const isExpanded = mainRow.getAttribute('aria-expanded') === 'true';
+        if (isExpanded) {
+          const itemRows = document.querySelectorAll(`#pick-indent-table .indent-item-row[data-parent-id="${indentNo}"]`);
+          itemRows.forEach(itemRow => rows.push(itemRow));
+        }
+      });
+      return rows;
+    };
+    
+    const allRows = getAllRows();
+    const currentIndex = allRows.indexOf(current);
+    
+    // ARROW KEYS
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = currentIndex + 1;
+      if (nextIndex < allRows.length) {
+        allRows[nextIndex].focus();
+      } else {
+        allRows[0].focus();
+      }
+      return;
+    }
+    
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIndex = currentIndex - 1;
+      if (prevIndex >= 0) {
+        allRows[prevIndex].focus();
+      } else {
+        allRows[allRows.length - 1].focus();
+      }
+      return;
+    }
+    
+    // ENTER KEY
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const isMainRow = current.classList.contains('indent-main-row');
+      const isItemRow = current.classList.contains('indent-item-row');
+      
+      if (isMainRow) {
+        const indentNo = current.getAttribute('data-row-id');
+        if (indentNo) {
+          setExpandedGroups(prev => ({ ...prev, [indentNo]: !prev[indentNo] }));
+          // Wait for DOM update then refocus
+          setTimeout(() => { current.focus(); }, 50);
+        }
+      } else if (isItemRow) {
+        const rowId = current.getAttribute('data-row-id');
+        if (rowId) {
+          const newSelected = new Set(pendingSelected);
+          if (newSelected.has(rowId)) {
+            newSelected.delete(rowId);
+          } else {
+            newSelected.add(rowId);
+          }
+          setPendingSelected(newSelected);
+        }
+      }
+      return;
+    }
+    
+    // SPACE KEY
+    if (e.key === ' ') {
+      e.preventDefault();
+      const isMainRow = current.classList.contains('indent-main-row');
+      const isItemRow = current.classList.contains('indent-item-row');
+      
+      if (isMainRow) {
+        const indentNo = current.getAttribute('data-row-id');
+        if (indentNo) {
+          const group = Object.values(pendingIndentGroups).find(g => g.indentNo === indentNo);
+          if (group) {
+            const allSelected = group.items.every(item => pendingSelected.has(item.rowId));
+            const newSelected = new Set(pendingSelected);
+            group.items.forEach(item => {
+              if (allSelected) {
+                newSelected.delete(item.rowId);
+              } else {
+                newSelected.add(item.rowId);
+              }
+            });
+            setPendingSelected(newSelected);
+          }
+        }
+      } else if (isItemRow) {
+        const rowId = current.getAttribute('data-row-id');
+        if (rowId) {
+          const newSelected = new Set(pendingSelected);
+          if (newSelected.has(rowId)) {
+            newSelected.delete(rowId);
+          } else {
+            newSelected.add(rowId);
+          }
+          setPendingSelected(newSelected);
+        }
+      }
+      return;
+    }
+  };
+  
+  document.addEventListener('keydown', handleRowKeys);
+  return () => document.removeEventListener('keydown', handleRowKeys);
+}, [pendingModalOpen, pendingSelected, pendingIndentGroups, expandedGroups]);
+
+  // 4. All functions
   async function loadLookups() {
     try {
       const [supps, inds, its, pterms, comp] = await Promise.all([
@@ -759,24 +1128,20 @@ export default function PurchaseOrderPage(){
     } catch (e) { console.error(e); }
   }
 
-async function loadPos() {
-  setLoadingList(true);
-  try {
-    const data = await purchaseOrderApi.getAll();
-    console.log("=== LOAD POS DEBUG ===");
-    console.log("First PO in list:", data[0]);
-    console.log("Delivery date field:", data[0]?.deliveryDate);
-    console.log("Due date field:", data[0]?.dueDate);
-    setPos(Array.isArray(data) ? data : []);
-  } catch (err) {
-    console.error("Failed to load POs:", err);
-    if (typeof setListError === "function") {
-      setListError(err.message);
+  async function loadPos() {
+    setLoadingList(true);
+    try {
+      const data = await purchaseOrderApi.getAll();
+      setPos(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load POs:", err);
+      if (typeof setListError === "function") {
+        setListError(err.message);
+      }
+    } finally {
+      setLoadingList(false);
     }
-  } finally {
-    setLoadingList(false);
   }
-}
 
   async function openNew() {
     setHeader({ ...emptyHeader(), preparedBy: "System Administrator" }); 
@@ -791,71 +1156,64 @@ async function loadPos() {
     } catch (e) { }
   }
 
-function openEdit(po) {
-  const sId = sid(po.supplierId);
-  const s = suppliers.find(x => sid(x) === sId);
-  let addrText = "";
-  if (s) {
-    const parsedAddresses = safeDetails(s?.addresses);
-    const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
-    if (primaryAddr) {
-      const parts = [
-        primaryAddr.address || primaryAddr.line1,
-        primaryAddr.cityName,
-        primaryAddr.stateName,
-        primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""
-      ].filter(Boolean);
-      addrText = parts.join(", ");
-    }
-  }
-
-  setEditId(sid(po));
-  
-  const normalizeDate = (d) => {
-    if (!d) return "";
-    if (typeof d === "string" && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      return d;
-    }
-    if (typeof d === "string" && d.includes("T")) {
-      return d.split("T")[0];
-    }
-    try {
-      const dt = new Date(d);
-      if (!isNaN(dt.getTime())) {
-        return dt.toISOString().split("T")[0];
+  function openEdit(po) {
+    const sId = sid(po.supplierId);
+    const s = suppliers.find(x => sid(x) === sId);
+    let addrText = "";
+    if (s) {
+      const parsedAddresses = safeDetails(s?.addresses);
+      const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
+      if (primaryAddr) {
+        const parts = [
+          primaryAddr.address || primaryAddr.line1,
+          primaryAddr.cityName,
+          primaryAddr.stateName,
+          primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""
+        ].filter(Boolean);
+        addrText = parts.join(", ");
       }
-    } catch (e) {}
-    return "";
-  };
+    }
 
-  // IMPORTANT: Log to see what's coming from the API
-  console.log("=== OPEN EDIT DEBUG ===");
-  console.log("Full po object:", po);
-  console.log("po.deliveryDate:", po.deliveryDate);
-  console.log("po.dueDate:", po.dueDate);
-  console.log("po.date:", po.date);
+    setEditId(sid(po));
+    
+    const normalizeDate = (d) => {
+      if (!d) return "";
+      if (typeof d === "string" && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return d;
+      }
+      if (typeof d === "string" && d.includes("T")) {
+        return d.split("T")[0];
+      }
+      try {
+        const dt = new Date(d);
+        if (!isNaN(dt.getTime())) {
+          return dt.toISOString().split("T")[0];
+        }
+      } catch (e) {}
+      return "";
+    };
 
-  setHeader({
-    ...po,
-    poNo: po.poNo || po.poNumber || "",
-    date: normalizeDate(po.date),
-    supplierId: sId,
-    paymentTermsId: sid(po.paymentTermsId),
-    supplierAddress: po.supplierAddress || addrText,
-    refNo: po.refNo || po.referenceNo || "",
-    deliveryDate: normalizeDate(po.deliveryDate || po.dueDate), // Try both field names
-    poType: po.poType || po.purchaseOrderType || "",
-    supplierGst: po.supplierGst || s?.gstNo || "",
-    preparedBy: po.preparedBy || "System Administrator"
-  });
-  
-  const gType = po.gstType || "local";
-  setDetails(safeDetails(po.details).map(d => calcRow({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) }, gType)));
-  setGstType(po.gstType || "local");
-  setGstEnabled(po.gstEnabled !== false);
-  setView("form");
-  setItemsFromPickIndent(true);
-}
+    setHeader({
+      ...po,
+      poNo: po.poNo || po.poNumber || "",
+      date: normalizeDate(po.date),
+      supplierId: sId,
+      paymentTermsId: sid(po.paymentTermsId),
+      supplierAddress: po.supplierAddress || addrText,
+      refNo: po.refNo || po.referenceNo || "",
+      deliveryDate: normalizeDate(po.deliveryDate || po.Date),
+      poType: po.poType || po.purchaseOrderType || "",
+      supplierGst: po.supplierGst || s?.gstNo || "",
+      preparedBy: po.preparedBy || "System Administrator"
+    });
+    
+    const gType = po.gstType || "local";
+    setDetails(safeDetails(po.details).map(d => calcRow({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) }, gType)));
+    setGstType(po.gstType || "local");
+    setGstEnabled(po.gstEnabled !== false);
+    setView("form");
+    setItemsFromPickIndent(true);
+  }
 
   const calcRow = (row, gType = gstType) => {
     const qty = Number(row.poQty || 0); 
@@ -924,7 +1282,7 @@ function openEdit(po) {
     };
     setDetails(p => [...p, newRow]);
   };
-  
+
   function removeRow(idx) { 
     setDetails(p => p.filter((_, i) => i !== idx)); 
   }
@@ -941,42 +1299,60 @@ function openEdit(po) {
     }
   }
 
-async function handleSave() {
-  if (!header.poNo.trim()) return setFormError("PO No is required");
-  if (!header.supplierId) return setFormError("Supplier is required");
+  async function handleSave() {
+  console.log("handleSave called"); // Debug log
+  
+  if (!header.poNo.trim()) {
+    setFormError("PO No is required");
+    return;
+  }
+  if (!header.supplierId) {
+    setFormError("Supplier is required");
+    return;
+  }
   
   for (const row of details) {
     if (!row.itemId) {
-      return setFormError("Item Description is required for all rows");
+      setFormError("Item Description is required for all rows");
+      return;
     }
     if (!row.poQty || Number(row.poQty) <= 0) {
-      return setFormError("PO Qty is required and must be greater than 0");
+      setFormError("PO Qty is required and must be greater than 0");
+      return;
     }
     if (!row.poRate || Number(row.poRate) <= 0) {
-      return setFormError("Unit Price is required and must be greater than 0");
+      setFormError("Unit Price is required and must be greater than 0");
+      return;
     }
   }
   
-  const confirmSave = window.confirm("Do you want to save this record?");
-  if (!confirmSave) return;
-  
+  setShowSaveConfirm(true);
+}
+
+async function performSave() {
+  setShowSaveConfirm(false);
   setFormError(null);
   setSaving(true);
   
-  // Debug log to check what's being saved
-  console.log("Saving delivery date:", header.deliveryDate);
+  console.log("HEADER BEFORE SAVE:", header);
+  console.log("DELIVERY DATE VALUE:", header.deliveryDate);
   
   const payload = { 
     ...header, 
-    deliveryDate: header.deliveryDate, // Explicitly include delivery date
+    deliveryDate: header.deliveryDate,
     gstEnabled, 
     gstType, 
     details: details.map(({ _rowId, ...rest }) => rest) 
   };
   
+  console.log("FULL PAYLOAD BEING SENT:", JSON.stringify(payload, null, 2));
+  
   try {
-    if (editId) await purchaseOrderApi.update(editId, payload);
-    else await purchaseOrderApi.create(payload);
+    if (editId) {
+      await purchaseOrderApi.update(editId, payload);
+    } else {
+      await purchaseOrderApi.create(payload);
+    }
     await loadPos();
     setSaveSuccessModal(true);
     setTimeout(() => {
@@ -984,11 +1360,10 @@ async function handleSave() {
       setView("list");
     }, 2000);
   } catch (err) { 
+    console.error("Save error:", err);
     setFormError(err.message); 
   } finally { 
     setSaving(false); 
-
-    
   }
 }
 
@@ -1005,72 +1380,23 @@ async function handleSave() {
 
   const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
-  const safeDetails = (d) => {
-  if (!d) return [];
-  if (Array.isArray(d)) return d;
-  if (typeof d === "string") {
-    try { 
-      const parsed = JSON.parse(d); 
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) { 
-      console.error("Error parsing details:", e);
-      return []; 
-    }
-  }
-  return [];
-};
-  
-  const indentDetailOptions = indents.flatMap(ind => safeDetails(ind.details).map(d => {
-    const itMaster = items.find(i => sid(i) === sid(d.itemId));
-    const realBalQty = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
-      ? Number(d.balQty)
-      : Number(d.indentQty || 0);
-    return {
-      indentNo: ind.indentNo, detailId: sid(d.id || d._id), itemId: sid(d.itemId), 
-      itemDescription: toTitleCase(d.itemDescription || d.itemName),
-      itemName: toTitleCase(d.itemName),
-      uom: d.uom, balQty: realBalQty, lastRate: d.rate, 
-      gstPct: itMaster?.gstPercent !== undefined ? itMaster.gstPercent : (d.gstPct !== undefined ? d.gstPct : 0)
-    };
-  }));
-
-  const pendingIndentRows = indents.flatMap(ind => safeDetails(ind.details)
-    .filter(d => {
-      const balance = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
-        ? Number(d.balQty)
-        : Number(d.indentQty || 0);
-      return balance > 0 && d.itemId;
-    })
-    .map(d => {
-      const itMaster = items.find(i => sid(i) === sid(d.itemId));
-      const realBalQty = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
-        ? Number(d.balQty)
-        : Number(d.indentQty || 0);
-      return {
-        rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`, 
-        indentNo: ind.indentNo, 
-        indentDate: ind.date,
-        departmentName: ind.departmentName,
-        detailId: sid(d.id || d._id),
-        itemId: sid(d.itemId), 
-        itemName: toTitleCase(d.itemDescription || d.itemName), 
-        categoryName: d.mainCategoryName || d.categoryName || "",
-        uom: d.uom, 
-        balQty: realBalQty,
-        rate: itMaster?.rate || d.rate || 0,
-        gstPct: itMaster?.gstPercent !== undefined ? itMaster.gstPercent : (d.gstPct !== undefined ? d.gstPct : 18)
-      };
-    }));
-
   function addPendingLinesToDetails() {
-    const selected = pendingIndentRows.filter(r => pendingSelected.has(r.rowId));
+    const selected = [];
+    
+    Object.values(pendingIndentGroups).forEach(group => {
+      group.items.forEach(item => {
+        if (pendingSelected.has(item.rowId)) {
+          selected.push(item);
+        }
+      });
+    });
+    
     if (selected.length === 0) {
       setPendingModalOpen(false);
       return;
     }
     
     const newRows = selected.map(s => {
-      const itemMaster = items.find(i => sid(i) === sid(s.itemId));
       return calcRow({
         ...emptyDetail(), 
         indentDetailId: s.detailId, 
@@ -1080,8 +1406,8 @@ async function handleSave() {
         uom: s.uom, 
         balQty: s.balQty, 
         poQty: s.balQty, 
-        poRate: itemMaster?.rate || s.rate || 0,
-        gstPct: itemMaster?.gstPercent !== undefined ? itemMaster.gstPercent : (s.gstPct !== undefined ? s.gstPct : 0)
+        poRate: s.rate || 0,
+        gstPct: s.gstPct || 0
       });
     });
     
@@ -1102,7 +1428,7 @@ async function handleSave() {
     }, 150);
   }
 
-  // LIST VIEW
+  // 5. Conditional returns at the end
   if (view === "list") {
     const filteredPos = (pos || []).filter(po => po?.poNo?.toLowerCase().includes(searchTerm.toLowerCase()));
     
@@ -1131,6 +1457,7 @@ async function handleSave() {
             <p className="inv-page-sub">Manage purchase orders</p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
+            <button className="inv-btn-secondary" onClick={exportToExcel}>Export to Excel</button>
             <button className="inv-btn-primary" onClick={openNew}>+ New Purchase Order</button>
           </div>
         </div>
@@ -1156,9 +1483,10 @@ async function handleSave() {
             <div style={{ textAlign: "center", padding: 40 }}>Loading...</div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table className="inv-table-premium">
+              <table className="inv-table">
                 <thead>
                   <tr>
+                    <th>#</th>
                     <th>PO No</th>
                     <th>Date</th>
                     <th>Supplier</th>
@@ -1169,15 +1497,16 @@ async function handleSave() {
                 </thead>
                 <tbody>
                   {filteredPos.length === 0 ? (
-                    <tr><td colSpan="6" style={{ textAlign: "center", padding: 40 }}>No purchase orders found</td></tr>
+                    <tr><td colSpan={7} style={{ textAlign: "center", padding: 40 }}>No purchase orders found</td></tr>
                   ) : (
-                    filteredPos.map(po => (
+                    filteredPos.map((po, i) => (
                       <tr key={po.id || po._id}>
-                        <td style={{ fontWeight: 600 }}>{po.poNo}</td>
+                        <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
+                        <td style={{ fontWeight: 600, color: "var(--accent)" }}>{po.poNo}</td>
                         <td>{po.date}</td>
                         <td>{po.supplierName}</td>
                         <td>
-                          <span className={`inv-badge ${po.status === 'Open' ? 'inv-badge-success' : 'inv-badge-warning'}`}>
+                          <span className={`inv-badge ${po.status === 'Open' ? 'inv-badge-yes' : 'inv-badge-no'}`}>
                             {po.status}
                           </span>
                         </td>
@@ -1190,9 +1519,13 @@ async function handleSave() {
                           )}
                         </td>
                         <td>
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <button className="inv-btn-sm inv-btn-secondary" onClick={() => openEdit(po)}>Edit</button>
-                            <button className="inv-btn-sm inv-btn-danger" onClick={() => handleDelete(po.id || po._id)}>Delete</button>
+                          <div className="inv-actions">
+                            <button className="inv-btn-icon" onClick={() => openEdit(po)}>
+                              <EditIcon />
+                            </button>
+                            <button className="inv-btn-icon inv-btn-danger" onClick={() => handleDelete(po.id || po._id)}>
+                              <DeleteIcon />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1212,12 +1545,24 @@ async function handleSave() {
     <div className="inv-page">
       <div className="inv-page-header">
         <div><h1 className="inv-page-title">{editId ? "Edit Purchase Order" : "New Purchase Order"}</h1><p className="inv-page-sub">Header-Detail-Summary layout</p></div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button tabIndex={100} className="inv-btn-secondary" onClick={() => setView("list")}>View List</button>
-          <button tabIndex={101} className="inv-btn-ghost" onClick={() => printPurchaseOrder({ header, details, totals, gstEnabled, gstType, company })}>Print</button>
-          <button tabIndex={102} className="inv-btn-primary" onClick={() => downloadAsPDF({ header, details, totals, gstEnabled, gstType, company })}>Download as PDF</button>
-          <button tabIndex={103} className="inv-btn-primary" onClick={handleSave} disabled={saving}>Save Order</button>
-        </div>
+        
+        {!pendingModalOpen && !showSaveConfirm && !viewingSupplier && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button tabIndex={100} className="inv-btn-secondary" onClick={() => setView("list")}>View List</button>
+            <button tabIndex={101} className="inv-btn-ghost" onClick={() => printPurchaseOrder({ header, details, totals, gstEnabled, gstType, company })}>Print</button>
+            <button tabIndex={102} className="inv-btn-primary" onClick={() => downloadAsPDF({ header, details, totals, gstEnabled, gstType, company })}>Download as PDF</button>
+            <button tabIndex={103} className="inv-btn-primary" onClick={handleSave} disabled={saving}>Save Order</button>
+          </div>
+        )} 
+
+        {(pendingModalOpen || showSaveConfirm) && (
+          <div style={{ display: "flex", gap: 8, visibility: "hidden" }}>
+            <button className="inv-btn-secondary">View List</button>
+            <button className="inv-btn-ghost">Print</button>
+            <button className="inv-btn-primary">Download as PDF</button>
+            <button className="inv-btn-primary">Save Order</button>
+          </div>
+        )}
       </div>
 
       {formError && <div className="inv-error-banner" style={{ marginBottom: 16 }}>{formError}</div>}
@@ -1319,28 +1664,28 @@ async function handleSave() {
               </Field>
               
               <Field label="Delivery Date">
-  <input 
-    tabIndex={6} 
-    className="inv-input" 
-    type="date" 
-    min="2026-05-01"
-    value={header.deliveryDate || ""} 
-    onChange={e => {
-      const selectedDate = e.target.value;
-      const minDate = "2026-05-01";
-      if (selectedDate < minDate) {
-        setHeader(h => ({ ...h, deliveryDate: minDate, deliveryDateError: "Past dates are not allowed." }));
-      } else {
-        setHeader(h => ({ ...h, deliveryDate: selectedDate, deliveryDateError: "" }));
-      }
-    }} 
-  />
-  {header.deliveryDateError && (
-    <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
-      ⚠️ {header.deliveryDateError}
-    </div>
-  )}
-</Field>
+                <input 
+                  tabIndex={6} 
+                  className="inv-input" 
+                  type="date" 
+                  min="2026-05-01"
+                  value={header.deliveryDate || ""} 
+                  onChange={e => {
+                    const selectedDate = e.target.value;
+                    const minDate = "2026-05-01";
+                    if (selectedDate < minDate) {
+                      setHeader(h => ({ ...h, deliveryDate: minDate, deliveryDateError: "Past dates are not allowed." }));
+                    } else {
+                      setHeader(h => ({ ...h, deliveryDate: selectedDate, deliveryDateError: "" }));
+                    }
+                  }} 
+                />
+                {header.deliveryDateError && (
+                  <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+                    ⚠️ {header.deliveryDateError}
+                  </div>
+                )}
+              </Field>
               
               <Field label="GST No">
                 <input tabIndex={7} className="inv-input" value={header.supplierGst} readOnly style={{ background: "#f8fafc" }} />
@@ -1449,7 +1794,6 @@ async function handleSave() {
           </div>
         </div>
 
-        {/* Summary card */}
         <div className="inv-card">
           <div className="inv-card-body">
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, padding: "10px 20px" }}>
@@ -1477,56 +1821,294 @@ async function handleSave() {
         </div>
       </div>
 
-      {pendingModalOpen && (
-        <Modal title="Pick Pending Indent Lines" onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); }} onSave={() => { addPendingLinesToDetails(); setPendingModalOpen(false); setPendingSelected(new Set()); }} saveLabel={`Add ${pendingSelected.size} Item(s) to PO`} full={true}>
-          <div style={{ padding: "0 10px" }}>
-            <table className="inv-table-premium">
-              <thead>
-                <tr>
-                  <th style={{ width: 40, textAlign: "center" }}><input type="checkbox" style={{ width: 18, height: 18, cursor: "pointer" }} checked={pendingIndentRows.length > 0 && pendingSelected.size === pendingIndentRows.length} onChange={e => { if (e.target.checked) setPendingSelected(new Set(pendingIndentRows.map(r => r.rowId))); else setPendingSelected(new Set()); }} /></th>
-                  <th style={{ width: 120 }}>Indent No</th>
-                  <th style={{ width: 100 }}>Date</th>
-                  <th style={{ width: 120 }}>Department</th>
-                  <th style={{ width: 120 }}>Category</th>
-                  <th style={{ minWidth: 200 }}>Item Description</th>
-                  <th style={{ width: 60 }}>UOM</th>
-                  <th style={{ width: 90, textAlign: "right" }}>Pending</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingIndentRows.length === 0 && (
-                  <tr><td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#64748b" }}>No pending indents available</td></tr>
-                )}
-                {pendingIndentRows.map(r => (
-                  <tr key={r.rowId} onClick={() => { const n = new Set(pendingSelected); if (n.has(r.rowId)) n.delete(r.rowId); else n.add(r.rowId); setPendingSelected(n); }} style={{ cursor: "pointer" }}>
-                    <td style={{ textAlign: "center" }} onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" style={{ width: 18, height: 18, cursor: "pointer" }} checked={pendingSelected.has(r.rowId)} onChange={() => { const n = new Set(pendingSelected); if (n.has(r.rowId)) n.delete(r.rowId); else n.add(r.rowId); setPendingSelected(n); }} />
-                    </td>
-                    <td style={{ fontWeight: 600, color: "var(--accent)" }}>{r.indentNo}</td>
-                    <td style={{ fontSize: "12px" }}>{r.indentDate}</td>
-                    <td style={{ fontSize: "12px" }}>{r.departmentName}</td>
-                    <td style={{ fontSize: "12px", color: "#64748b" }}>{r.categoryName}</td>
-                    <td style={{ fontWeight: 500 }}>{r.itemName}</td>
-                    <td style={{ textAlign: "center" }}>{r.uom}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(r.balQty)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Modal>
-      )}
+      {/* Pick Indent Modal */}
+{pendingModalOpen && (
+  <Modal 
+    id="pick-indent-modal"
+    title="Pick Pending Indent Lines" 
+    onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); }} 
+    full={true}
+    hideDefaultButtons={true}
+  >
+    <style>
+      {`
+        #pick-indent-modal .inv-modal-header button,
+        #pick-indent-modal .inv-modal-header .inv-btn-ghost,
+        #pick-indent-modal .inv-modal-header .inv-save-btn,
+        #pick-indent-modal .inv-modal-header .inv-btn-secondary,
+        #pick-indent-modal .inv-modal-header .inv-btn-primary,
+        #pick-indent-modal .inv-modal-header [class*="btn"],
+        #pick-indent-modal .inv-modal-header > *:not(h2):not(h3):not(.inv-modal-title),
+        #pick-indent-modal .inv-modal-footer {
+          display: none !important;
+        }
 
+        #cancel-pick-btn, #add-items-btn {
+          display: inline-flex !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+        }
+        
+        .indent-main-row:focus, .indent-item-row:focus {
+          outline: 2px solid #3b6ef8;
+          outline-offset: -2px;
+          background-color: #eff6ff;
+        }
+        
+        .indent-item-row[style*="background-color: #eef2ff"] {
+          background-color: #eef2ff !important;
+        }
+      `}
+    </style>
+    
+    <div style={{ padding: "0 16px" }}>
+      <div className="inv-table-wrap">
+        <table className="inv-table" id="pick-indent-table">
+          <thead>
+            <tr>
+              <th style={{ width: 30 }}></th>
+              <th>Indent No</th>
+              <th>Date</th>
+              <th>Department</th>
+              <th style={{ width: 100, textAlign: "right" }}>Total Qty</th>
+              <th style={{ width: 40, textAlign: "center" }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.keys(pendingIndentGroups).length === 0 ? (
+              <tr key="no-data">
+                <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)" }}>No pending indents available</td>
+              </tr>
+            ) : (
+              Object.values(pendingIndentGroups).map((group) => {
+                const isExpanded = expandedGroups[group.indentNo];
+                const allGroupItemsSelected = group.items.every(item => pendingSelected.has(item.rowId));
+                const someGroupItemsSelected = group.items.some(item => pendingSelected.has(item.rowId));
+                const totalQty = group.items.reduce((sum, item) => sum + item.balQty, 0);
+                
+                return (
+                  <React.Fragment key={group.indentNo}>
+                    {/* Main Indent Row - REMOVED onKeyDown to avoid conflicts */}
+                    <tr 
+                      key={group.indentNo}
+                      className="indent-main-row"
+                      data-row-id={group.indentNo}
+                      data-row-type="main"
+                      role="row"
+                      aria-expanded={isExpanded}
+                      style={{ 
+                        cursor: "pointer",
+                        backgroundColor: "#ffffff",
+                        borderBottom: "1px solid #e2e8f0"
+                      }}
+                      tabIndex={0}
+                      onClick={() => {
+                        setExpandedGroups(prev => ({ ...prev, [group.indentNo]: !prev[group.indentNo] }));
+                      }}
+                    >
+                      <td style={{ textAlign: "center", color: "#64748b" }}>
+                        {isExpanded ? "▼" : "▶"}
+                      </td>
+                      <td style={{ fontWeight: 600, color: "#3b6ef8" }}>{group.indentNo}</td>
+                      <td style={{ color: "#475569" }}>{group.indentDate}</td>
+                      <td style={{ color: "#475569" }}>{group.departmentName || "—"}</td>
+                      <td style={{ textAlign: "right", fontWeight: 500, color: "#475569" }}>{fmtQty(totalQty)}</td>
+                      <td style={{ textAlign: "center" }}>
+                        <input 
+                          type="checkbox"
+                          checked={allGroupItemsSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = !allGroupItemsSelected && someGroupItemsSelected;
+                          }}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            const newSelected = new Set(pendingSelected);
+                            group.items.forEach(item => {
+                              if (e.target.checked) {
+                                newSelected.add(item.rowId);
+                              } else {
+                                newSelected.delete(item.rowId);
+                              }
+                            });
+                            setPendingSelected(newSelected);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          tabIndex={-1}
+                        />
+                      </td>
+                    </tr>
+                    
+                    {/* Expanded Items Sub-table - REMOVED onKeyDown to avoid conflicts */}
+                    {isExpanded && (
+                      <tr className="indent-sub-row" data-parent-id={group.indentNo}>
+                        <td colSpan={6} style={{ padding: 0, backgroundColor: "#f8fafc" }}>
+                          <table className="inv-table" style={{ margin: 0, width: "100%", borderCollapse: "collapse" }}>
+                            <thead>
+                              <tr style={{ backgroundColor: "#f1f5f9", borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0" }}>
+                                <th style={{ width: 30, padding: "10px 8px" }}></th>
+                                <th style={{ padding: "10px 12px" }}>Item Description</th>
+                                <th style={{ width: 70, padding: "10px 12px", textAlign: "center" }}>UOM</th>
+                                <th style={{ width: 80, padding: "10px 12px", textAlign: "right" }}>Bal</th>
+                                <th style={{ width: 90, padding: "10px 12px", textAlign: "right" }}>PO Qty</th>
+                                <th style={{ width: 90, padding: "10px 12px", textAlign: "right" }}>Unit Price</th>
+                                <th style={{ width: 80, padding: "10px 12px", textAlign: "center" }}>Disc%</th>
+                                <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>PO Amt</th>
+                                <th style={{ width: 70, padding: "10px 12px", textAlign: "center" }}>GST%</th>
+                                <th style={{ width: 80, padding: "10px 12px", textAlign: "right" }}>IGST</th>
+                                <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>Total</th>
+                                <th style={{ width: 40, padding: "10px 8px", textAlign: "center" }}></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.items.map((item, itemIndex) => (
+                                <tr 
+                                  key={item.rowId}
+                                  className="indent-item-row"
+                                  data-row-id={item.rowId}
+                                  data-row-type="item"
+                                  data-parent-id={group.indentNo}
+                                  style={{ 
+                                    cursor: "pointer",
+                                    borderBottom: itemIndex === group.items.length - 1 ? "none" : "1px solid #e2e8f0",
+                                    backgroundColor: pendingSelected.has(item.rowId) ? "#eef2ff" : "#ffffff"
+                                  }}
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newSelected = new Set(pendingSelected);
+                                    if (newSelected.has(item.rowId)) {
+                                      newSelected.delete(item.rowId);
+                                    } else {
+                                      newSelected.add(item.rowId);
+                                    }
+                                    setPendingSelected(newSelected);
+                                  }}
+                                >
+                                  <td style={{ paddingLeft: 28, color: "#64748b" }}>↳</td>
+                                  <td style={{ fontSize: 13 }}>{item.itemName}</td>
+                                  <td style={{ textAlign: "center", fontSize: 13 }}>{item.uom}</td>
+                                  <td style={{ textAlign: "right", fontSize: 13 }}>{fmtQty(item.balQty)}</td>
+                                  <td style={{ textAlign: "right", fontSize: 13 }}>
+                                    <input 
+                                      type="number" 
+                                      value={item.balQty}
+                                      style={{ width: 80, padding: "4px 8px", textAlign: "right", borderRadius: 4, border: "1px solid #e2e8f0" }}
+                                      onChange={(e) => { e.stopPropagation(); }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      tabIndex={-1}
+                                    />
+                                  </td>
+                                  <td style={{ textAlign: "right", fontSize: 13 }}>
+                                    <input 
+                                      type="number" 
+                                      value={item.rate}
+                                      style={{ width: 80, padding: "4px 8px", textAlign: "right", borderRadius: 4, border: "1px solid #e2e8f0" }}
+                                      onChange={(e) => { e.stopPropagation(); }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      tabIndex={-1}
+                                    />
+                                  </td>
+                                  <td style={{ textAlign: "center", fontSize: 13 }}>0</td>
+                                  <td style={{ textAlign: "right", fontSize: 13 }}>{fmt(item.balQty * item.rate)}</td>
+                                  <td style={{ textAlign: "center", fontSize: 13 }}>{item.gstPct || 0}</td>
+                                  <td style={{ textAlign: "right", fontSize: 13 }}>{fmt((item.balQty * item.rate) * (item.gstPct || 0) / 100)}</td>
+                                  <td style={{ textAlign: "right", fontSize: 13, fontWeight: 600 }}>{fmt((item.balQty * item.rate) + ((item.balQty * item.rate) * (item.gstPct || 0) / 100))}</td>
+                                  <td style={{ textAlign: "center" }}>
+                                    <input 
+                                      type="checkbox"
+                                      checked={pendingSelected.has(item.rowId)}
+                                      onChange={() => {}}
+                                      onClick={(e) => e.stopPropagation()}
+                                      tabIndex={-1}
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    {/* Custom Footer Buttons */}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20, paddingTop: 16, borderTop: "1px solid #e2e8f0", marginBottom: 16 }}>
+      <button 
+        className="inv-btn-secondary" 
+        id="cancel-pick-btn"
+        onClick={() => { setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); }}
+      >
+        Cancel
+      </button>
+      <button 
+        id="add-items-btn"
+        className="inv-btn-primary" 
+        onClick={() => { addPendingLinesToDetails(); setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); }}
+      >
+        Add {pendingSelected.size} Item(s) to PO
+      </button>
+    </div>
+  </Modal>
+)}
       {viewingSupplier && <SupplierDetailsModal supplier={viewingSupplier} onClose={() => setViewingSupplier(null)} />}
-      {saveSuccessModal && (
-        <Modal title="Success" onClose={() => { setSaveSuccessModal(false); setView("list"); }} onSave={() => { setSaveSuccessModal(false); setView("list"); }} saveLabel="Go to List">
-          <div style={{ textAlign: "center", padding: 20 }}>
-            <div style={{ fontSize: 48, color: "#10b981" }}>✓</div>
-            <h3 style={{ fontSize: 18, fontWeight: 600 }}>Saved Successfully!</h3>
-            <p style={{ color: "#64748b" }}>The Purchase Order has been recorded.</p>
-          </div>
-        </Modal>
-      )}
+
+    {showSaveConfirm && (
+  <Modal 
+    id="confirm-save-modal"
+    title="Confirm Save" 
+    onClose={() => setShowSaveConfirm(false)} 
+    hideDefaultButtons={true}
+  >
+    <style>
+      {`
+        #confirm-save-modal .inv-modal-header button,
+        #confirm-save-modal .inv-modal-header .inv-btn-ghost,
+        #confirm-save-modal .inv-modal-header .inv-save-btn,
+        #confirm-save-modal .inv-modal-header .inv-btn-secondary,
+        #confirm-save-modal .inv-modal-header .inv-btn-primary,
+        #confirm-save-modal .inv-modal-header [class*="btn"],
+        #confirm-save-modal .inv-modal-header > *:not(h2):not(h3):not(.inv-modal-title),
+        #confirm-save-modal .inv-modal-footer {
+          display: none !important;
+        }
+
+        #confirm-save-modal .inv-btn-primary,
+        #confirm-save-modal .inv-btn-secondary {
+          display: inline-flex !important;
+        }
+      `}
+    </style>
+    
+    <div style={{ textAlign: "center", padding: 20 }}>
+      <p style={{ fontSize: 14, marginBottom: 8 }}>Do you want to save this record?</p>
+      <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 20 }}>
+        <button 
+          className="inv-btn-primary" 
+          onClick={performSave}
+          tabIndex={0}
+          autoFocus
+        >
+          Save
+        </button>
+        <button 
+          id="cancel-save-btn"
+          className="inv-btn-secondary" 
+          onClick={() => setShowSaveConfirm(false)}
+          tabIndex={0}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </Modal>
+)}
     </div>
   );
 }

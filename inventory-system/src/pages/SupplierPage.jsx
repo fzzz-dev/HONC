@@ -58,8 +58,12 @@ async function apiFetch(path, options = {}) {
 function toArray(val) {
   if (Array.isArray(val)) return val;
   if (val == null) return [];
-  // Sometimes the API returns a comma-joined string or a single object
-  if (typeof val === "string") return [];
+  if (typeof val === "string" && val.trim()) {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {}
+  }
   return [];
 }
 
@@ -222,14 +226,11 @@ export function AddressFormPage({ address, onSave, onCancel, countries = [], sta
   const countryOptions = countries.map((c) => ({ value: String(c.id || c._id), label: c.name }));
   const stateOptions = states.map((s) => ({ value: String(s.id || s._id), label: s.name }));
 
-  const cityOptions = !form.stateId
-    ? []
-    : cities
-      .filter((c) => {
-        const cStateId = c.stateId?.id || c.stateId?._id || c.stateId;
-        return String(cStateId) === String(form.stateId);
-      })
-      .map((c) => ({ value: String(c.id || c._id), label: c.name }));
+  // Show ALL cities regardless of state - no filtering
+  const cityOptions = cities.map((c) => ({ 
+    value: String(c.id || c._id), 
+    label: c.name 
+  }));
 
   function handleCountryChange(val) {
     const found = countries.find((x) => String(x.id || x._id) === String(val));
@@ -240,9 +241,21 @@ export function AddressFormPage({ address, onSave, onCancel, countries = [], sta
     setForm({ ...form, stateId: val, stateName: found?.name || "", cityId: "", cityName: "" });
   }
   function handleCityChange(val) {
-    const found = cities.find((x) => String(x.id || x._id) === String(val));
-    setForm({ ...form, cityId: val, cityName: found?.name || "" });
-  }
+  const found = cities.find((x) => String(x.id || x._id) === String(val));
+  // Also update state based on selected city
+  const foundState = states.find((s) => {
+    const stateId = found?.stateId?.id || found?.stateId?._id || found?.stateId;
+    return String(s.id || s._id) === String(stateId);
+  });
+  
+  setForm({ 
+    ...form, 
+    cityId: val, 
+    cityName: found?.name || "",
+    stateId: foundState?.id || foundState?._id || form.stateId,
+    stateName: foundState?.name || form.stateName
+  });
+}
 
   function handleSubmit() {
     const line1 = String(form.line1 ?? "").trim();
@@ -307,8 +320,14 @@ export function AddressFormPage({ address, onSave, onCancel, countries = [], sta
 }
 
 // ─── Address List ──────────────────────────────────────────────────────────────
+// ─── Address List ──────────────────────────────────────────────────────────────
+// ─── Address List ──────────────────────────────────────────────────────────────
 export function AddressList({ addresses, onEdit, onDelete, onSetPrimary }) {
-  const safeAddresses = toArray(addresses);
+  // ✅ Ensure addresses is always an array
+  const safeAddresses = Array.isArray(addresses) ? addresses : [];
+  
+  console.log("AddressList rendering with:", safeAddresses.length, "addresses"); // Debug
+  
   if (safeAddresses.length === 0) {
     return (
       <div style={{ padding: 20, textAlign: "center", color: "var(--text-secondary)", fontSize: 13 }}>
@@ -316,6 +335,7 @@ export function AddressList({ addresses, onEdit, onDelete, onSetPrimary }) {
       </div>
     );
   }
+  
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {safeAddresses.map((addr, idx) => (
@@ -329,12 +349,28 @@ export function AddressList({ addresses, onEdit, onDelete, onSetPrimary }) {
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               {!addr.isPrimary && (
-                <button onClick={() => onSetPrimary(idx)} style={{ padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 5, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 4, color: "var(--text-secondary)" }}>
+                <button 
+                  onClick={() => onSetPrimary(idx)} 
+                  className="inv-btn-icon"
+                  style={{ padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 5, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", gap: 4, color: "var(--text-secondary)" }}
+                >
                   <StarIcon filled={false} /> Primary
                 </button>
               )}
-              <button onClick={() => onEdit(idx)} style={{ padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 5, background: "#fff", cursor: "pointer", fontSize: 11 }}>Edit</button>
-              <button onClick={() => onDelete(idx)} style={{ padding: "4px 8px", border: "1px solid #fca5a5", borderRadius: 5, background: "#fff", cursor: "pointer", fontSize: 11, color: "var(--danger)" }}>Delete</button>
+              <button 
+                onClick={() => onEdit(idx)} 
+                className="inv-btn-icon"
+                style={{ padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 5, background: "#fff", cursor: "pointer", fontSize: 11 }}
+              >
+                Edit
+              </button>
+              <button 
+                onClick={() => onDelete(idx)} 
+                className="inv-btn-icon inv-btn-danger"
+                style={{ padding: "4px 8px", border: "1px solid #fca5a5", borderRadius: 5, background: "#fff", cursor: "pointer", fontSize: 11, color: "var(--danger)" }}
+              >
+                Delete
+              </button>
             </div>
           </div>
           <div style={{ fontSize: 13, marginBottom: 6 }}>
@@ -605,6 +641,11 @@ export default function SupplierPage() {
     return () => clearTimeout(t);
   }, [search, filterType]);
 
+  // Add this after your useState declarations
+useEffect(() => {
+  console.log("Form addresses updated:", form.addresses);
+}, [form.addresses]);
+
   const typeOptions = supplierTypes.map((t) => ({
     value: t.name,
     label: t.name,
@@ -635,21 +676,63 @@ export default function SupplierPage() {
     setModal({ mode: "add" });
     setShowList(false);
   }
-  function openEdit(row) {
-    const ids = Array.isArray(row.purchaseCategoryIds)
-      ? row.purchaseCategoryIds.map((x) => String(x))
-      : [];
-    setForm({
-      ...EMPTY_FORM,
-      ...row,
-      addresses: toArray(row.addresses).map((a) => normalizeAddrForForm(a)),
-      shortCode: String(row.shortCode || "").toUpperCase().slice(0, 5),
-      paymentTermsId: row.paymentTermsId ? String(row.paymentTermsId) : "",
-      purchaseCategoryIds: ids,
-    });
-    setModal({ mode: "edit", id: row.id || row._id });
-    setShowList(false);
+function openEdit(row) {
+  const ids = Array.isArray(row.purchaseCategoryIds)
+    ? row.purchaseCategoryIds.map((x) => String(x))
+    : [];
+  
+  // ✅ CRITICAL FIX: Properly extract addresses from the row data
+  let existingAddresses = [];
+  
+  // Check if row has addresses property
+  if (row.addresses) {
+    if (Array.isArray(row.addresses)) {
+      existingAddresses = row.addresses;
+    } else if (typeof row.addresses === "string") {
+      try {
+        const parsed = JSON.parse(row.addresses);
+        existingAddresses = Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        console.error("Failed to parse addresses:", e);
+        existingAddresses = [];
+      }
+    }
   }
+  
+  // Normalize each address
+  const normalizedAddresses = existingAddresses.map((addr, idx) => {
+    const normalized = normalizeAddrForForm(addr);
+    return {
+      ...normalized,
+      id: addr.id || addr._id || idx,
+      line1: normalized.line1 || normalized.address || "",
+      line2: normalized.line2 || "",
+      pinCode: normalized.pinCode || "",
+      cityId: addr.cityId?._id || addr.cityId || normalized.cityId || "",
+      cityName: addr.cityName || normalized.cityName || "",
+      stateId: addr.stateId?._id || addr.stateId || normalized.stateId || "",
+      stateName: addr.stateName || normalized.stateName || "",
+      countryId: addr.countryId?._id || addr.countryId || normalized.countryId || "",
+      countryName: addr.countryName || normalized.countryName || "",
+      note: addr.note || normalized.note || "",
+      isPrimary: addr.isPrimary || normalized.isPrimary || false,
+    };
+  });
+  
+  console.log("Loaded addresses for edit:", normalizedAddresses); // Debug log
+  
+  setForm({
+    ...EMPTY_FORM,
+    ...row,
+    addresses: normalizedAddresses,
+    shortCode: String(row.shortCode || "").toUpperCase().slice(0, 5),
+    paymentTermsId: row.paymentTermsId ? String(row.paymentTermsId) : "",
+    purchaseCategoryIds: ids,
+  });
+  
+  setModal({ mode: "edit", id: row.id || row._id });
+  setShowList(false);
+}
 
   // ── Address handlers ─────────────────────────────────────────────────────────
   function openAddAddress() {
@@ -693,41 +776,64 @@ export default function SupplierPage() {
   }
 
   // ── Save supplier ────────────────────────────────────────────────────────────
-  async function handleSave() {
-    if (!form.supplierName.trim()) return alert("Party name is required");
-    if (!form.type) return alert("Party category is required");
-    const sc = String(form.shortCode || "").trim().toUpperCase();
-    if (sc.length < 1 || sc.length > 5) {
-      return alert("Short code is required (1–5 characters)");
-    }
-    setSaving(true);
-    try {
-      const cleanAddresses = toArray(form.addresses)
-        .filter((a) => (a.line1 || a.address) && a.cityId && a.stateId && a.countryId)
-        .map(({ _id, ...rest }) => rest);
-
-      const payload = {
-        ...form,
-        shortCode: sc,
-        paymentTermsId: form.paymentTermsId || null,
-        purchaseCategoryIds: form.purchaseCategoryIds.map((x) => parseInt(x, 10)).filter((n) => !Number.isNaN(n)),
-        addresses: cleanAddresses,
-      };
-
-      if (modal.mode === "add") {
-        await suppliersAPI.create(payload);
-        setForm(EMPTY_FORM);
-      } else {
-        await suppliersAPI.update(modal.id, payload);
-      }
-      setSaveSuccess(true);
-      fetchSuppliers();
-    } catch (e) {
-      showToast(e.message, "error");
-    } finally {
-      setSaving(false);
-    }
+async function handleSave() {
+  console.log("=== SAVE STARTED ===");
+  console.log("Form data:", form);
+  
+  if (!form.supplierName.trim()) {
+    console.log("Validation failed: Party name missing");
+    return alert("Party name is required");
   }
+  if (!form.type) {
+    console.log("Validation failed: Party category missing");
+    return alert("Party category is required");
+  }
+  
+  const sc = String(form.shortCode || "").trim().toUpperCase();
+  if (sc.length < 1 || sc.length > 5) {
+    console.log("Validation failed: Short code invalid");
+    return alert("Short code is required (1–5 characters)");
+  }
+  
+  console.log("Validations passed");
+  setSaving(true);
+  
+  try {
+    const cleanAddresses = toArray(form.addresses)
+      .filter((a) => (a.line1 || a.address) && a.cityId && a.stateId && a.countryId)
+      .map(({ _id, ...rest }) => rest);
+    
+    console.log("Clean addresses:", cleanAddresses);
+    
+    const payload = {
+      ...form,
+      shortCode: sc,
+      paymentTermsId: form.paymentTermsId || null,
+      purchaseCategoryIds: form.purchaseCategoryIds.map((x) => parseInt(x, 10)).filter((n) => !Number.isNaN(n)),
+      addresses: cleanAddresses,
+    };
+    
+    console.log("Payload being sent:", payload);
+    
+    if (modal.mode === "add") {
+      console.log("Creating new supplier...");
+      await suppliersAPI.create(payload);
+      setForm(EMPTY_FORM);
+    } else {
+      console.log("Updating supplier with ID:", modal.id);
+      await suppliersAPI.update(modal.id, payload);
+    }
+    
+    console.log("Save successful!");
+    setSaveSuccess(true);
+    fetchSuppliers();
+  } catch (e) {
+    console.error("Save error:", e);
+    showToast(e.message, "error");
+  } finally {
+    setSaving(false);
+  }
+}
 
   // ── Delete supplier ──────────────────────────────────────────────────────────
   async function handleDelete(id) {
@@ -946,10 +1052,19 @@ export default function SupplierPage() {
           </div>
 
           <SectionLabel>Addresses</SectionLabel>
-          <AddressList addresses={form.addresses} onEdit={openEditAddress} onDelete={deleteAddress} onSetPrimary={setAddressPrimary} />
-          <button type="button" onClick={openAddAddress} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "1px dashed var(--border-mid)", borderRadius: 6, padding: "8px 12px", cursor: "pointer", fontSize: 12, color: "var(--text-secondary)", marginTop: 12 }}>
-            <PlusIcon /> Add address
-          </button>
+{/* Debug - show count */}
+<div style={{ fontSize: 10, color: "gray", marginBottom: 5 }}>
+  Addresses in form: {form.addresses?.length || 0}
+</div>
+<AddressList 
+  addresses={form.addresses || []} 
+  onEdit={openEditAddress} 
+  onDelete={deleteAddress} 
+  onSetPrimary={setAddressPrimary} 
+/>
+<button type="button" onClick={openAddAddress} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "1px dashed var(--border-mid)", borderRadius: 6, padding: "8px 12px", cursor: "pointer", fontSize: 12, color: "var(--text-secondary)", marginTop: 12 }}>
+  <PlusIcon /> Add address
+</button>
 
           {addressForm && (
             <AddressFormPage

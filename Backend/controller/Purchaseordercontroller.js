@@ -37,7 +37,6 @@ async function generatePoNo() {
   return `${prefix}${String(seq).padStart(4, "0")}/${fy}`;
 }
 
-
 /** Recalculate computed fields for a single detail row. */
 function calcDetail(d, gstEnabled, gstType) {
   const baseAmt = Number(d.poQty || 0) * Number(d.poRate || 0);
@@ -68,7 +67,6 @@ function calcDetail(d, gstEnabled, gstType) {
 
   return {
     ...d,
-    // id removed to allow database auto-increment
     discPct: +discPct.toFixed(4),
     discPrice: +discPrice.toFixed(2),
     poAmount: +netAmt.toFixed(2),
@@ -149,6 +147,7 @@ exports.create = async (req, res) => {
       poNo,
       poType,
       date,
+      deliveryDate,  // ← ADD THIS
       supplierId,
       supplierName,
       paymentTermsId,
@@ -209,6 +208,7 @@ exports.create = async (req, res) => {
       poNo,
       poType,
       date,
+      deliveryDate,  // ← ADD THIS
       supplierId: supplierId || null,
       supplierName: finalSupplierName,
       paymentTermsId: ptId,
@@ -242,6 +242,7 @@ exports.create = async (req, res) => {
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError')
       return res.status(409).json({ message: "PO number already exists" });
+    console.error("Create PO error:", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -249,18 +250,13 @@ exports.create = async (req, res) => {
 // ─── PUT /api/purchase-orders/:id ────────────────────────────────────────────
 exports.update = async (req, res) => {
   try {
-
-    // return res.status(400).json({ message: req.body });
-
     const po = await PurchaseOrder.findByPk(req.params.id);
     if (!po) return res.status(404).json({ message: "PO not found" });
-
-
-    
 
     const {
       poNo,
       date,
+      deliveryDate,  // ← ADD THIS
       supplierId,
       supplierName,
       paymentTermsId,
@@ -273,6 +269,8 @@ exports.update = async (req, res) => {
       poType,
       details = [],
     } = req.body;
+
+    console.log("Updating PO ID:", req.params.id, "with deliveryDate:", deliveryDate); // Debug log
 
     let finalSupplierName = supplierName;
     if (supplierId) {
@@ -320,6 +318,7 @@ exports.update = async (req, res) => {
       poNo,
       poType,
       date,
+      deliveryDate,  // ← ADD THIS
       supplierId: supplierId || null,
       supplierName: finalSupplierName,
       paymentTermsId: ptId,
@@ -360,6 +359,7 @@ exports.update = async (req, res) => {
     const updatedPo = await PurchaseOrder.findByPk(req.params.id, { include: ["details"] });
     res.json(updatedPo);
   } catch (err) {
+    console.error("Update PO error:", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -383,4 +383,4 @@ exports.remove = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-};
+};  

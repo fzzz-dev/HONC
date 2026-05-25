@@ -92,30 +92,54 @@ export default function MainCategoryPage() {
     }));
   }
 
+  // Add this function before handleSave
+const checkDuplicateCategory = () => {
+  // Find if there's an existing category with the same headId AND same groupName
+  const existingCategory = categories.find(cat => 
+    String(cat.headId?._id || cat.headId) === form.headId && 
+    cat.groupName?.toLowerCase().trim() === form.groupName?.toLowerCase().trim()
+  );
+  
+  return existingCategory;
+};
+
   async function handleSave() {
-    if (!form.headId) return alert("Head is required");
-    if (!form.groupName.trim()) return alert("Group Name is required");
-    try {
-      setSaving(true);
-      const payload = {
-        headId: form.headId,
-        groupName: form.groupName.trim(),
-        active: form.active,
-        // headName is set server-side from the InventoryHead document
-      };
-      if (modal.mode === "add") {
-        await mainCategoryApi.create(payload);
-      } else {
-        await mainCategoryApi.update(modal.id, payload);
-      }
-      await fetchCategories();
-      setModal(null);
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setSaving(false);
-    }
+  if (!form.headId) return alert("Head is required");
+  if (!form.groupName.trim()) return alert("Group Name is required");
+  
+  // Check for duplicate category (same head + same group)
+  const existingCategory = checkDuplicateCategory();
+  
+  // For edit mode, exclude the current category from duplicate check
+  if (modal.mode === "edit" && existingCategory && existingCategory.id !== modal.id) {
+    return alert(`Category "${existingCategory.groupName}" already exists under this Head. Please use a different Group Name.`);
   }
+  
+  // For add mode, check if any duplicate exists
+  if (modal.mode === "add" && existingCategory) {
+    return alert(`Category "${form.groupName}" already exists under this Head. Please use a different Group Name.`);
+  }
+  
+  try {
+    setSaving(true);
+    const payload = {
+      headId: form.headId,
+      groupName: form.groupName.trim(),
+      active: form.active,
+    };
+    if (modal.mode === "add") {
+      await mainCategoryApi.create(payload);
+    } else {
+      await mainCategoryApi.update(modal.id, payload);
+    }
+    await fetchCategories();
+    setModal(null);
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    setSaving(false);
+  }
+}
 
   async function handleDelete(id) {
     try {

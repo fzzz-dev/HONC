@@ -206,6 +206,52 @@ export default function PurchaseGRNPage() {
             }
           }, []);
 
+          // Add this useEffect inside your PurchaseIndentPage component (after other useEffects)
+
+useEffect(() => {
+  const handleTabKey = (e) => {
+    if (e.key !== 'Tab') return;
+    
+    // Get all focusable elements with tabIndex (1 to 999)
+    const focusableElements = Array.from(
+      document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
+    ).filter(el => {
+      const tabIndex = parseInt(el.getAttribute('tabIndex'));
+      return !isNaN(tabIndex) && tabIndex >= 1 && el.offsetParent !== null && !el.disabled;
+    }).sort((a, b) => {
+      const tabA = parseInt(a.getAttribute('tabIndex'));
+      const tabB = parseInt(b.getAttribute('tabIndex'));
+      return tabA - tabB;
+    });
+    
+    if (focusableElements.length === 0) return;
+    
+    const currentElement = document.activeElement;
+    const currentIndex = focusableElements.indexOf(currentElement);
+    
+    // Tab key (forward)
+    if (!e.shiftKey) {
+      if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
+        e.preventDefault();
+        focusableElements[0].focus();
+      }
+    } 
+    // Shift+Tab key (backward)
+    else {
+      if (currentIndex === 0 || currentIndex === -1) {
+        e.preventDefault();
+        focusableElements[focusableElements.length - 1].focus();
+      }
+    }
+  };
+  
+  document.addEventListener('keydown', handleTabKey);
+  
+  return () => {
+    document.removeEventListener('keydown', handleTabKey);
+  };
+}, [details.length]); // Re-run when details length changes (rows added/removed)
+
   // ── Handlers ──
  async function openNew() {
   setHeader({

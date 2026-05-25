@@ -19,6 +19,9 @@ import PaymentTermsPage from "./pages/PaymentTermsPage";
 import CountryPage from "./pages/CountryPage";
 import StatePage from "./pages/StatePage";
 import CityPage from "./pages/CityPage";
+import PurchaseIndentReportPage from "./pages/Reports/PurchaseIndentReportPage";
+import PurchaseOrderReportPage from "./pages/Reports/PurchaseOrderResult";
+import PurchaseGrnReportPage from "./pages/Reports/PurchaseGrnReportPage";
 import {
   StoreMasterPage,
   DepartmentMasterPage,
@@ -99,6 +102,10 @@ export default function App() {
                 {/* ── Register ── */}
                 <Route path="/purchase-indent-register" element={<PurchaseIndentRegister />} />
 
+                {/* ── Reports ── */}
+                <Route path="/purchase-indent-report" element={<PurchaseIndentReportPage />} />
+                <Route path="/purchase-order-report" element={<PurchaseOrderReportPage />} />
+                <Route path="/purchase-grn-report" element={<PurchaseGrnReportPage />} />
 
                 <Route path="*" element={<Navigate to="/inv-head" replace />} />
               </Routes>
@@ -109,4 +116,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-

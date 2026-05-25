@@ -116,6 +116,57 @@ export default function ConsumptionIssuePage() {
     }, 100);
   }, []);
 
+  // Add this useEffect inside your page component (PurchaseIndentPage, PurchaseOrderPage, etc.)
+
+useEffect(() => {
+  const handleTabKey = (e) => {
+    if (e.key !== 'Tab') return;
+    
+    // Get all focusable elements with tabIndex >= 1
+    const focusableElements = Array.from(
+      document.querySelectorAll('[tabIndex="1"], [tabIndex="2"], [tabIndex="3"], [tabIndex="4"], [tabIndex="5"], [tabIndex="6"], [tabIndex="7"], [tabIndex="8"], [tabIndex="9"], [tabIndex="10"], [tabIndex="11"], [tabIndex="12"], [tabIndex="13"], [tabIndex="14"], [tabIndex="15"], [tabIndex="16"], [tabIndex="17"], [tabIndex="18"], [tabIndex="19"], [tabIndex="20"], [tabIndex="21"], [tabIndex="22"], [tabIndex="23"], [tabIndex="24"], [tabIndex="25"], [tabIndex="26"], [tabIndex="27"], [tabIndex="28"], [tabIndex="29"], [tabIndex="30"]')
+    ).filter(el => {
+      // Only include visible, non-disabled elements
+      const isVisible = el.offsetParent !== null;
+      const isDisabled = el.disabled === true || el.getAttribute('aria-disabled') === 'true';
+      return isVisible && !isDisabled;
+    }).sort((a, b) => {
+      // Sort by tabIndex
+      const tabA = parseInt(a.getAttribute('tabIndex')) || 0;
+      const tabB = parseInt(b.getAttribute('tabIndex')) || 0;
+      return tabA - tabB;
+    });
+    
+    if (focusableElements.length === 0) return;
+    
+    const currentElement = document.activeElement;
+    const currentIndex = focusableElements.indexOf(currentElement);
+    
+    // If Tab is pressed
+    if (!e.shiftKey) {
+      // If on last element, go to first
+      if (currentIndex === focusableElements.length - 1) {
+        e.preventDefault();
+        focusableElements[0].focus();
+      }
+    } 
+    // If Shift+Tab is pressed
+    else {
+      // If on first element, go to last
+      if (currentIndex === 0) {
+        e.preventDefault();
+        focusableElements[focusableElements.length - 1].focus();
+      }
+    }
+  };
+  
+  document.addEventListener('keydown', handleTabKey);
+  
+  return () => {
+    document.removeEventListener('keydown', handleTabKey);
+  };
+}, []);
+
   async function openNew() {
     let nextNo = "";
     try {

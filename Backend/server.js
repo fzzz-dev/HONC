@@ -3,7 +3,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
 const sequelize = require("./config/database");
-const models = require("./model"); // Initialize associations
+const models = require("./model");
 
 dotenv.config();
 
@@ -33,7 +33,6 @@ async function ensureDatabaseExists() {
 const seedData = async () => {
   const { User, Role } = require("./model");
 
-  // Seed Roles
   const roles = ["admin", "user", "manager"];
   for (const roleName of roles) {
     const exists = await Role.findOne({ where: { name: roleName } });
@@ -74,22 +73,10 @@ const ensureItemMovementTypeColumn = async () => {
   }
 };
 
-async function columnExists(tableName, columnName) {
-  const dbName = sequelize.config.database;
-  const [rows] = await sequelize.query(
-    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-     WHERE TABLE_SCHEMA = :db 
-     AND LOWER(TABLE_NAME) = LOWER(:tbl) 
-     AND LOWER(COLUMN_NAME) = LOWER(:col) LIMIT 1`,
-    { replacements: { db: dbName, tbl: tableName, col: columnName } },
-  );
-  return rows.length > 0;
-}
-
 async function ensureSchemaEnhancements() {
   try {
     const [tables] = await sequelize.query("SHOW TABLES");
-    const dbTables = tables.map(t => Object.values(t)[0]); // Keep actual casing
+    const dbTables = tables.map(t => Object.values(t)[0]);
     console.log("Database tables found (actual casing):", dbTables.join(", "));
 
     const patches = [
@@ -164,65 +151,76 @@ async function ensureSchemaEnhancements() {
   }
 }
 
-// SQL Connection and Sync
-ensureDatabaseExists()
-  .then(() => sequelize.authenticate())
-  .then(async () => {
+// Start server function
+async function startServer() {
+  try {
+    await ensureDatabaseExists();
+    await sequelize.authenticate();
     console.log("SQL Database Connected");
     await ensureSchemaEnhancements();
-    return sequelize.sync();
-  })
-  .then(async () => {
+    await sequelize.sync();
     console.log("Database Synced");
     await ensureItemMovementTypeColumn();
     await seedData();
-  })
-  .catch((err) => {
+
+    // ========== REGISTER ALL ROUTES AFTER DATABASE IS READY ==========
+    console.log("Registering routes...");
+
+    app.use("/api/countries", require("./routes/countryRoutes"));
+    app.use("/api/states", require("./routes/stateRoutes"));
+    app.use("/api/cities", require("./routes/cityRoutes"));
+    app.use("/api/inventory-heads", require("./routes/InventoryRoutes"));
+    app.use("/api/stores", require("./routes/Storeroutes"));
+    app.use("/api/departments", require("./routes/Departmentroutes"));
+    app.use("/api/processes", require("./routes/Processroutes"));
+    app.use("/api/makes", require("./routes/makeRoutes"));
+    app.use("/api/specs", require("./routes/specRoutes"));
+    app.use("/api/suppliers", require("./routes/supplierRoutes"));
+    app.use("/api/supplier-types", require("./routes/SuppliertypeRoutes"));
+    app.use("/api/payment-terms", require("./routes/paymentTermRoutes"));
+    app.use("/api/items", require("./routes/itemRoutes"));
+    app.use("/api/purchase-indents", require("./routes/Purchaseindentroutes"));
+    app.use("/api/purchase-orders", require("./routes/purchaseOrderRoutes"));
+    app.use("/api/item-price-lists", require("./routes/itemPriceListRoutes"));
+    app.use("/api/grns", require("./routes/Grnroutes"));
+    app.use("/api/consumption-issues", require("./routes/consumptionIssueRoutes"));
+    app.use("/api/opening-stocks", require("./routes/openingStockRoutes"));
+    app.use("/api/company", require("./routes/companyRoutes"));
+    app.use("/api/auth", require("./routes/authRoutes"));
+    app.use("/api/users", require("./routes/userRoutes"));
+    app.use("/api/roles", require("./routes/roleRoutes"));
+    app.use("/api/permissions", require("./routes/permissionRoutes"));
+    app.use("/api/factories", require("./routes/factoryRoutes"));
+    app.use("/api/reports", require("./routes/reportRoutes"));
+    
+
+    // Test routes
+    app.get("/test-simple", (req, res) => {
+      res.json({ message: "Simple test works!" });
+    });
+
+    app.get("/health", (req, res) => {
+      res.json({ status: "OK", message: "Server is running (SQL Mode)" });
+    });
+
+    console.log("All routes registered successfully");
+
+    // Global error handler
+    app.use((err, req, res, next) => {
+      console.error(err.stack);
+      res.status(500).json({
+        success: false,
+        message: err.message || "Internal Server Error",
+      });
+    });
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (err) {
     console.error("Database Connection/Sync Error:", err);
-  });
+  }
+}
 
-// Routes
-app.use("/api/countries", require("./routes/countryRoutes"));
-app.use("/api/states", require("./routes/stateRoutes"));
-app.use("/api/cities", require("./routes/cityRoutes"));
-app.use("/api/inventory-heads", require("./routes/InventoryRoutes"));
-app.use("/api/stores", require("./routes/Storeroutes"));
-app.use("/api/departments", require("./routes/Departmentroutes"));
-app.use("/api/processes", require("./routes/Processroutes"));
-app.use("/api/makes", require("./routes/makeRoutes"));
-app.use("/api/specs", require("./routes/specRoutes"));
-app.use("/api/suppliers", require("./routes/supplierRoutes"));
-app.use("/api/supplier-types", require("./routes/SuppliertypeRoutes"));
-app.use("/api/payment-terms", require("./routes/paymentTermRoutes"));
-app.use("/api/items", require("./routes/itemRoutes"));
-app.use("/api/purchase-indents", require("./routes/Purchaseindentroutes"));
-app.use("/api/purchase-orders", require("./routes/purchaseOrderRoutes"));
-app.use("/api/item-price-lists", require("./routes/itemPriceListRoutes"));
-app.use("/api/grns", require("./routes/Grnroutes"));
-app.use("/api/consumption-issues", require("./routes/consumptionIssueRoutes"));
-app.use("/api/opening-stocks", require("./routes/openingStockRoutes"));
-app.use("/api/company", require("./routes/companyRoutes"));
-app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/users", require("./routes/userRoutes"));
-app.use("/api/roles", require("./routes/roleRoutes"));
-app.use("/api/permissions", require("./routes/permissionRoutes"));
-app.use("/api/factories", require("./routes/factoryRoutes"));
-
-// Health check
-app.get("/health", (req, res) => {
-  res.json({ status: "OK", message: "Server is running (SQL Mode)" });
-});
-
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    message: err.message || "Internal Server Error",
-  });
-});
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+startServer();
