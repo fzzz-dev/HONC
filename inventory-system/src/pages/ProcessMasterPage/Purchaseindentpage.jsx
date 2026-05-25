@@ -10,7 +10,7 @@ import { SearchSelect } from "../../components/FormFields";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const currentDate = new Date().toISOString().split("T")[0];
+const today = () => new Date().toISOString().split("T")[0];
 const getFY = () => {
   const d = new Date();
   const m = d.getMonth() + 1;
@@ -40,15 +40,15 @@ const emptyDetail = () => ({
 
 const emptyHeader = () => ({
   indentNo: "", 
-  indentDate: currentDate,  // Add this line
-  date: currentDate, 
+  indentDate: today(),  // Add this line
+  date: today(), 
   departmentId: "", 
   departmentName: "", 
   createdBy: "Admin", 
-  createdOn: currentDate, 
+  createdOn: today(), 
   status: "Open", 
   remarks: "",
-  dueDate:"", 
+  dueDate: today(), 
   preparedBy: ""
 });
 
@@ -188,55 +188,25 @@ useEffect(() => {
     try { const { indentNo } = await purchaseIndentApi.getNextNumber(); if (indentNo) setHeader(h => ({ ...h, indentNo })); } catch (e) { }
   }
 
-  function openEdit(indent) {
-    console.log("OpenEdit called with indent:", indent);
-    
-    setEditId(sid(indent));
-    
-    const normalizeDate = (dateValue) => {
-      if (!dateValue) return currentDate;
-      if (typeof dateValue === "string" && dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        return dateValue;
-      }
-      if (typeof dateValue === "string" && dateValue.includes("T")) {
-        return dateValue.split("T")[0];
-      }
-      try {
-        const dt = new Date(dateValue);
-        if (!isNaN(dt.getTime())) {
-          return dt.toISOString().split("T")[0];
-        }
-      } catch (e) {}
-      return currentDate;
-    };
-    
-    setHeader({
-      indentNo: indent.indentNo || "",
-      indentDate: normalizeDate(indent.indentDate || indent.date),
-      dueDate: normalizeDate(indent.dueDate),  // Header due date
-      departmentId: sid(indent.departmentId),
-      departmentName: indent.departmentName || "",
-      createdBy: indent.createdBy || "Admin",
-      preparedBy: indent.preparedBy || indent.createdBy || user?.name || "Admin",
-      remarks: indent.remarks || "",
-      status: indent.status || "Open",
-    });
-    
-    const normalizedDetails = safeDetails(indent.details).map(d => ({
-      _rowId: Math.random(),
-      mainCategoryId: sid(d.mainCategoryId),
-      mainCategoryName: d.mainCategoryName || "",
-      itemId: sid(d.itemId),
-      itemName: d.itemName || "",
-      uom: d.uom || "",
-      indentQty: d.indentQty || "0.000",
-      dueDate: normalizeDate(d.dueDate),  // Per-item due date (this is what you need!)
-      remarks: d.remarks || "",
-    }));
-    
-    setDetails(normalizedDetails.length > 0 ? normalizedDetails : [emptyDetail()]);
-    setView("form");
-  }
+function openEdit(indent) {
+  setEditId(sid(indent));
+  
+  setHeader({
+    ...indent,
+    departmentId: sid(indent.departmentId),
+    preparedBy: indent.preparedBy || indent.createdBy || "",
+    indentDate: indent.indentDate || indent.date ||today(),  // Prefer indentDate
+    dueDate: indent.dueDate || today(),
+  });
+  
+  setDetails(safeDetails(indent.details).map(d => ({
+    ...d, 
+    _rowId: Math.random(), 
+    mainCategoryId: sid(d.mainCategoryId), 
+    itemId: sid(d.itemId),
+  })));
+  setView("form");
+}
 
   function updateDetail(idx, field, val) {
     setDetails(prev => {
@@ -273,80 +243,46 @@ useEffect(() => {
  
 
 
-    // async function handleSave() 
-
+    // async function handleSave() {
     const handleSave = useCallback(async () => {
-      console.log("=== SAVE DEBUG ===");
-      console.log("editId:", editId);
-      console.log("header:", header);
-      console.log("details:", details);
-      
+
       if (!header.indentNo.trim()) return setFormError("Indent No is required");
       if (!header.departmentId) return setFormError("Department is required");
 
-      for (const row of details) {
-        if (row.mainCategoryId === "" || row.mainCategoryId === null) {
-          return setFormError("Category is required");
-        }
-        if (row.itemId === "" || row.itemId === null) {
-          return setFormError("Item Description is required");
-        }
-        if (row.indentQty === "" || row.indentQty === null || Number(row.indentQty) <= 0) {
-          return setFormError("Indent Qty is required");
-        }
-      }
+      
 
-      const confirmSave = window.confirm("Do you want to save this record?");
+      for (const row of details) {
+        if (row.mainCategoryId === "" ||row.mainCategoryId === null) {return setFormError("Category is required");  }
+        if (row.itemId === "" ||row.itemId === null) {return setFormError("Item Description is required");  }
+        if (row.indentQty === "" ||row.indentQty === null || Number(row.indentQty) <= 0) {return setFormError("Indent Qty is required");  }
+        console.log(row.itemName);  
+      }
+          
+      const confirmSave = window.confirm(
+        "Do you want to save this record?"
+      );
+
       if (!confirmSave) return;
 
       setFormError("");
+
       setSaving(true);
-      
-      // IMPORTANT: Keep the dueDate from each detail row
-      const cleanDetails = details.filter(d => d.itemId).map(({ _rowId, ...rest }) => ({
-        ...rest,
-        // Ensure dueDate is explicitly included and use row's dueDate if available, fallback to header dueDate
-        dueDate: rest.dueDate || header.dueDate || currentDate
-      }));
-      
-      if (cleanDetails.length === 0) { 
-        setSaving(false); 
-        return setFormError("Add at least one item"); 
-      }
-      
+      const cleanDetails = details.filter(d => d.itemId).map(({ _rowId, ...rest }) => rest);
+      if (cleanDetails.length === 0) { setSaving(false); return setFormError("Add at least one item"); }
       const payload = { 
-        indentNo: header.indentNo,
-        indentDate: header.indentDate,
-        date: header.indentDate,
-        dueDate: header.dueDate,  // Header level due date (for the entire indent)
-        departmentId: header.departmentId,
-        departmentName: header.departmentName,
-        createdBy: header.createdBy,
-        preparedBy: header.preparedBy,
-        remarks: header.remarks,
-        status: header.status,
-        details: cleanDetails  // Each detail has its own dueDate
-      };
-      
-      console.log("Payload being sent:", JSON.stringify(payload, null, 2));
-      
+  ...header, 
+  indentDate: header.indentDate,  // Explicitly include indentDate
+  date: header.indentDate,        // Also set date field to same value
+  details: cleanDetails 
+};
       try {
-        if (editId) {
-          console.log("UPDATING indent with ID:", editId);
-          await purchaseIndentApi.update(editId, payload);
-        } else {
-          console.log("CREATING new indent");
-          await purchaseIndentApi.create(payload);
-        }
+        if (editId) await purchaseIndentApi.update(editId, payload);
+        else await purchaseIndentApi.create(payload);
         await loadIndents();
         setSaveSuccessModal(true);
-      } catch (err) { 
-        console.error("Save error:", err);
-        setFormError(err.message); 
-      } finally { 
-        setSaving(false); 
-      }
-    }, [header, details, editId, loadIndents]);
+      } catch (err) { setFormError(err.message); } finally { setSaving(false); }
+
+    }, [header, details]);
 
     
      useEffect(() => {
