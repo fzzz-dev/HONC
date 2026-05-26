@@ -26,11 +26,11 @@ router.get('/purchase-indent-report', async (req, res) => {
         c.dueDate,
         a.status,
         a.createdBy
-      FROM purchaseindents a 
-      JOIN departments b ON a.departmentid = b.id 
-      JOIN purchaseindentdetails c ON a.id = c.purchaseIndentId 
-      JOIN maincategories d ON c.mainCategoryId = d.id 
-      JOIN items e ON c.itemId = e.id 
+      FROM PurchaseIndents a 
+      JOIN Departments b ON a.departmentid = b.id 
+      JOIN PurchaseIndentDetails c ON a.id = c.purchaseIndentId 
+      JOIN MainCategories d ON c.mainCategoryId = d.id 
+      JOIN Items e ON c.itemId = e.id 
     `;
     
     const whereConditions = [];
@@ -105,11 +105,11 @@ router.get('/purchase-indent-report/export/csv', async (req, res) => {
         c.uom AS 'UOM',
         c.dueDate AS 'Due Date',
         c.remarks AS 'Remarks'
-      FROM purchaseindents a 
-      JOIN departments b ON a.departmentid = b.id 
-      JOIN purchaseindentdetails c ON a.id = c.purchaseIndentId 
-      JOIN maincategories d ON c.mainCategoryId = d.id 
-      JOIN items e ON c.itemId = e.id 
+      FROM PurchaseIndents a 
+      JOIN Departments b ON a.departmentid = b.id 
+      JOIN PurchaseIndentDetails c ON a.id = c.purchaseIndentId 
+      JOIN MainCategories d ON c.mainCategoryId = d.id 
+      JOIN Items e ON c.itemId = e.id 
     `;
     
     const whereConditions = [];
@@ -226,8 +226,8 @@ router.get('/purchase-order-report', async (req, res) => {
         pod.discPrice,
         pod.totGst,
         pod.totalAmount
-      FROM purchaseorders po 
-      LEFT JOIN purchaseorderdetails pod ON po.id = pod.purchaseOrderId 
+      FROM PurchaseOrders po 
+      LEFT JOIN PurchaseOrderDetails pod ON po.id = pod.purchaseOrderId 
       WHERE 1=1
     `;
     
@@ -292,8 +292,8 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
         pod.discPrice AS 'Discount',
         pod.totGst AS 'GST',
         pod.totalAmount AS 'Total Amount'
-      FROM purchaseorders po 
-      LEFT JOIN purchaseorderdetails pod ON po.id = pod.purchaseOrderId 
+      FROM PurchaseOrders po 
+      LEFT JOIN PurchaseOrderDetails pod ON po.id = pod.purchaseOrderId 
       WHERE 1=1
     `;
     
@@ -396,8 +396,8 @@ router.get('/purchase-grn-report', async (req, res) => {
         pgd.discPct,
         pgd.totGst,
         pgd.totalAmount AS detailTotalAmount
-      FROM purchasegrns pg 
-      LEFT JOIN purchasegrndetails pgd ON pg.id = pgd.purchaseGRNId 
+      FROM PurchaseGRNs pg 
+      LEFT JOIN PurchaseGRNDetails pgd ON pg.id = pgd.purchaseGRNId 
       WHERE 1=1
     `;
     
@@ -468,8 +468,8 @@ router.get('/purchase-grn-report/export/csv', async (req, res) => {
         pgd.discPct AS 'Discount %',
         pgd.totGst AS 'Total GST',
         pgd.totalAmount AS 'Total Amount'
-      FROM purchasegrns pg 
-      LEFT JOIN purchasegrndetails pgd ON pg.id = pgd.purchaseGRNId 
+      FROM PurchaseGRNs pg 
+      LEFT JOIN PurchaseGRNDetails pgd ON pg.id = pgd.purchaseGRNId 
       WHERE 1=1
     `;
     
