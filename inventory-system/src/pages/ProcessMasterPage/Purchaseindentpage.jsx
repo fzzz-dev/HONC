@@ -802,4 +802,4 @@ export default function PurchaseIndentPage() {
       )}
     </div>
   );
-}
+} 

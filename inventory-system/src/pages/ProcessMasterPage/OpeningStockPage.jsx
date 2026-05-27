@@ -1,18 +1,22 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
+import * as XLSX from 'xlsx';
+
 import {
   openingStockApi,
   inventoryHeadApi,
   mainCategoryApi,
   itemApi,
-  storeApi,
+  storeApi, // Add this import
 } from "../../services/inventoryApi";
 import { SearchSelect } from "../../components/FormFields";
 
 const emptyDetail = () => ({
   _rowId: Date.now() + Math.random(),
-  categoryId: "",
-  categoryName: "",
+  headId: "",           // Head ID (from inventoryHeadApi)
+  headName: "",         // Head Name
+  categoryId: "",       // Category ID (from mainCategoryApi)
+  categoryName: "",     // Category Name (groupName)
   itemId: "",
   itemName: "",
   qty: "0.000",
@@ -48,15 +52,17 @@ export default function OpeningStockPage() {
   const today = new Date().toISOString().split("T")[0];
 
   const [records, setRecords] = useState([]);
+  const [heads, setHeads] = useState([]);
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
-  const [stores, setStores] = useState([]);
+  const [stores, setStores] = useState([]); // Add stores state
   
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("form");
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const bulkFileRef = useRef();
 
   const [header, setHeader] = useState({
     openingNo: "",
@@ -72,16 +78,51 @@ export default function OpeningStockPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [recData, catData, itemData, storeData] = await Promise.all([
+      const [recData, headsData, catsData, itemData, storesData] = await Promise.all([
         openingStockApi.getAll(),
         inventoryHeadApi.getAll(),
+        mainCategoryApi.getAll(),
         itemApi.getAll(),
-        storeApi.getAll(),
+        storeApi.getAll(), // Load stores
       ]);
       setRecords(recData?.data || recData || []);
-      setCategories(catData?.data || catData || []);
-      setItems(itemData?.data || itemData || []);
-      setStores(storeData?.data || storeData || []);
+      
+      // Normalize stores
+      const normalizedStores = (storesData?.data || storesData || []).map(s => ({
+        ...s,
+        id: String(s.id || s._id),
+        name: s.name || s.storeName
+      }));
+      setStores(normalizedStores);
+      
+      // Normalize heads
+      const normalizedHeads = (headsData?.data || headsData || []).map(h => ({
+        ...h,
+        id: String(h.id || h._id),
+        headName: h.headName
+      }));
+      setHeads(normalizedHeads);
+      
+      // Normalize categories
+      const normalizedCats = (catsData?.data || catsData || []).map(c => ({
+        ...c,
+        id: String(c.id || c._id),
+        headId: String(c.headId?.id || c.headId?._id || c.headId || ""),
+        groupName: c.groupName
+      }));
+      setCategories(normalizedCats);
+      
+      // Normalize items
+      const normalizedItems = (itemData?.data || itemData || []).map(it => ({
+        ...it,
+        id: String(it.id || it._id),
+        headId: String(it.headId?.id || it.headId?._id || it.headId || ""),
+        itemName: it.itemName,
+        itemDescription: it.itemDescription || it.itemName,
+        rate: it.rate || it.purchaseRate || 0
+      }));
+      setItems(normalizedItems);
+      
     } catch (err) {
       console.error("Failed to load opening stock data", err);
     } finally {
@@ -93,6 +134,52 @@ export default function OpeningStockPage() {
     loadData();
     openNew();
   }, [loadData]);
+
+  useEffect(() => {
+    const firstField = document.querySelector('[tabIndex="1"]');
+    if (firstField) {
+      firstField.focus();
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleTabKey = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = Array.from(
+        document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
+      ).filter(el => {
+        const tabIndex = parseInt(el.getAttribute('tabIndex'));
+        return !isNaN(tabIndex) && tabIndex >= 1 && el.offsetParent !== null && !el.disabled;
+      }).sort((a, b) => {
+        const tabA = parseInt(a.getAttribute('tabIndex'));
+        const tabB = parseInt(b.getAttribute('tabIndex'));
+        return tabA - tabB;
+      });
+      
+      if (focusableElements.length === 0) return;
+      
+      const currentElement = document.activeElement;
+      const currentIndex = focusableElements.indexOf(currentElement);
+      
+      if (!e.shiftKey) {
+        if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[0].focus();
+        }
+      } else {
+        if (currentIndex === 0 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[focusableElements.length - 1].focus();
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleTabKey);
+    return () => {
+      document.removeEventListener('keydown', handleTabKey);
+    };
+  }, [details.length]);
 
   async function openNew() {
     let nextNo = "";
@@ -137,29 +224,175 @@ export default function OpeningStockPage() {
       const rows = [...prev];
       const row = { ...rows[idx], [field]: val };
 
-      if (field === "categoryId") {
-        const cat = categories.find(c => String(c.id) === val);
-        row.categoryName = cat?.headName || "";
+      if (field === "headId") {
+        const head = heads.find(h => String(h.id) === val);
+        row.headName = head?.headName || "";
+        row.categoryId = "";
+        row.categoryName = "";
         row.itemId = "";
         row.itemName = "";
+        row.rate = "0.00";
+        row.qty = "0.000";
+        row.amount = "0.00";
+      }
+      
+      if (field === "categoryId") {
+        const cat = categories.find(c => String(c.id) === val);
+        row.categoryName = cat?.groupName || "";
+        row.itemId = "";
+        row.itemName = "";
+        row.rate = "0.00";
+        row.qty = "0.000";
+        row.amount = "0.00";
       }
       
       if (field === "itemId") {
         const it = items.find(i => String(i.id) === val);
-        row.itemName = it?.itemName || "";
-        row.rate = it?.purchaseRate || it?.rate || 0;
+        row.itemName = it?.itemDescription || it?.itemName || "";
+        row.rate = it?.rate || "0.00";
+        const qty = Number(row.qty) || 0;
+        const rate = Number(row.rate) || 0;
+        row.amount = (qty * rate).toFixed(2);
       }
 
-      const q = field === "qty" ? +val : +row.qty;
-      const r = field === "rate" ? +val : +row.rate;
-      row.amount = +(q * r).toFixed(2);
+      if (field === "qty") {
+        const qty = Number(val) || 0;
+        const rate = Number(row.rate) || 0;
+        row.qty = val;
+        row.amount = (qty * rate).toFixed(2);
+      }
+
+      if (field === "rate") {
+        const qty = Number(row.qty) || 0;
+        const rate = Number(val) || 0;
+        row.rate = val;
+        row.amount = (qty * rate).toFixed(2);
+      }
 
       rows[idx] = row;
       return rows;
     });
   }
 
+  async function handleBulkImport(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    
+    if (!file) return;
+    
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const excelData = XLSX.utils.sheet_to_json(worksheet);
+      
+      if (!excelData || excelData.length === 0) {
+        alert("No data found in Excel file");
+        return;
+      }
+      
+      const newDetails = [];
+      let skippedCount = 0;
+      let rowNumber = 0;
+      
+      for (const row of excelData) {
+        rowNumber++;
+        
+        const headName = row.Head || row["Head"];
+        const categoryName = row.Category || row["Category"];
+        const itemName = row["Item"] || row["Item Name"] || row["Item Description"] || row.Description;
+        const qty = parseFloat(row["Phy Qty"] || row["PhyQty"] || row["Physical Qty"] || row["Qty"] || row["Quantity"] || 0);
+        const rate = parseFloat(row["Phy Rate"] || row["PhyRate"] || row["Physical Rate"] || row["Rate"] || row["Unit Price"] || 0);
+        
+        if (!headName || !categoryName || !itemName) {
+          console.warn(`Row ${rowNumber}: Missing head, category, or item name`);
+          skippedCount++;
+          continue;
+        }
+        
+        const head = heads.find(h => 
+          h.headName?.toLowerCase() === headName.toLowerCase()
+        );
+        
+        if (!head) {
+          console.warn(`Row ${rowNumber}: Head not found - ${headName}`);
+          skippedCount++;
+          continue;
+        }
+        
+        const category = categories.find(c => 
+          String(c.headId) === String(head.id) &&
+          c.groupName?.toLowerCase() === categoryName.toLowerCase()
+        );
+        
+        if (!category) {
+          console.warn(`Row ${rowNumber}: Category not found - ${categoryName} under head ${headName}`);
+          skippedCount++;
+          continue;
+        }
+        
+        const item = items.find(i => 
+          String(i.headId) === String(head.id) &&
+          (i.itemDescription?.toLowerCase() === itemName.toLowerCase() ||
+           i.itemName?.toLowerCase() === itemName.toLowerCase())
+        );
+        
+        if (!item) {
+          console.warn(`Row ${rowNumber}: Item not found - ${itemName} under head ${headName}`);
+          skippedCount++;
+          continue;
+        }
+        
+        newDetails.push({
+          _rowId: Date.now() + Math.random() + newDetails.length,
+          headId: String(head.id),
+          headName: head.headName,
+          categoryId: String(category.id),
+          categoryName: category.groupName,
+          itemId: String(item.id),
+          itemName: item.itemDescription || item.itemName,
+          qty: isNaN(qty) ? "0.000" : qty.toFixed(3),
+          rate: isNaN(rate) ? (item.rate || "0.00") : rate.toFixed(2),
+          amount: isNaN(qty) || isNaN(rate) 
+            ? "0.00" 
+            : (qty * (isNaN(rate) ? (item.rate || 0) : rate)).toFixed(2)
+        });
+      }
+      
+      if (newDetails.length === 0) {
+        alert(`No valid records found to import. ${skippedCount} rows were skipped.`);
+        return;
+      }
+      
+      setDetails(newDetails);
+      alert(`Successfully imported ${newDetails.length} items in Excel order. ${skippedCount} rows skipped.`);
+      
+    } catch (err) {
+      console.error("Bulk import error:", err);
+      alert("Failed to import Excel file: " + err.message);
+    }
+  }
+
   async function handleSave() {
+    // Validate store is selected
+    if (!header.storeId) {
+      alert("Please select a store");
+      return;
+    }
+    
+    // Validate at least one detail row
+    if (!details || details.length === 0) {
+      alert("Please add at least one item");
+      return;
+    }
+    
+    // Validate all required fields in details
+    const invalidRows = details.filter(row => !row.headId || !row.categoryId || !row.itemId);
+    if (invalidRows.length > 0) {
+      alert(`Please fill all required fields (Head, Category, Item) for ${invalidRows.length} row(s)`);
+      return;
+    }
+    
     try {
       setSaving(true);
       const payload = { ...header, details };
@@ -171,7 +404,7 @@ export default function OpeningStockPage() {
       await loadData();
       setView("list");
     } catch (err) {
-      alert(err.message);
+      alert(err.message || "Error saving opening stock");
     } finally {
       setSaving(false);
     }
@@ -307,32 +540,41 @@ export default function OpeningStockPage() {
           <p className="inv-page-sub">Establish initial inventory levels</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-secondary" onClick={() => setView("list")}>View List</button>
-          <button className="inv-btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save Entry"}</button>
+          <button className="inv-btn-secondary" tabIndex={101} onClick={() => setView("list")}>View List</button>
+          <button className="inv-btn-primary" tabIndex={100} onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save Entry"}</button>
         </div>
       </div>
 
       <div className="inv-card" style={{ minHeight: "160px" }}>
         <div className="inv-card-body" style={{ padding: "24px" }}>
-
           <FormGrid>
             <Field label="Opening No (Auto)">
-              <input className="inv-input" value={header.openingNo} readOnly style={{ background: "#f8f9fa", color: "#4f46e5", fontWeight: 600 }} />
+              <input className="inv-input" tabIndex={1} value={header.openingNo} readOnly style={{ background: "#f8f9fa", color: "#4f46e5", fontWeight: 600 }} />
             </Field>
             <Field label="Entry Date">
-              <input className="inv-input" type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} />
+              <input className="inv-input" tabIndex={2} type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} />
             </Field>
             <Field label="As On Date">
-              <input className="inv-input" type="date" value={header.asOnDate} onChange={e => setHeader(h => ({ ...h, asOnDate: e.target.value }))} />
+              <input className="inv-input" tabIndex={3} type="date" value={header.asOnDate} onChange={e => setHeader(h => ({ ...h, asOnDate: e.target.value }))} />
             </Field>
-            <Field label="Store">
+            
+            {/* ADD STORE SELECTION FIELD */}
+            <Field label="Store *">
               <SearchSelect 
+                tabIndex={4}
                 value={header.storeId} 
-                onChange={val => {
-                  const s = stores.find(x => String(x.id) === val);
-                  setHeader(h => ({ ...h, storeId: val, storeName: s?.name || "" }));
+                onChange={(val) => {
+                  const selectedStore = stores.find(s => String(s.id) === val);
+                  setHeader(h => ({ 
+                    ...h, 
+                    storeId: val,
+                    storeName: selectedStore?.name || ""
+                  }));
                 }}
-                options={stores.map(s => ({ value: String(s.id), label: s.name }))}
+                options={stores.map(s => ({ 
+                  value: String(s.id), 
+                  label: s.name 
+                }))}
                 placeholder="Select Store"
               />
             </Field>
@@ -342,53 +584,130 @@ export default function OpeningStockPage() {
 
       <div className="inv-card" style={{ minHeight: "450px" }}>
         <div className="inv-card-body">
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-            <button className="inv-btn-secondary inv-btn-sm" onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginBottom: 10 }}>
+            <button className="inv-btn-secondary inv-btn-sm" tabIndex={99} onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
+            <button className="inv-btn-primary inv-btn-sm" tabIndex={98} onClick={() => bulkFileRef.current?.click()}>Bulk Import</button>
+            <input
+              ref={bulkFileRef}
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: "none" }}
+              onChange={handleBulkImport}
+            />
           </div>
           <div style={{ overflowX: "auto" }}>
             <table className="inv-table">
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Material Category</th>
-                  <th>Item Description</th>
-                  <th style={{ width: 120 }}>Qty</th>
+                  <th>Head *</th>
+                  <th>Category *</th>
+                  <th>Item Description *</th>
+                  <th style={{ width: 120 }}>Qty *</th>
                   <th style={{ width: 120 }}>Unit Price</th>
                   <th style={{ width: 140 }}>Amount</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {details.map((row, idx) => (
-                  <tr key={row._rowId}>
-                    <td>{idx + 1}</td>
-                    <td>
-                      <SearchSelect 
-                        style={{ minWidth: 250, border: "none" }}
-                        value={row.categoryId} 
-                        onChange={val => updateDetail(idx, "categoryId", val)}
-                        options={categories.map(c => ({ value: String(c.id), label: c.headName }))}
-                        placeholder="Select Category"
-                      />
-                    </td>
-                    <td>
-                      <SearchSelect 
-                        style={{ minWidth: 250, border: "none" }}
-                        value={row.itemId} 
-                        onChange={val => updateDetail(idx, "itemId", val)}
-                        options={(row.categoryId ? items.filter(i => String(i.headId) === row.categoryId) : []).map(i => ({ value: String(i.id), label: i.itemDescription || i.itemName }))}
-                        placeholder={row.categoryId ? "Select Item Description" : "Select Category First"}
-                        disabled={!row.categoryId}
-                      />
-                    </td>
-                    <td><input type="number" step="0.001" className="inv-input" style={{ border: "none" }} value={row.qty} onChange={e => updateDetail(idx, "qty", e.target.value)} onBlur={e => updateDetail(idx, "qty", Number(e.target.value || 0).toFixed(3))} /></td>
-                    <td><input type="number" className="inv-input" style={{ border: "none" }} value={row.rate} onChange={e => updateDetail(idx, "rate", e.target.value)} /></td>
-                    <td style={{ textAlign: "right" }}>{fmt(row.amount)}</td>
-                    <td>
-                      <button className="inv-btn-icon inv-btn-danger" onClick={() => setDetails(p => p.filter((_, i) => i !== idx))}>✕</button>
-                    </td>
-                  </tr>
-                ))}
+                {details.map((row, idx) => {
+                  const baseTab = 10 + (idx * 7);
+                  
+                  const filteredCategories = row.headId 
+                    ? categories.filter(c => String(c.headId) === String(row.headId))
+                    : [];
+                  
+                  const filteredItems = row.headId 
+                    ? items.filter(i => String(i.headId) === String(row.headId))
+                    : [];
+                  
+                  return (
+                    <tr key={row._rowId}>
+                      <td>{idx + 1}</td>
+                      
+                      <td style={{ minWidth: "180px" }}>
+                        <SearchSelect 
+                          tabIndex={baseTab}
+                          style={{ minWidth: 180, border: "none" }}
+                          value={row.headId} 
+                          onChange={val => updateDetail(idx, "headId", val)}
+                          options={heads.map(h => ({ 
+                            value: String(h.id), 
+                            label: h.headName 
+                          }))}
+                          placeholder="Select Head"
+                        />
+                      </td>
+                      
+                      <td style={{ minWidth: "180px" }}>
+                        <SearchSelect 
+                          tabIndex={baseTab + 1}
+                          style={{ minWidth: 180, border: "none" }}
+                          value={row.categoryId} 
+                          onChange={val => updateDetail(idx, "categoryId", val)}
+                          options={filteredCategories.map(c => ({ 
+                            value: String(c.id), 
+                            label: c.groupName 
+                          }))}
+                          placeholder={row.headId ? "Select Category" : "Select Head First"}
+                          disabled={!row.headId}
+                        />
+                      </td>
+                      
+                      <td style={{ minWidth: "250px" }}>
+                        <SearchSelect 
+                          tabIndex={baseTab + 2}      
+                          style={{ minWidth: 250, border: "none" }}
+                          value={row.itemId} 
+                          onChange={val => updateDetail(idx, "itemId", val)}
+                          options={filteredItems.map(i => ({ 
+                            value: String(i.id), 
+                            label: i.itemDescription || i.itemName 
+                          }))}
+                          placeholder={row.headId ? "Select Item" : "Select Head First"}
+                          disabled={!row.headId}
+                        />
+                      </td>
+                      
+                      <td>
+                        <input 
+                          type="number" 
+                          step="0.001" 
+                          className="inv-input" 
+                          tabIndex={baseTab + 3} 
+                          style={{ border: "none", width: "100%" }} 
+                          value={row.qty} 
+                          onChange={e => updateDetail(idx, "qty", e.target.value)} 
+                          onBlur={e => updateDetail(idx, "qty", Number(e.target.value || 0).toFixed(3))} 
+                        />
+                      </td>
+                      
+                      <td>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          className="inv-input" 
+                          tabIndex={baseTab + 4} 
+                          style={{ border: "none", width: "100%" }} 
+                          value={row.rate} 
+                          onChange={e => updateDetail(idx, "rate", e.target.value)} 
+                        />
+                      </td>
+                      
+                      <td style={{ textAlign: "right" }}>{fmt(row.amount)}</td>
+                      
+                      <td>
+                        <button 
+                          className="inv-btn-icon inv-btn-danger" 
+                          tabIndex={baseTab + 5} 
+                          onClick={() => setDetails(p => p.filter((_, i) => i !== idx))}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -397,7 +716,6 @@ export default function OpeningStockPage() {
 
       <div className="inv-card" style={{ marginTop: 20, minHeight: "120px" }}>
         <div className="inv-card-body" style={{ padding: "24px" }}>
-
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 24 }}>
             <div className="inv-field-v">
               <label className="inv-label">Total Quantity</label>
@@ -408,13 +726,22 @@ export default function OpeningStockPage() {
               <div style={{ fontSize: 20, fontWeight: 700, color: "var(--accent)" }}>₹{fmt(totals.amount)}</div>
             </div>
             <div className="inv-field-v">
-
-              <input className="inv-input" value={header.preparedBy} onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))} placeholder="Name" />
+              <input 
+                className="inv-input" 
+                value={header.preparedBy} 
+                onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))} 
+                placeholder="Prepared By" 
+              />
             </div>
           </div>
           <div className="inv-field-v" style={{ marginTop: 16 }}>
-
-            <textarea className="inv-input" style={{ height: 40, resize: "none" }} value={header.remarks} onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))} placeholder="Notes..." />
+            <textarea 
+              className="inv-input" 
+              style={{ height: 40, resize: "none" }} 
+              value={header.remarks} 
+              onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))} 
+              placeholder="Remarks..." 
+            />
           </div>
         </div>
       </div>

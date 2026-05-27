@@ -22,6 +22,7 @@ import CityPage from "./pages/CityPage";
 import PurchaseIndentReportPage from "./pages/Reports/purchaseIndentReportPage";
 import PurchaseOrderReportPage from "./pages/Reports/PurchaseOrderResult";
 import PurchaseGrnReportPage from "./pages/Reports/PurchaseGrnReportPage";
+import InventoryStockFlow from "./pages/Reports/InventoryStockFlow";
 import {
   StoreMasterPage,
   DepartmentMasterPage,
@@ -106,6 +107,7 @@ export default function App() {
                 <Route path="/purchase-indent-report" element={<PurchaseIndentReportPage />} />
                 <Route path="/purchase-order-report" element={<PurchaseOrderReportPage />} />
                 <Route path="/purchase-grn-report" element={<PurchaseGrnReportPage />} />
+                <Route path="/inventory-report" element={<InventoryStockFlow />} />
 
                 <Route path="*" element={<Navigate to="/inv-head" replace />} />
               </Routes>

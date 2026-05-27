@@ -128,20 +128,30 @@ export default function ItemPage() {
       { header: "Movement", key: "movementType", transform: (val) => val === "moving" ? "Moving" : "Non-Moving" },
       { header: "Description", key: "itemDescription" },
       { header: "Unit Price", key: "rate", transform: (val) => `₹${Number(val || 0).toFixed(2)}` },
+      {header: "Phy Qty", key:"PhyQty",transform:()=>""},
+      {header: "Phy Rate", key:"PhyRate",transform:()=>""},
     ];
 
     // Get filtered data
-    const exportData = filtered.map(item => {
-      const row = {};
-      columnsToExport.forEach(col => {
-        let value = item[col.key];
-        if (col.transform) {
-          value = col.transform(value);
-        }
-        row[col.header] = value || "—";
+    const exportData = filtered
+      .sort((a, b) => {
+        // Sort by Item Name (primary)
+        const itemCompare = (a.itemName || "").localeCompare(b.itemName || "");
+        if (itemCompare !== 0) return itemCompare;
+        // Secondary sort by Head
+        return (a.head || "").localeCompare(b.head || "");
+      })
+      .map(item => {
+        const row = {};
+        columnsToExport.forEach(col => {
+          let value = item[col.key];
+          if (col.transform) {
+            value = col.transform(value);
+          }
+          row[col.header] = value || "—";
+        });
+        return row;
       });
-      return row;
-    });
 
     // Create worksheet
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -157,6 +167,8 @@ export default function ItemPage() {
       { wch: 12 }, // Movement
       { wch: 40 }, // Description
       { wch: 15 }, // Unit Price
+      {wch: 15}, // Phy Qty
+      {wch: 15}, // Phy Rate
     ];
     ws['!cols'] = colWidths;
 
@@ -209,7 +221,9 @@ export default function ItemPage() {
   }, [form.itemName, form.spec, form.make]);
 
   // ── Filtered table rows ───────────────────────────────────────────────────────
-  const filtered = items.filter((it) => {
+  // Replace the existing filtered declaration (around line 202) with:
+const filtered = items
+  .filter((it) => {
     const q = search.toLowerCase();
     const matchSearch =
       it.itemName.toLowerCase().includes(q) ||
@@ -218,6 +232,12 @@ export default function ItemPage() {
     const matchHead = !filterHead || String(it.headId) === String(filterHead);
     const matchGroup = !filterGroup || it.group === filterGroup;
     return matchSearch && matchHead && matchGroup;
+  })
+  .sort((a, b) => {
+    // Alphabetical by Item Name, then by Head
+    const itemCompare = (a.itemName || "").localeCompare(b.itemName || "");
+    if (itemCompare !== 0) return itemCompare;
+    return (a.head || "").localeCompare(b.head || "");
   });
 
   // ── Modal helpers ─────────────────────────────────────────────────────────────
@@ -524,9 +544,9 @@ export default function ItemPage() {
             <thead>
               <tr>
                 <th>Image</th>
-                <th>Item</th>
                 <th>Head</th>
                 <th>Category</th>
+                <th>Item</th>
                 <th>UOM</th>
                 <th>Make</th>
                 <th>Spec</th>
@@ -569,10 +589,10 @@ export default function ItemPage() {
                         <div className="inv-img-placeholder">IMG</div>
                       )}
                     </td>
-                    <td className="inv-bold">{row.itemName}</td>
-                    <td className="inv-muted-sm">{row.head}</td>
-                    <td className="inv-muted-sm">{row.group}</td>
-                    <td>{row.uom}</td>
+                     <td className="inv-bold">{row.itemName}</td>
+                    <td className="inv-bold">{row.head}</td>
+                    <td className="inv-bold">{row.group}</td>
+                    <td className="inv-muted-sm">{row.uom}</td>
                     <td className="inv-muted-sm">{row.make}</td>
                     <td className="inv-spec">{row.spec}</td>
                     <td className="inv-muted-sm">

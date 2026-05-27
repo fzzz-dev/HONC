@@ -2,6 +2,7 @@ import React,{ useState, useEffect, useRef,useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
+
 import { purchaseOrderApi, paymentTermsApi, supplierApi, inventoryHeadApi, mainCategoryApi, itemApi } from "../../services/inventoryApi";
 import Modal from "../../components/Modal";
 import { SearchSelect } from "../../components/FormFields";
@@ -16,6 +17,7 @@ const getFY = () => {
   const y = d.getFullYear();
   return m < 4 ? `${y - 1}-${y}` : `${y}-${y + 1}`;
 };
+
 
 const sid = (v) => {
   if (!v) return "";
@@ -50,6 +52,7 @@ const numberToWords = (num) => {
     const remainder = n % 100;
     return ones[hundred] + ' Hundred' + (remainder ? ' ' + convertHundreds(remainder) : '');
   };
+  
   
   let result = [];
   let remaining = num;
