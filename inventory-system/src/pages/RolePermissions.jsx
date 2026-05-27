@@ -22,6 +22,13 @@ const RolePermissions = () => {
         { path: "/department", label: "Department Master" },
         { path: "/process", label: "Process Master" },
       ]
+    },{
+      name: "Reports",
+      items: [
+        { path: "/purchase-indent-report", label: "Purchase Indent Report" },
+        { path: "/purchase-order-report", label: "Purchase Order Report" },
+        { path: "/purchase-grn-report", label: "Purchase GRN Report" },
+      ]
     },
     {
       name: "Transactions",
