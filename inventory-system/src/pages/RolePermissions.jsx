@@ -28,6 +28,7 @@ const RolePermissions = () => {
         { path: "/purchase-indent-report", label: "Purchase Indent Report" },
         { path: "/purchase-order-report", label: "Purchase Order Report" },
         { path: "/purchase-grn-report", label: "Purchase GRN Report" },
+        {path: "/inventory-report", label: "Inventory Stock Flow Report" },
       ]
     },
     {
