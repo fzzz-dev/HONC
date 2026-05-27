@@ -543,17 +543,17 @@ const filtered = items
           <table className="inv-table inv-table-wide">
             <thead>
               <tr>
-                <th>Image</th>
-                <th>Head</th>
-                <th>Category</th>
-                <th>Item</th>
-                <th>UOM</th>
-                <th>Make</th>
-                <th>Spec</th>
-                <th>Movement</th>
-                <th>Description</th>
-                <th>Unit Price</th>
-                <th>Active</th>
+                <th style={{ paddingRight: 16 }}>Image</th>
+                <th style={{ paddingRight: 16 }}>Head</th>
+                <th style={{ paddingRight: 16 }}>Category</th>
+                <th style={{ paddingRight: 16 }}>Item</th>
+                <th style={{ paddingRight: 16 }}>UOM</th>
+                <th style={{ paddingRight: 16 }}>Make</th>
+                <th style={{ paddingRight: 16 }}>Spec</th>
+                <th style={{ paddingRight: 16 }}>Movement</th>
+                <th style={{ paddingRight: 16 }}>Description</th>
+                <th style={{ paddingRight: 16 }}>Unit Price</th>
+                <th style={{ paddingRight: 16 }}>Active</th>
                 <th>Actions</th>
               </tr>
             </thead>
