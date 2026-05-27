@@ -586,7 +586,7 @@ export default function OpeningStockPage() {
         <div className="inv-card-body">
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginBottom: 10 }}>
             <button className="inv-btn-secondary inv-btn-sm" tabIndex={99} onClick={() => setDetails(p => [...p, emptyDetail()])}>+ Add Row</button>
-            <button className="inv-btn-primary inv-btn-sm" tabIndex={98} onClick={() => bulkFileRef.current?.click()}>Bulk Import</button>
+            <button className="inv-btn-primary inv-btn-sm" tabIndex={98} onClick={() => bulkFileRef.current?.click()}>Bulk Upload</button>
             <input
               ref={bulkFileRef}
               type="file"

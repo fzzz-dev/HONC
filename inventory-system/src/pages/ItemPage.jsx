@@ -558,120 +558,120 @@ const filtered = items
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={12} className="inv-empty">
-                    Loading…
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={12} className="inv-empty">
-                    No records found
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((row) => (
-                  <tr key={row.id || row._id}>
-                    <td>
-                      {row.image ? (
-                        <img
-                          src={row.image}
-                          alt=""
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 6,
-                            objectFit: "cover",
-                          }}
-                        />
-                      ) : (
-                        <div className="inv-img-placeholder">IMG</div>
-                      )}
-                    </td>
-                     
-                    <td className="inv-bold">{row.head}</td>
-                    <td className="inv-bold">{row.group}</td>
-                    <td className="inv-bold">{row.itemName}</td>
-                    <td className="inv-muted-sm">{row.uom}</td>
-                    <td className="inv-muted-sm">{row.make}</td>
-                    <td className="inv-spec">{row.spec}</td>
-                    <td className="inv-muted-sm">
-                      {row.movementType === "non-moving"
-                        ? "Non-Moving"
-                        : "Moving"}
-                    </td>
-                    <td
-                      className="inv-muted-sm"
-                      style={{
-                        maxWidth: 200,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={row.itemDescription || ""}
-                    >
-                      {row.itemDescription || "—"}
-                    </td>
-                    <td className="inv-bold">₹{Number(row.rate).toFixed(2)}</td>
-                    <td>
-                      <span
-                        className={`inv-badge ${row.active ? "inv-badge-yes" : "inv-badge-no"}`}
-                      >
-                        {row.active ? "Yes" : "No"}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="inv-actions">
-                        <button
-                          className="inv-btn-icon"
-                          onClick={() => openEdit(row)}
-                          title="Edit"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="15"
-                            height="15"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                        <button
-                          className="inv-btn-icon inv-btn-danger"
-                          onClick={() => setDeleteConfirm(row.id || row._id)}
-                          title="Delete"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="15"
-                            height="15"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                            <path d="M10 11v6" />
-                            <path d="M14 11v6" />
-                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
+  {loading ? (
+    <tr>
+      <td colSpan={12} className="inv-empty">
+        Loading…
+      </td>
+    </tr>
+  ) : filtered.length === 0 ? (
+    <tr>
+      <td colSpan={12} className="inv-empty">
+        No records found
+      </td>
+    </tr>
+  ) : (
+    filtered.map((row) => (
+      <tr key={row.id || row._id}>
+        <td style={{ paddingRight: 16 }}>
+          {row.image ? (
+            <img
+              src={row.image}
+              alt=""
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 6,
+                objectFit: "cover",
+              }}
+            />
+          ) : (
+            <div className="inv-img-placeholder">IMG</div>
+          )}
+        </td>
+        <td className="inv-bold" style={{ paddingRight: 16 }}>{row.head}</td>
+        <td className="inv-bold" style={{ paddingRight: 16 }}>{row.group}</td>
+        <td className="inv-bold" style={{ paddingRight: 16 }}>{row.itemName}</td>
+        <td className="inv-muted-sm" style={{ paddingRight: 16 }}>{row.uom}</td>
+        <td className="inv-muted-sm" style={{ paddingRight: 16 }}>{row.make}</td>
+        <td className="inv-spec" style={{ paddingRight: 16 }}>{row.spec}</td>
+        <td className="inv-muted-sm" style={{ paddingRight: 16 }}>
+          {row.movementType === "non-moving"
+            ? "Non-Moving"
+            : "Moving"}
+        </td>
+        <td
+          className="inv-muted-sm"
+          style={{
+            maxWidth: 200,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            paddingRight: 16,
+          }}
+          title={row.itemDescription || ""}
+        >
+          {row.itemDescription || "—"}
+        </td>
+        <td className="inv-bold" style={{ paddingRight: 16 }}>₹{Number(row.rate).toFixed(2)}</td>
+        <td style={{ paddingRight: 16 }}>
+          <span
+            className={`inv-badge ${row.active ? "inv-badge-yes" : "inv-badge-no"}`}
+          >
+            {row.active ? "Yes" : "No"}
+          </span>
+        </td>
+        <td>
+          <div className="inv-actions">
+            <button
+              className="inv-btn-icon"
+              onClick={() => openEdit(row)}
+              title="Edit"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+            <button
+              className="inv-btn-icon inv-btn-danger"
+              onClick={() => setDeleteConfirm(row.id || row._id)}
+              title="Delete"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+    ))
+  )}
+</tbody>
           </table>
         </div>
       </div>
