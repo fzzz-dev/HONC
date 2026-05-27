@@ -589,9 +589,10 @@ const filtered = items
                         <div className="inv-img-placeholder">IMG</div>
                       )}
                     </td>
-                     <td className="inv-bold">{row.itemName}</td>
+                     
                     <td className="inv-bold">{row.head}</td>
                     <td className="inv-bold">{row.group}</td>
+                    <td className="inv-bold">{row.itemName}</td>
                     <td className="inv-muted-sm">{row.uom}</td>
                     <td className="inv-muted-sm">{row.make}</td>
                     <td className="inv-spec">{row.spec}</td>
