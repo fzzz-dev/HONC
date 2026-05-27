@@ -12,7 +12,7 @@ export const store = configureStore({
     states: stateReducer,
     cities: cityReducer,
     stores: storeReducer,
-    departments: departmentReducer, // ✅ add
+    departments: departmentReducer, 
     processes: processReducer,
   },
 });
