@@ -88,7 +88,44 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
   totalItems: { type: DataTypes.INTEGER, defaultValue: 0 },
   roundoff: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
   poType: { type: DataTypes.STRING, defaultValue: "" },
-  
+
+  // Add these approval fields
+    level1Approved: {
+      type: DataTypes.STRING,
+      defaultValue: 'No',
+      allowNull: false,
+      validate: {
+        isIn: [['Yes', 'No']]
+      }
+    },
+    level2Approved: {
+      type: DataTypes.STRING,
+      defaultValue: 'No',
+      allowNull: false,
+      validate: {
+        isIn: [['Yes', 'No']]
+      }
+    },
+    level1ApprovedBy: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null
+    },
+    level1ApprovedDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null
+    },
+    level2ApprovedBy: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null
+    },
+    level2ApprovedDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null
+    }
 }, {
   timestamps: true,
   hooks: {

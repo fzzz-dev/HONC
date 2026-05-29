@@ -23,6 +23,8 @@ import PurchaseIndentReportPage from "./pages/Reports/purchaseIndentReportPage";
 import PurchaseOrderReportPage from "./pages/Reports/PurchaseOrderResult";
 import PurchaseGrnReportPage from "./pages/Reports/PurchaseGrnReportPage";
 import InventoryStockFlow from "./pages/Reports/InventoryStockFlow";
+import POLevel1Pending from "./pages/Reports/POLevel1Pending";
+import POLevel2Pending from "./pages/Reports/POLevel2Pending";
 import {
   StoreMasterPage,
   DepartmentMasterPage,
@@ -108,6 +110,8 @@ export default function App() {
                 <Route path="/purchase-order-report" element={<PurchaseOrderReportPage />} />
                 <Route path="/purchase-grn-report" element={<PurchaseGrnReportPage />} />
                 <Route path="/inventory-report" element={<InventoryStockFlow />} />
+                <Route path="/po-level1-pending" element={<POLevel1Pending />} />
+                <Route path="/po-level2-pending" element={<POLevel2Pending />} />
 
                 <Route path="*" element={<Navigate to="/inv-head" replace />} />
               </Routes>

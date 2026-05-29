@@ -1173,80 +1173,80 @@ useEffect(() => {
       </div>
 
       <div className="inv-card" style={{ marginTop: 20 }}>
-        <div className="inv-card-body">
+  <div className="inv-card-body" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, padding: "10px 20px" }}>
+    <div>
+      <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Gross Amount</div>
+      <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700, color: "#64748b" }}>₹{fmt(totals.grossAmount)}</div>
+    </div>
 
-          
-          <div className="inv-summary-grid">
-            <div className="inv-summary-box" style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}>
-              <div className="inv-summary-box-label">Gross Amount</div>
-              <div className="inv-summary-box-value" style={{ color: "#64748b" }}>₹{fmt(totals.grossAmount)}</div>
-            </div>
-
-            <div className="inv-summary-box" style={{ background: "#fffbeb", borderColor: "#fcd34d", position: "relative" }}>
-              <div className="inv-summary-box-label">Total Discount</div>
-              <div className="inv-summary-box-value" style={{ color: "#b45309" }}>−₹{fmt(totals.discPrice)}</div>
-              <div style={{ fontSize: 11, color: "#92400e", marginTop: 2, fontWeight: 500 }}>
-                {Number(effectiveDiscPct || 0).toFixed(2)}% effective
-              </div>
-            </div>
-
-
-
-            <div className="inv-summary-box">
-              <div className="inv-summary-box-label">Total GST</div>
-              <div className="inv-summary-box-value">₹{fmt(totals.totGst)}</div>
-            </div>
-
-            {header.gstType === "local" ? (
-              <>
-                <div className="inv-summary-box">
-                  <div className="inv-summary-box-label">SGST</div>
-                  <div className="inv-summary-box-value">₹{fmt(totals.sgst)}</div>
-                </div>
-                <div className="inv-summary-box">
-                  <div className="inv-summary-box-label">CGST</div>
-                  <div className="inv-summary-box-value">₹{fmt(totals.cgst)}</div>
-                </div>
-              </>
-            ) : (
-              <div className="inv-summary-box">
-                <div className="inv-summary-box-label">IGST (Other State)</div>
-                <div className="inv-summary-box-value" style={{ color: "#7c3aed" }}>₹{fmt(totals.igst)}</div>
-              </div>
-            )}
-
-            <div className="inv-summary-box" style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}>
-              <div className="inv-summary-box-label">Grand Total</div>
-              <div className="inv-summary-box-value" style={{ color: "var(--accent)" }}>₹{fmt(totals.totalAmount)}</div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #eee' }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
-              <div className="inv-field">
-                <label className="inv-label">Prepared By</label>
-                <input 
-                  className="inv-input" 
-                  value={header.preparedBy || ""} 
-                  onChange={(e) => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
-                  placeholder="Name of preparer"
-                />
-              </div>
-              <div className="inv-field">
-                <label className="inv-label">Remarks</label>
-                <textarea 
-                  className="inv-input" 
-                  style={{ height: 40, resize: 'none' }} 
-                  value={header.remarks || ""} 
-                  onChange={(e) => setHeader(h => ({ ...h, remarks: e.target.value }))}
-                  placeholder="Enter any special instructions or remarks..."
-                />
-              </div>
-            </div>
-          </div>
-
-        </div>
+    <div>
+      <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total Discount</div>
+      <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700, color: "#b45309" }}>−₹{fmt(totals.discPrice)}</div>
+      <div style={{ fontSize: 11, textAlign: 'center', color: "#92400e", marginTop: 2, fontWeight: 500 }}>
+        {Number(effectiveDiscPct || 0).toFixed(2)}% effective
       </div>
+    </div>
+
+    <div>
+      <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Amount after Disc</div>
+      <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div>
+    </div>
+
+    <div>
+      <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total GST</div>
+      <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.totGst)}</div>
+    </div>
+
+    {header.gstType === "local" ? (
+      <>
+        <div>
+          <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>SGST</div>
+          <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.sgst)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>CGST</div>
+          <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.cgst)}</div>
+        </div>
+      </>
+    ) : (
+      <div>
+        <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>IGST (Other State)</div>
+        <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700, color: "#7c3aed" }}>₹{fmt(totals.igst)}</div>
+      </div>
+    )}
+
+    <div>
+      <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Grand Total</div>
+      <div style={{ fontSize: 24, textAlign: 'center', fontWeight: 700, color: "#10b981" }}>₹{fmt(totals.totalAmount)}</div>
+    </div>
+  </div>
+
+  {/* Prepared By and Remarks Section */}
+  <div style={{ padding: "16px 20px", borderTop: "1px solid #e2e8f0", background: "#f8fafc", borderRadius: "0 0 12px 12px" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 20 }}>
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>Prepared By</label>
+        <input 
+          className="inv-input" 
+          style={{ background: "white" }}
+          value={header.preparedBy || ""} 
+          onChange={(e) => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
+          placeholder="Name of preparer"
+        />
+      </div>
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>Remarks & Special Instructions</label>
+        <textarea 
+          className="inv-input" 
+          style={{ height: 38, resize: 'none', background: "white" }} 
+          value={header.remarks || ""} 
+          onChange={(e) => setHeader(h => ({ ...h, remarks: e.target.value }))}
+          placeholder="Enter any special instructions or remarks..."
+        />
+      </div>
+    </div>
+  </div>
+</div>
       {batchModalOpen && batchRowIdx !== null && (
         <Modal 
           title={`Batch Details: ${details[batchRowIdx]?.itemName || "Item"}`}

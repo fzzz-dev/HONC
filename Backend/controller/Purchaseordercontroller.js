@@ -158,6 +158,12 @@ exports.create = async (req, res) => {
       status,
       remarks,
       details = [],
+      level1Approved = "No",  
+      level2Approved = "No",  
+      level1ApprovedBy = null,  
+      level1ApprovedDate = null,  
+      level2ApprovedBy = null,  
+      level2ApprovedDate = null,  
     } = req.body;
 
     if (!poNo) return res.status(400).json({ message: "poNo is required" });
@@ -229,6 +235,12 @@ exports.create = async (req, res) => {
       totalAmount,
       roundoff: roundOff,
       totalItems: computedDetails.length,
+      level1Approved,
+      level2Approved,
+      level1ApprovedBy,
+      level1ApprovedDate,
+      level2ApprovedBy,
+      level2ApprovedDate,
       details: computedDetails,
     }, { include: ["details"] });
 
@@ -268,6 +280,12 @@ exports.update = async (req, res) => {
       remarks,
       poType,
       details = [],
+      level1Approved,
+      level2Approved,
+      level1ApprovedBy,
+      level1ApprovedDate,
+      level2ApprovedBy,
+      level2ApprovedDate,
     } = req.body;
 
     console.log("Updating PO ID:", req.params.id, "with deliveryDate:", deliveryDate); // Debug log
@@ -340,6 +358,16 @@ exports.update = async (req, res) => {
       roundoff: roundOff,
       totalItems: computedDetails.length,
     });
+
+      // Only add approval fields if they are provided
+    if (level1Approved !== undefined) updateData.level1Approved = level1Approved;
+    if (level2Approved !== undefined) updateData.level2Approved = level2Approved;
+    if (level1ApprovedBy !== undefined) updateData.level1ApprovedBy = level1ApprovedBy;
+    if (level1ApprovedDate !== undefined) updateData.level1ApprovedDate = level1ApprovedDate;
+    if (level2ApprovedBy !== undefined) updateData.level2ApprovedBy = level2ApprovedBy;
+    if (level2ApprovedDate !== undefined) updateData.level2ApprovedDate = level2ApprovedDate;
+
+    await po.update(updateData);
     
     await PurchaseOrderDetail.destroy({ where: { purchaseOrderId: po.id } });
     if (computedDetails && computedDetails.length > 0) {
@@ -350,7 +378,8 @@ exports.update = async (req, res) => {
       await PurchaseOrderDetail.bulkCreate(detailsToCreate);
     }
 
-    const newIndentDetailIds = computedDetails.map(d => d.indentDetailId).filter(Boolean);
+
+     const newIndentDetailIds = computedDetails.map(d => d.indentDetailId).filter(Boolean);
     const allAffected = [...new Set([...oldIndentDetailIds, ...newIndentDetailIds])];
     for (const id of allAffected) {
       await updateIndentBalance(id);
@@ -360,6 +389,80 @@ exports.update = async (req, res) => {
     res.json(updatedPo);
   } catch (err) {
     console.error("Update PO error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ─── GET /api/purchase-orders/pending-level1 ─────────────────────────────────
+exports.getPendingLevel1 = async (req, res) => {
+  try {
+    const pendingPOs = await PurchaseOrder.findAll({
+      where: {
+        level1Approved: "No",
+        status: { [Op.ne]: "Closed" }
+      },
+      include: ["details"],
+      order: [["createdAt", "DESC"]],
+    });
+    res.json(pendingPOs);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ─── GET /api/purchase-orders/pending-level2 ─────────────────────────────────
+exports.getPendingLevel2 = async (req, res) => {
+  try {
+    const pendingPOs = await PurchaseOrder.findAll({
+      where: {
+        level1Approved: "Yes",
+        level2Approved: "No",
+        status: { [Op.ne]: "Closed" }
+      },
+      include: ["details"],
+      order: [["createdAt", "DESC"]],
+    });
+    res.json(pendingPOs);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ─── PUT /api/purchase-orders/:id/approve-level1 ─────────────────────────────
+exports.approveLevel1 = async (req, res) => {
+  try {
+    const po = await PurchaseOrder.findByPk(req.params.id);
+    if (!po) return res.status(404).json({ message: "PO not found" });
+    
+    await po.update({
+      level1Approved: "Yes",
+      level1ApprovedBy: req.body.approvedBy || "System",
+      level1ApprovedDate: new Date()
+    });
+    
+    const updatedPo = await PurchaseOrder.findByPk(req.params.id, { include: ["details"] });
+    res.json(updatedPo);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ─── PUT /api/purchase-orders/:id/approve-level2 ─────────────────────────────
+exports.approveLevel2 = async (req, res) => {
+  try {
+    const po = await PurchaseOrder.findByPk(req.params.id);
+    if (!po) return res.status(404).json({ message: "PO not found" });
+    
+    await po.update({
+      level2Approved: "Yes",
+      level2ApprovedBy: req.body.approvedBy || "System",
+      level2ApprovedDate: new Date(),
+      status: "Approved" // Optional: Update status when fully approved
+    });
+    
+    const updatedPo = await PurchaseOrder.findByPk(req.params.id, { include: ["details"] });
+    res.json(updatedPo);
+  } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };

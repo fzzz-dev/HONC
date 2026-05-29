@@ -738,5 +738,355 @@ router.get('/inventory/stock-flow/export/csv', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+// ============= LEVEL 2 FIRST APPROVAL =============
+
+// GET - Level 2 pending (shows POs waiting for Level 2 approval)
+router.get('/po-level2-pending', async (req, res) => {
+  try {
+    const { fromDate, toDate, searchTerm, searchPONo, supplier } = req.query;
+    
+    let query = `
+      SELECT 
+        po.id,
+        po.poNo AS ponumber,
+        po.date AS podate,
+        po.supplierName AS supplier,
+        po.deliveryDate AS deliverydate,
+        po.poType AS potype,
+        po.level1Approved,
+        po.level2Approved,
+        po.status,
+        po.createdBy,
+        po.createdOn,
+        pod.indentNo,
+        pod.itemName,
+        pod.uom,
+        pod.poQty,
+        pod.poAmount AS poamt,
+        pod.poRate AS porate,
+        pod.discPrice,
+        pod.totGst,
+        pod.totalAmount
+      FROM PurchaseOrders po 
+      LEFT JOIN PurchaseOrderDetails pod ON po.id = pod.purchaseOrderId 
+      WHERE po.level2Approved = 'No' 
+      AND po.status != 'Closed'
+    `;
+    
+    const replacements = {};
+    
+    if (fromDate) {
+      query += ` AND po.date >= :fromDate`;
+      replacements.fromDate = fromDate;
+    }
+    
+    if (toDate) {
+      query += ` AND po.date <= :toDate`;
+      replacements.toDate = toDate;
+    }
+    
+    if (searchPONo) {
+      query += ` AND po.poNo LIKE :searchPONo`;
+      replacements.searchPONo = `%${searchPONo}%`;
+    }
+    
+    if (searchTerm) {
+      query += ` AND (pod.itemName LIKE :searchTerm OR pod.indentNo LIKE :searchTerm)`;
+      replacements.searchTerm = `%${searchTerm}%`;
+    }
+    
+    if (supplier) {
+      query += ` AND po.supplierName LIKE :supplier`;
+      replacements.supplier = `%${supplier}%`;
+    }
+    
+    query += ` ORDER BY po.date DESC, po.poNo, pod.id`;
+    
+    const [results] = await sequelize.query(query, { replacements });
+    
+    const poSummary = {};
+    results.forEach(row => {
+      if (!poSummary[row.id]) {
+        poSummary[row.id] = {
+          id: row.id,
+          ponumber: row.ponumber,
+          podate: row.podate,
+          supplier: row.supplier,
+          deliverydate: row.deliverydate,
+          potype: row.potype,
+          level1Approved: row.level1Approved,
+          level2Approved: row.level2Approved,
+          status: row.status,
+          createdBy: row.createdBy,
+          createdOn: row.createdOn,
+          totalAmount: 0,
+          items: []
+        };
+      }
+      if (row.itemName) {
+        poSummary[row.id].items.push({
+          indentNo: row.indentNo,
+          itemName: row.itemName,
+          uom: row.uom,
+          poQty: row.poQty,
+          poRate: row.porate,
+          poAmount: row.poamt,
+          discPrice: row.discPrice,
+          totGst: row.totGst,
+          totalAmount: row.totalAmount
+        });
+        poSummary[row.id].totalAmount += (row.totalAmount || 0);
+      }
+    });
+    
+    res.json({
+      success: true,
+      data: Object.values(poSummary),
+      count: Object.keys(poSummary).length,
+      type: 'level2-pending'
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT - Approve Level 2 (First Approval)
+router.put('/approve-level2/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { approvedBy } = req.body;
+    
+    const [updated] = await sequelize.query(
+      `UPDATE PurchaseOrders 
+       SET level2Approved = 'Yes', 
+           level2ApprovedBy = :approvedBy, 
+           level2ApprovedDate = NOW()
+       WHERE id = :id AND level2Approved = 'No'`,
+      {
+        replacements: { id, approvedBy: approvedBy || 'System' },
+        type: sequelize.QueryTypes.UPDATE
+      }
+    );
+    
+    if (updated === 0) {
+      return res.status(404).json({ success: false, message: 'PO not found or already approved' });
+    }
+    
+    res.json({ success: true, message: 'Level 2 approved successfully' });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST - Bulk Approve Level 2
+router.post('/bulk-approve-level2', async (req, res) => {
+  try {
+    const { poIds, approvedBy } = req.body;
+    
+    if (!poIds || poIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'No PO IDs provided' });
+    }
+    
+    const placeholders = poIds.map(() => '?').join(',');
+    
+    await sequelize.query(
+      `UPDATE PurchaseOrders 
+       SET level2Approved = 'Yes', 
+           level2ApprovedBy = ?, 
+           level2ApprovedDate = NOW()
+       WHERE id IN (${placeholders}) AND level2Approved = 'No'`,
+      {
+        replacements: [approvedBy || 'System', ...poIds],
+        type: sequelize.QueryTypes.UPDATE
+      }
+    );
+    
+    res.json({ success: true, message: `${poIds.length} PO(s) approved at Level 2` });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============= LEVEL 1 FINAL APPROVAL =============
+
+// GET - Level 1 pending (shows POs with Level 2 approved, waiting for Level 1)
+router.get('/po-level1-pending', async (req, res) => {
+  try {
+    const { fromDate, toDate, searchTerm, searchPONo, supplier } = req.query;
+    
+    let query = `
+      SELECT 
+        po.id,
+        po.poNo AS ponumber,
+        po.date AS podate,
+        po.supplierName AS supplier,
+        po.deliveryDate AS deliverydate,
+        po.poType AS potype,
+        po.level1Approved,
+        po.level2Approved,
+        po.status,
+        po.createdBy,
+        po.createdOn,
+        pod.indentNo,
+        pod.itemName,
+        pod.uom,
+        pod.poQty,
+        pod.poAmount AS poamt,
+        pod.poRate AS porate,
+        pod.discPrice,
+        pod.totGst,
+        pod.totalAmount
+      FROM PurchaseOrders po 
+      LEFT JOIN PurchaseOrderDetails pod ON po.id = pod.purchaseOrderId 
+      WHERE po.level2Approved = 'Yes' 
+      AND po.level1Approved = 'No'
+      AND po.status != 'Closed'
+    `;
+    
+    const replacements = {};
+    
+    if (fromDate) {
+      query += ` AND po.date >= :fromDate`;
+      replacements.fromDate = fromDate;
+    }
+    
+    if (toDate) {
+      query += ` AND po.date <= :toDate`;
+      replacements.toDate = toDate;
+    }
+    
+    if (searchPONo) {
+      query += ` AND po.poNo LIKE :searchPONo`;
+      replacements.searchPONo = `%${searchPONo}%`;
+    }
+    
+    if (searchTerm) {
+      query += ` AND (pod.itemName LIKE :searchTerm OR pod.indentNo LIKE :searchTerm)`;
+      replacements.searchTerm = `%${searchTerm}%`;
+    }
+    
+    if (supplier) {
+      query += ` AND po.supplierName LIKE :supplier`;
+      replacements.supplier = `%${supplier}%`;
+    }
+    
+    query += ` ORDER BY po.date DESC, po.poNo, pod.id`;
+    
+    const [results] = await sequelize.query(query, { replacements });
+    
+    const poSummary = {};
+    results.forEach(row => {
+      if (!poSummary[row.id]) {
+        poSummary[row.id] = {
+          id: row.id,
+          ponumber: row.ponumber,
+          podate: row.podate,
+          supplier: row.supplier,
+          deliverydate: row.deliverydate,
+          potype: row.potype,
+          level1Approved: row.level1Approved,
+          level2Approved: row.level2Approved,
+          status: row.status,
+          createdBy: row.createdBy,
+          createdOn: row.createdOn,
+          totalAmount: 0,
+          items: []
+        };
+      }
+      if (row.itemName) {
+        poSummary[row.id].items.push({
+          indentNo: row.indentNo,
+          itemName: row.itemName,
+          uom: row.uom,
+          poQty: row.poQty,
+          poRate: row.porate,
+          poAmount: row.poamt,
+          discPrice: row.discPrice,
+          totGst: row.totGst,
+          totalAmount: row.totalAmount
+        });
+        poSummary[row.id].totalAmount += (row.totalAmount || 0);
+      }
+    });
+    
+    res.json({
+      success: true,
+      data: Object.values(poSummary),
+      count: Object.keys(poSummary).length,
+      type: 'level1-pending'
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT - Approve Level 1 (Final Approval)
+router.put('/approve-level1/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { approvedBy } = req.body;
+    
+    const [updated] = await sequelize.query(
+      `UPDATE PurchaseOrders 
+       SET level1Approved = 'Yes', 
+           level1ApprovedBy = :approvedBy, 
+           level1ApprovedDate = NOW(),
+           status = 'Approved'
+       WHERE id = :id 
+       AND level2Approved = 'Yes' 
+       AND level1Approved = 'No'`,
+      {
+        replacements: { id, approvedBy: approvedBy || 'System' },
+        type: sequelize.QueryTypes.UPDATE
+      }
+    );
+    
+    if (updated === 0) {
+      return res.status(404).json({ success: false, message: 'PO not found or Level 2 not approved yet' });
+    }
+    
+    res.json({ success: true, message: 'PO fully approved!' });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST - Bulk Approve Level 1 (Final Approval)
+router.post('/bulk-approve-level1', async (req, res) => {
+  try {
+    const { poIds, approvedBy } = req.body;
+    
+    if (!poIds || poIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'No PO IDs provided' });
+    }
+    
+    const placeholders = poIds.map(() => '?').join(',');
+    
+    await sequelize.query(
+      `UPDATE PurchaseOrders 
+       SET level1Approved = 'Yes', 
+           level1ApprovedBy = ?, 
+           level1ApprovedDate = NOW(),
+           status = 'Approved'
+       WHERE id IN (${placeholders}) 
+       AND level2Approved = 'Yes' 
+       AND level1Approved = 'No'`,
+      {
+        replacements: [approvedBy || 'System', ...poIds],
+        type: sequelize.QueryTypes.UPDATE
+      }
+    );
+    
+    res.json({ success: true, message: `${poIds.length} PO(s) fully approved!` });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 module.exports = router;

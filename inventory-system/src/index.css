@@ -744,3 +744,27 @@ div[class*="modal"]:not(.inv-modal-overlay) {
 .inv-summary-row span:last-child { font-weight: 600; color: #1e293b; font-family: 'DM Mono', monospace; }
 .inv-summary-row.grand-total { font-size: 16px; color: #1e293b; border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 12px; }
 .inv-summary-row.grand-total span:last-child { color: #3b6ef8; font-size: 20px; }
+
+.inv-badge-warning {
+  background: #fef3c7;
+  color: #d97706;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.inv-badge-warning::before {
+  content: "⏳ ";
+}
+
+.inv-badge-yes {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.inv-badge-no {
+  background: #fee2e2;
+  color: #991b1b;
+}

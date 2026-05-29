@@ -1,5 +1,5 @@
 import React,{ useState, useEffect, useRef,useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate,useLocation,useParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
 
@@ -87,7 +87,9 @@ const numberToWords = (num) => {
     }
   }
   
-  return result.join(' ').trim() ;
+  // Add "Rupees" and "Only" to the result
+  const words = result.join(' ').trim();
+  return words ? ` ${words}` : 'Zero Only';
 };
 
 const ViewIcon = () => (
@@ -190,7 +192,9 @@ const emptyHeader = () => ({
   status: "Open", 
   remarks: "",
   poType: "",
-  preparedBy: "System Administrator"
+  preparedBy: "System Administrator",
+  level1Approved: "NO",
+  level2Approved: "NO"
 });
 
 const FormGrid = ({ children }) => (
@@ -350,7 +354,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
                   <tr>
                     <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
                       <span class="bold" style="font-size: 8px;">Value in Words</span> 
-                      <span style="font-size: 9px; margin-left: 4px;">Rupees ${netValueInWords} Only</span>
+                      <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(Math.round(totals.totalAmount))} Only</span>
                     </td>
                   </tr>
                 </table>
@@ -416,7 +420,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
 <head>
   <title>PO ${esc(header.poNo)}</title>
   <style>
-    @page { margin: 8mm; size: A4; }
+    @page { margin: 5mm; size: A4; }
     * { box-sizing: border-box; }
     body { font-family: 'Arial', sans-serif; font-size: 9.5px; margin: 0; padding: 0; color: #000; }
     .bold { font-weight: bold; }
@@ -464,19 +468,87 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
 }
 
 
-const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) => {
+const downloadAsPDF = async ({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) => {
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   
   const ITEMS_PER_PAGE = 15;
   const totalPages = Math.ceil(detailRows.length / ITEMS_PER_PAGE);
+
+  const numberToWords = (num) => {
+  if (num === 0 || num === null || num === undefined) return "Zero Only";
   
-  // Calculate totals for all items
-  const grossValue = detailRows.reduce((s, d) => s + (Number(d.poQty || 0) * Number(d.poRate || 0)), 0);
-  const discountAmount = grossValue - totals.poAmount;
-  const igstAmount = detailRows.reduce((s, d) => s + (d.igst || 0), 0);
-  const cgstAmount = detailRows.reduce((s, d) => s + (d.cgst || 0), 0);
-  const sgstAmount = detailRows.reduce((s, d) => s + (d.sgst || 0), 0);
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
   
+  const convertHundreds = (n) => {
+    if (n === 0) return '';
+    if (n < 20) return ones[n];
+    const ten = Math.floor(n / 10);
+    const one = n % 10;
+    return tens[ten] + (one ? ' ' + ones[one] : '');
+  };
+  
+  const convertThousands = (n) => {
+    if (n === 0) return '';
+    if (n < 100) return convertHundreds(n);
+    const hundred = Math.floor(n / 100);
+    const remainder = n % 100;
+    return ones[hundred] + ' Hundred' + (remainder ? ' ' + convertHundreds(remainder) : '');
+  };
+  
+  let result = [];
+  let remaining = num;
+  
+  // Crores (10000000)
+  if (remaining >= 10000000) {
+    const crores = Math.floor(remaining / 10000000);
+    result.push(convertHundreds(crores) + ' Crore');
+    remaining %= 10000000;
+  }
+  
+  // Lakhs (100000)
+  if (remaining >= 100000) {
+    const lakhs = Math.floor(remaining / 100000);
+    result.push(convertHundreds(lakhs) + ' Lakh');
+    remaining %= 100000;
+  }
+  
+  // Thousands (1000)
+  if (remaining >= 1000) {
+    const thousands = Math.floor(remaining / 1000);
+    result.push(convertThousands(thousands) + ' Thousand');
+    remaining %= 1000;
+  }
+  
+  // Remaining hundreds and below
+  if (remaining > 0) {
+    if (remaining < 100) {
+      result.push(convertHundreds(remaining));
+    } else {
+      result.push(convertThousands(remaining));
+    }
+  }
+  
+  const words = result.join(' ').trim();
+  return words ? `${words} only` : 'Zero Only';
+};
+
+// Helper functions
+const fmt = (num) => (num || 0).toFixed(2);
+
+// Then calculate totals
+const grossValue = detailRows.reduce((s, d) => s + (Number(d.poQty || 0) * Number(d.poRate || 0)), 0);
+const discountAmount = grossValue - totals.poAmount;
+const igstAmount = detailRows.reduce((s, d) => s + (d.igst || 0), 0);
+const cgstAmount = detailRows.reduce((s, d) => s + (d.cgst || 0), 0);
+const sgstAmount = detailRows.reduce((s, d) => s + (d.sgst || 0), 0);
+
+// Then use them
+const netValueRounded2 = Math.round(totals.totalAmount);
+const roundOffAmount = netValueRounded2 - totals.totalAmount;
+const netValueInWords = numberToWords(netValueRounded2);
+const fmtRound = (num) => (num || 0).toFixed(0);
+
   // Build all pages
   let allPagesHtml = '';
   
@@ -604,7 +676,8 @@ const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstTyp
                   <\/tr>
                   <tr>
                     <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
-                      <span class="bold" style="font-size: 8px;">Value in Words<\/span> <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(Math.round(totals.totalAmount))}<\/span>
+                      <span class="bold" style="font-size: 8px;">Value in Words<\/span> 
+                      <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(Math.round(totals.totalAmount))}<\/span>
                     <\/td>
                   <\/tr>
                 <\/table>
@@ -618,8 +691,13 @@ const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstTyp
                   <tr><td class="text-left">CGST<\/td><td class="text-right">${fmt(cgstAmount)}<\/td><\/tr>
                   <tr><td class="text-left">SGST<\/td><td class="text-right">${fmt(sgstAmount)}<\/td><\/tr>
                   <tr><td class="text-left">Other Charges<\/td><td class="text-right">0.00<\/td><\/tr>
-                  <tr><td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off<\/td><td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">0.00<\/td><\/tr>
-                  <tr><td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value<\/td><td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(totals.totalAmount)}<\/td><\/tr>
+                    <td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off</td>
+                    <td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">${fmt(roundOffAmount)}</td>
+                     <tr>
+                    <td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value</td>
+                    <td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(netValueRounded2)}</td>
+                  </tr>
+                  </tr>
                 <\/table>
               <\/td>
             <\/tr>
@@ -693,22 +771,40 @@ const downloadAsPDF = ({ header, details: detailRows, totals, gstEnabled, gstTyp
     .summary-table td { padding: 3px 5px; border: none; }
     
     .signature-row td { height: 60px; vertical-align: bottom; border-top: 1px solid #000; border-bottom: none; }
+
+    .container { 
+    border: 1px solid #000; 
+    margin-top: 2px;
+    width: 98%;
+    margin-left: 1%;
+  }
   <\/style>
 <\/head>
 <body>
   ${allPagesHtml}
 <\/body>
 <\/html>`;
-  
-  // Create a blob and download as HTML file
-  const blob = new Blob([html], { type: 'text/html' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `PO_${header.poNo || 'document'}.html`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(link.href);
+
+    // Create a temporary div to hold the HTML content
+    const element = document.createElement('div');
+    element.innerHTML = html;
+    document.body.appendChild(element);
+
+    // PDF options
+   const opt = {
+  margin: [0.3, 0.35, 0.3, 0.25],  // left margin 0.25, right margin 0.35
+  filename: `PO_${header.poNo || 'document'}.pdf`,
+  image: { type: 'jpeg', quality: 0.98 },
+  html2canvas: { scale: 2, useCORS: true, logging: false ,},
+  jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+};
+
+    // Generate and download PDF
+    await html2pdf().set(opt).from(element).save();
+
+    // Clean up
+    document.body.removeChild(element);
+
 };
 
 export default function PurchaseOrderPage() {
@@ -743,10 +839,78 @@ export default function PurchaseOrderPage() {
   const addRowBtnRef = useRef(null);
   const [expandedGroups, setExpandedGroups] = useState({});
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+ 
+
+     // New state for approval workflow
+  const [approvalFilter, setApprovalFilter] = useState("all"); // all, level1, level2
+  const [approvalMode, setApprovalMode] = useState(false); // true when viewing pending approvals
+  const [selectedApprovalPOs, setSelectedApprovalPOs] = useState(new Set());
+  const [bulkApproving, setBulkApproving] = useState(false);
+  const [approvalLevel, setApprovalLevel] = useState(null); // 1 or 2
+
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const params = useParams();
 
-  const safeDetails = (d) => {
+  // Force form view when editId is set
+useEffect(() => {
+  if (editId) {
+    setView("form");
+  }
+}, [editId]);
+
+  // Check if we're in approval mode based on URL - ONLY if not editing
+useEffect(() => {
+  // Don't override if we're editing a PO from pending page
+  if (location.state?.po || params.id) {
+    return;
+  }
+  
+  if (location.pathname === "/po-level1-pending") {
+    setApprovalMode(true);
+    setApprovalFilter("level1");
+    setApprovalLevel(1);
+    setView("list");
+  } else if (location.pathname === "/po-level2-pending") {
+    setApprovalMode(true);
+    setApprovalFilter("level2");
+    setApprovalLevel(2);
+    setView("list");
+  } else {
+    setApprovalMode(false);
+    setApprovalFilter("all");
+    setApprovalLevel(null);
+  }
+}, [location.pathname, location.state, params.id]);
+
+// Handle editing from pending page - with higher priority
+useEffect(() => {
+  // Check if we have a PO passed from navigation state
+  if (location.state?.po) {
+    setView("form"); // Make sure we're in form view
+    setTimeout(() => {
+      openEdit(location.state.po);
+    }, 100);
+    // Clear the state to prevent re-triggering
+    window.history.replaceState({}, document.title);
+  }
+  // Check if we have an ID in the URL
+  else if (params.id) {
+    setView("form");
+    const loadPO = async () => {
+      try {
+        const po = await purchaseOrderApi.getOne(params.id);
+        if (po) openEdit(po);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadPO();
+  }
+}, [location.state?.po, params.id]);
+
+   const safeDetails = (d) => {
     if (!d) return [];
     if (Array.isArray(d)) return d;
     if (typeof d === "string") {
@@ -762,46 +926,47 @@ export default function PurchaseOrderPage() {
   };
 
   // 2. All useMemo hooks
-  const pendingIndentGroups = useMemo(() => {
-    const groups = {};
-    
-    indents.forEach(ind => {
-      const details_array = safeDetails(ind.details);
-      const pendingDetails = details_array.filter(d => {
-        const balance = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
-          ? Number(d.balQty)
-          : Number(d.indentQty || 0);
-        return balance > 0 && d.itemId;
-      });
-      
-      if (pendingDetails.length === 0) return;
-      
-      groups[sid(ind)] = {
-        indentNo: ind.indentNo,
-        indentDate: ind.date,
-        departmentName: ind.departmentName,
-        items: pendingDetails.map(d => {
-          const itemMaster = items.find(i => sid(i) === sid(d.itemId));
-          const realBalQty = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
-            ? Number(d.balQty)
-            : Number(d.indentQty || 0);
-          return {
-            rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`,
-            detailId: sid(d.id || d._id),
-            itemId: sid(d.itemId),
-            itemName: toTitleCase(d.itemDescription || d.itemName),
-            categoryName: d.mainCategoryName || d.categoryName || "",
-            uom: d.uom,
-            balQty: realBalQty,
-            rate: itemMaster?.rate || d.rate || 0,
-            gstPct: itemMaster?.gstPercent !== undefined ? itemMaster.gstPercent : (d.gstPct !== undefined ? d.gstPct : 18)
-          };
-        })
-      };
+ const pendingIndentGroups = useMemo(() => {
+  const groups = {};
+  
+  indents.forEach(ind => {
+    const details_array = safeDetails(ind.details);
+    const pendingDetails = details_array.filter(d => {
+      const balance = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
+        ? Number(d.balQty)
+        : Number(d.indentQty || 0);
+      return balance > 0 && d.itemId;
     });
     
-    return groups;
-  }, [indents, items]);
+    if (pendingDetails.length === 0) return;
+    
+    groups[sid(ind)] = {
+      indentNo: ind.indentNo,
+      indentDate: ind.date,
+      departmentName: ind.departmentName,
+      items: pendingDetails.map(d => {
+        const itemMaster = items.find(i => sid(i) === sid(d.itemId));
+        const realBalQty = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
+          ? Number(d.balQty)
+          : Number(d.indentQty || 0);
+        return {
+          rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`,
+          detailId: sid(d.id || d._id),
+          itemId: sid(d.itemId),
+          itemName: toTitleCase(d.itemDescription || d.itemName),
+          categoryName: d.mainCategoryName || d.categoryName || "",
+          uom: d.uom,
+          balQty: realBalQty,
+          rate: itemMaster?.rate || d.rate || 0,
+          gstPct: itemMaster?.gstPercent !== undefined ? itemMaster.gstPercent : (d.gstPct !== undefined ? d.gstPct : 18),
+          indentNo: ind.indentNo  // ← ADD THIS LINE - it's missing!
+        };
+      })
+    };
+  });
+  
+  return groups;
+}, [indents, items]);
 
   // ==================== ALL useEffect HOOKS ====================
 
@@ -864,7 +1029,6 @@ useEffect(() => {
 }, [details.length, pendingModalOpen, showSaveConfirm, saveSuccessModal, viewingSupplier]);
 
 // ========== TAB TRAP FOR CONFIRM SAVE MODAL ==========
-// ========== TAB HANDLER FOR CONFIRM SAVE MODAL ==========
 useEffect(() => {
   if (!showSaveConfirm) return;
   
@@ -1131,11 +1295,23 @@ useEffect(() => {
     } catch (e) { console.error(e); }
   }
 
+
   async function loadPos() {
     setLoadingList(true);
     try {
       const data = await purchaseOrderApi.getAll();
-      setPos(Array.isArray(data) ? data : []);
+      let filteredData = Array.isArray(data) ? data : [];
+      
+      // Apply approval filter if in approval mode
+      if (approvalMode) {
+        if (approvalFilter === "level1") {
+          filteredData = filteredData.filter(po => po.level1Approved === "No" && po.status !== "Closed");
+        } else if (approvalFilter === "level2") {
+          filteredData = filteredData.filter(po => po.level1Approved === "Yes" && po.level2Approved === "No" && po.status !== "Closed");
+        }
+      }
+      
+      setPos(filteredData);
     } catch (err) {
       console.error("Failed to load POs:", err);
       if (typeof setListError === "function") {
@@ -1147,7 +1323,12 @@ useEffect(() => {
   }
 
   async function openNew() {
-    setHeader({ ...emptyHeader(), preparedBy: "System Administrator" }); 
+    setHeader({ 
+      ...emptyHeader(), 
+      preparedBy: "System Administrator",
+      level1Approved: "No",
+      level2Approved: "No"
+    }); 
     setDetails([emptyDetail()]); 
     setEditId(null); 
     setView("form"); 
@@ -1159,64 +1340,169 @@ useEffect(() => {
     } catch (e) { }
   }
 
-  function openEdit(po) {
-    const sId = sid(po.supplierId);
-    const s = suppliers.find(x => sid(x) === sId);
-    let addrText = "";
-    if (s) {
-      const parsedAddresses = safeDetails(s?.addresses);
-      const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
-      if (primaryAddr) {
-        const parts = [
-          primaryAddr.address || primaryAddr.line1,
-          primaryAddr.cityName,
-          primaryAddr.stateName,
-          primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""
-        ].filter(Boolean);
-        addrText = parts.join(", ");
-      }
+function openEdit(po) {
+
+  // Map the PO properties to what the function expects
+  const mappedPO = {
+    id: po.id,
+    poNo: po.poNo || po.ponumber,
+    date: po.date || po.podate,
+    supplierName: po.supplierName || po.supplier,
+    supplierId: po.supplierId,
+    supplierAddress: po.supplierAddress,
+    supplierGst: po.supplierGst,
+    paymentTermsId: po.paymentTermsId,
+    paymentTermsName: po.paymentTermsName,
+    refNo: po.refNo,
+    // IMPORTANT: Handle both deliveryDate and deliverydate
+    deliveryDate: po.deliveryDate || po.deliverydate,
+    // IMPORTANT: Handle both poType and potype
+    poType: po.poType || po.potype,
+    preparedBy: po.preparedBy,
+    remarks: po.remarks,
+    status: po.status,
+    gstType: po.gstType || po.gsttype || "local",
+    gstEnabled: po.gstEnabled !== false,
+    level1Approved: po.level1Approved || "No",
+    level2Approved: po.level2Approved || "No",
+    details: po.details || po.items || []
+  };
+  
+  
+  // Find supplier by ID or name
+  let sId = mappedPO.supplierId;
+  let supplier = null;
+  
+  if (!sId && mappedPO.supplierName) {
+    supplier = suppliers.find(x => 
+      (x.supplierName || "").toLowerCase() === mappedPO.supplierName.toLowerCase()
+    );
+    if (supplier) {
+      sId = sid(supplier);
+      console.log("Found supplier by name:", supplier.supplierName, "ID:", sId);
     }
-
-    setEditId(sid(po));
-    
-    const normalizeDate = (d) => {
-      if (!d) return "";
-      if (typeof d === "string" && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        return d;
-      }
-      if (typeof d === "string" && d.includes("T")) {
-        return d.split("T")[0];
-      }
-      try {
-        const dt = new Date(d);
-        if (!isNaN(dt.getTime())) {
-          return dt.toISOString().split("T")[0];
-        }
-      } catch (e) {}
-      return "";
-    };
-
-    setHeader({
-      ...po,
-      poNo: po.poNo || po.poNumber || "",
-      date: normalizeDate(po.date),
-      supplierId: sId,
-      paymentTermsId: sid(po.paymentTermsId),
-      supplierAddress: po.supplierAddress || addrText,
-      refNo: po.refNo || po.referenceNo || "",
-      deliveryDate: normalizeDate(po.deliveryDate || po.Date),
-      poType: po.poType || po.purchaseOrderType || "",
-      supplierGst: po.supplierGst || s?.gstNo || "",
-      preparedBy: po.preparedBy || "System Administrator"
-    });
-    
-    const gType = po.gstType || "local";
-    setDetails(safeDetails(po.details).map(d => calcRow({ ...d, _rowId: Math.random(), indentDetailId: sid(d.indentDetailId), itemId: sid(d.itemId) }, gType)));
-    setGstType(po.gstType || "local");
-    setGstEnabled(po.gstEnabled !== false);
-    setView("form");
-    setItemsFromPickIndent(true);
+  } else if (sId) {
+    supplier = suppliers.find(x => sid(x) === sId);
   }
+  
+  let addrText = mappedPO.supplierAddress || "";
+  
+  if (!addrText && supplier) {
+    const parsedAddresses = safeDetails(supplier?.addresses);
+    const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
+    if (primaryAddr) {
+      const parts = [
+        primaryAddr.address || primaryAddr.line1,
+        primaryAddr.cityName,
+        primaryAddr.stateName,
+        primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""
+      ].filter(Boolean);
+      addrText = parts.join(", ");
+    }
+  }
+
+  setEditId(sid(mappedPO));
+
+  const normalizeDate = (d) => {
+    if (!d) return "";
+    if (typeof d === "string" && d.match(/^\d{4}-\d{2}-\d{2}$/)) return d;
+    if (typeof d === "string" && d.includes("T")) return d.split("T")[0];
+    try {
+      const dt = new Date(d);
+      if (!isNaN(dt.getTime())) return dt.toISOString().split("T")[0];
+    } catch (e) {}
+    return "";
+  };
+
+  setHeader({
+  poNo: mappedPO.poNo,
+  date: normalizeDate(mappedPO.date),
+  supplierId: sId || "",
+  supplierName: mappedPO.supplierName || Supplier,
+  supplierAddress: addrText,
+  supplierGst: mappedPO.supplierGst || supplier?.gstNo || "",
+  paymentTermsId: mappedPO.paymentTermsId,
+  paymentTermsName: mappedPO.paymentTermsName,
+  refNo: mappedPO.refNo || "",
+  deliveryDate: normalizeDate(mappedPO.deliveryDate),
+  poType: mappedPO.poType || "",
+  preparedBy: mappedPO.preparedBy || "System Administrator",
+  remarks: mappedPO.remarks || "",
+  status: mappedPO.status || "Open",
+  level1Approved: mappedPO.level1Approved || "No",
+  level2Approved: mappedPO.level2Approved || "No"
+});
+
+// If we found supplier by name but sId is empty, set it manually
+if (!sId && supplier) {
+  setHeader(prev => ({ ...prev, supplierId: sid(supplier) }));
+}
+
+  const gType = mappedPO.gstType || "local";
+  const detailsList = safeDetails(mappedPO.details);
+  
+  if (detailsList.length > 0) {
+    setDetails(detailsList.map(d => calcRow({ 
+      ...d, 
+      _rowId: Math.random(), 
+      indentDetailId: sid(d.indentDetailId), 
+      itemId: sid(d.itemId),
+      indentNo: d.indentNo || "",
+      itemName: d.itemName || d.itemDescription || "",
+      uom: d.uom || "",
+      poQty: d.poQty || d.qty || 0,
+      poRate: d.poRate || d.rate || 0,
+      gstPct: d.gstPct || d.gstPercent || 0,
+      discMode: d.discMode || "pct",
+      discPct: d.discPct || 0,
+      discPrice: d.discPrice || 0
+    }, gType)));
+  } else {
+    setDetails([emptyDetail()]);
+  }
+  
+  setGstType(gType);
+  setGstEnabled(mappedPO.gstEnabled !== false);
+  setItemsFromPickIndent(true);
+  setView("form");
+  
+  // Clear approval mode
+  setApprovalMode(false);
+  setApprovalLevel(null);
+}
+// Handle editing from pending page - with higher priority
+useEffect(() => {
+  console.log("location.state in PurchaseOrderPage:", location.state);
+  
+  // Check if we have a PO passed from navigation state
+  if (location.state?.po) {
+    const poData = location.state.po; // Store in variable
+    console.log("PO received in PurchaseOrderPage:", poData);
+    
+    setView("form");
+    
+    // Use a timeout to ensure the component is ready
+    setTimeout(() => {
+      console.log("Calling openEdit with:", poData);
+      openEdit(poData);
+    }, 200);
+    
+    // Clear the state to prevent re-triggering
+    window.history.replaceState({}, document.title);
+  }
+  else if (params.id) {
+    setView("form");
+    const loadPO = async () => {
+      try {
+        const po = await purchaseOrderApi.getOne(params.id);
+        if (po) openEdit(po);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadPO();
+  }
+}, [location.state?.po, params.id]);
 
   const calcRow = (row, gType = gstType) => {
     const qty = Number(row.poQty || 0); 
@@ -1290,7 +1576,7 @@ useEffect(() => {
     setDetails(p => p.filter((_, i) => i !== idx)); 
   }
 
-  async function handleDelete(id) {
+ async function handleDelete(id) {
     if (!window.confirm("Delete this purchase order?")) return;
     try {
       await purchaseOrderApi.remove(id);
@@ -1300,6 +1586,99 @@ useEffect(() => {
     } catch (err) {
       setFormError(err.message);
     }
+  }
+
+
+   // New function for bulk approval
+  async function handleBulkApprove() {
+    if (selectedApprovalPOs.size === 0) {
+      setFormError("Please select at least one PO to approve");
+      return;
+    }
+    
+    if (!window.confirm(`Approve ${selectedApprovalPOs.size} PO(s) for Level ${approvalLevel}?`)) return;
+    
+    setBulkApproving(true);
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const poId of selectedApprovalPOs) {
+      try {
+        const po = pos.find(p => sid(p) === poId);
+        if (!po) continue;
+        
+        const updateData = { ...po };
+        if (approvalLevel === 1) {
+          updateData.level1Approved = "Yes";
+        } else if (approvalLevel === 2) {
+          updateData.level2Approved = "Yes";
+        }
+        
+        await purchaseOrderApi.update(poId, updateData);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to approve PO ${poId}:`, err);
+        errorCount++;
+      }
+    }
+    
+    setBulkApproving(false);
+    setSelectedApprovalPOs(new Set());
+    await loadPos();
+    
+    setSaveToast(`Approved ${successCount} PO(s) successfully${errorCount > 0 ? `, ${errorCount} failed` : ""}!`);
+    setTimeout(() => setSaveToast(""), 4000);
+  }
+
+
+  // Toggle selection for bulk approval
+  function togglePOSelection(poId) {
+    const newSelected = new Set(selectedApprovalPOs);
+    if (newSelected.has(poId)) {
+      newSelected.delete(poId);
+    } else {
+      newSelected.add(poId);
+    }
+    setSelectedApprovalPOs(newSelected);
+  }
+
+  function toggleAllPOSelection() {
+    if (selectedApprovalPOs.size === filteredPos.length) {
+      setSelectedApprovalPOs(new Set());
+    } else {
+      const allIds = new Set(filteredPos.map(po => sid(po)));
+      setSelectedApprovalPOs(allIds);
+    }
+  }
+
+  async function handleSave() {
+    console.log("handleSave called");
+    
+    if (!header.poNo.trim()) {
+      setFormError("PO No is required");
+      return;
+    }
+    if (!header.supplierId) {
+      setFormError("Supplier is required");
+      return;
+    }
+    
+    for (const row of details) {
+      if (!row.itemId) {
+        setFormError("Item Description is required for all rows");
+        return;
+      }
+      if (!row.poQty || Number(row.poQty) <= 0) {
+        setFormError("PO Qty is required and must be greater than 0");
+        return;
+      }
+      if (!row.poRate || Number(row.poRate) <= 0) {
+        setFormError("Unit Price is required and must be greater than 0");
+        return;
+      }
+    }
+    
+    setShowSaveConfirm(true);
   }
 
   async function handleSave() {
@@ -1337,26 +1716,40 @@ async function performSave() {
   setFormError(null);
   setSaving(true);
   
-  console.log("HEADER BEFORE SAVE:", header);
-  console.log("DELIVERY DATE VALUE:", header.deliveryDate);
-  
   const payload = { 
     ...header, 
     deliveryDate: header.deliveryDate,
     gstEnabled, 
     gstType, 
-    details: details.map(({ _rowId, ...rest }) => rest) 
+    details: details.map(({ _rowId, ...rest }) => rest),
+    level1Approved: header.level1Approved || "No",
+    level2Approved: header.level2Approved || "No"
   };
   
-  console.log("FULL PAYLOAD BEING SENT:", JSON.stringify(payload, null, 2));
+  console.log("Saving PO with approval fields:", payload);
   
   try {
+    let savedPO;
     if (editId) {
       await purchaseOrderApi.update(editId, payload);
+      // Fetch the updated PO to get complete data
+      savedPO = await purchaseOrderApi.getOne(editId);
     } else {
-      await purchaseOrderApi.create(payload);
+      const created = await purchaseOrderApi.create(payload);
+      savedPO = created;
     }
+    
     await loadPos();
+    
+    // If we're still in edit mode, reload the complete PO data
+    if (editId || savedPO) {
+      const poToLoad = savedPO || await purchaseOrderApi.getOne(editId);
+      if (poToLoad) {
+        // Refresh the form with complete data
+        openEdit(poToLoad);
+      }
+    }
+    
     setSaveSuccessModal(true);
     setTimeout(() => {
       setSaveSuccessModal(false);
@@ -1370,7 +1763,9 @@ async function performSave() {
   }
 }
 
-  const totals = details.reduce((acc, r) => ({
+
+
+   const totals = details.reduce((acc, r) => ({
     grossAmount: (acc.grossAmount || 0) + Number(r.grossAmount || 0),
     discPrice: (acc.discPrice || 0) + Number(r.rowDisc || 0),
     poAmount: (acc.poAmount || 0) + Number(r.poAmount || 0),
@@ -1378,8 +1773,9 @@ async function performSave() {
     totalAmount: (acc.totalAmount || 0) + Number(r.totalAmount || 0),
     sgst: (acc.sgst || 0) + Number(r.sgst || 0),
     cgst: (acc.cgst || 0) + Number(r.cgst || 0),
-    igst: (acc.igst || 0) + Number(r.igst || 0)
-  }), { grossAmount: 0, discPrice: 0, poAmount: 0, totGst: 0, totalAmount: 0, sgst: 0, cgst: 0, igst: 0 });
+    igst: (acc.igst || 0) + Number(r.igst || 0),
+    poQty: (acc.poQty || 0) + Number(r.poQty || 0)
+  }), { grossAmount: 0, discPrice: 0, poAmount: 0, totGst: 0, totalAmount: 0, sgst: 0, cgst: 0, igst: 0, poQty: 0 });
 
   const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
@@ -1393,13 +1789,16 @@ async function performSave() {
         }
       });
     });
-    
+
+     console.log("Selected items:", selected); 
+
     if (selected.length === 0) {
       setPendingModalOpen(false);
       return;
     }
-    
-    const newRows = selected.map(s => {
+
+     const newRows = selected.map(s => {
+      console.log("Item indentNo:", s.indentNo); 
       return calcRow({
         ...emptyDetail(), 
         indentDetailId: s.detailId, 
@@ -1413,13 +1812,13 @@ async function performSave() {
         gstPct: s.gstPct || 0
       });
     });
-    
+
     setDetails(p => {
       const existing = p.filter(r => r.itemId || r.itemName);
       if (existing.length === 0) return newRows;
       return [...existing, ...newRows];
     });
-    
+
     setPendingModalOpen(false); 
     setPendingSelected(new Set());
     setTableEnabled(true);
@@ -1431,46 +1830,127 @@ async function performSave() {
     }, 150);
   }
 
+   // Filter POs for list view
+  const filteredPos = (pos || []).filter(po => {
+    if (searchTerm && !po?.poNo?.toLowerCase().includes(searchTerm.toLowerCase())) {
+      return false;
+    }
+    return true;
+  });
+
   // 5. Conditional returns at the end
   if (view === "list") {
-    const filteredPos = (pos || []).filter(po => po?.poNo?.toLowerCase().includes(searchTerm.toLowerCase()));
+    // Apply approval filter based on mode
+    let filteredPos = (pos || []).filter(po => po?.poNo?.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    // Apply additional filtering for approval mode
+    if (approvalMode) {
+      if (approvalLevel === 1) {
+        filteredPos = filteredPos.filter(po => po.level1Approved === "No" && po.status !== "Closed");
+      } else if (approvalLevel === 2) {
+        filteredPos = filteredPos.filter(po => po.level1Approved === "Yes" && po.level2Approved === "No" && po.status !== "Closed");
+      }
+    }
     
     const exportToExcel = () => {
-      const headers = ["PO No", "Date", "Supplier", "Status", "Total Amount"];
+      let headers = ["PO No", "Date", "Supplier", "Status", "Total Amount"];
+      if (approvalMode) {
+        headers = ["PO No", "Date", "Supplier", "Status", "Level 1 Approved", "Level 2 Approved", "Total Amount"];
+      }
+      
       const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
       const rows = filteredPos.map(po => {
         const totalAmt = safeDetails(po.details).reduce((s, d) => s + (d.totalAmount || 0), 0);
+        if (approvalMode) {
+          return [po.poNo, po.date, po.supplierName, po.status, po.level1Approved || "No", po.level2Approved || "No", totalAmt].map(escapeCsv).join(",");
+        }
         return [po.poNo, po.date, po.supplierName, po.status, totalAmt].map(escapeCsv).join(",");
       });
       const csvContent = [headers.join(","), ...rows].join("\n");
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = "purchase_orders.csv";
+      link.download = approvalMode ? `purchase_orders_${approvalLevel === 1 ? 'level1_pending' : 'level2_pending'}.csv` : "purchase_orders.csv";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    };
+    
+    const toggleAllPOSelection = () => {
+      if (selectedApprovalPOs.size === filteredPos.length) {
+        setSelectedApprovalPOs(new Set());
+      } else {
+        const allIds = new Set(filteredPos.map(po => sid(po)));
+        setSelectedApprovalPOs(allIds);
+      }
+    };
+    
+    const togglePOSelection = (poId) => {
+      const newSelected = new Set(selectedApprovalPOs);
+      if (newSelected.has(poId)) {
+        newSelected.delete(poId);
+      } else {
+        newSelected.add(poId);
+      }
+      setSelectedApprovalPOs(newSelected);
     };
     
     return (
       <div className="inv-page">
         <div className="inv-page-header">
           <div>
-            <h1 className="inv-page-title">Purchase Orders</h1>
-            <p className="inv-page-sub">Manage purchase orders</p>
+            <h1 className="inv-page-title">
+              {approvalMode ? (
+                approvalLevel === 1 ? "PO Level 1 Pending Approval" : "PO Level 2 Pending Approval"
+              ) : "Purchase Orders"}
+            </h1>
+            <p className="inv-page-sub">
+              {approvalMode ? "Review and approve pending purchase orders" : "Manage purchase orders"}
+            </p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="inv-btn-secondary" onClick={exportToExcel}>Export to Excel</button>
-            <button className="inv-btn-primary" onClick={openNew}>+ New Purchase Order</button>
+            {approvalMode && (
+              <button 
+                className="inv-btn-primary" 
+                onClick={handleBulkApprove} 
+                disabled={bulkApproving || selectedApprovalPOs.size === 0}
+              >
+                {bulkApproving ? "Approving..." : `✓ Approve Selected (${selectedApprovalPOs.size})`}
+              </button>
+            )}
+            <button className="inv-btn-secondary" onClick={exportToExcel}>📊 Export to Excel</button>
+            {!approvalMode && (
+              <button className="inv-btn-primary" onClick={openNew}>+ New Purchase Order</button>
+            )}
+            {approvalMode && (
+              <button className="inv-btn-secondary" onClick={() => navigate("/purchase-order")}>← Back to All POs</button>
+            )}
           </div>
         </div>
 
         {listError && <div className="inv-error-banner" style={{ marginBottom: 16 }}>{listError}</div>}
+        
+        {approvalMode && selectedApprovalPOs.size > 0 && (
+          <div className="inv-card" style={{ marginBottom: 16, background: "#eef2ff", border: "1px solid #3b6ef8" }}>
+            <div className="inv-card-body" style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "14px", fontWeight: 500 }}>
+                ✓ {selectedApprovalPOs.size} PO(s) selected for approval
+              </span>
+              <button 
+                className="inv-btn-primary inv-btn-sm" 
+                onClick={handleBulkApprove}
+                disabled={bulkApproving}
+              >
+                {bulkApproving ? "Processing..." : `Approve Selected (${selectedApprovalPOs.size})`}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="inv-card" style={{ marginBottom: 16 }}>
           <div className="inv-card-body">
             <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
-              <label className="inv-label">Search PO No</label>
+              <label className="inv-label">🔍 Search PO No</label>
               <input
                 className="inv-input"
                 value={searchTerm}
@@ -1489,21 +1969,55 @@ async function performSave() {
               <table className="inv-table">
                 <thead>
                   <tr>
+                    {approvalMode && <th style={{ width: 40 }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedApprovalPOs.size === filteredPos.length && filteredPos.length > 0}
+                        onChange={toggleAllPOSelection}
+                        style={{ cursor: "pointer" }}
+                      />
+                    </th>}
                     <th>#</th>
                     <th>PO No</th>
                     <th>Date</th>
                     <th>Supplier</th>
                     <th>Status</th>
+                    {approvalMode && (
+                      <>
+                        <th>Level 1</th>
+                        <th>Level 2</th>
+                      </>
+                    )}
                     <th>Total Amount</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredPos.length === 0 ? (
-                    <tr><td colSpan={7} style={{ textAlign: "center", padding: 40 }}>No purchase orders found</td></tr>
+                    <tr>
+                      <td colSpan={approvalMode ? 9 : 7} style={{ textAlign: "center", padding: 40 }}>
+                        {approvalMode ? "No pending POs found for approval" : "No purchase orders found"}
+                      </td>
+                    </tr>
                   ) : (
                     filteredPos.map((po, i) => (
-                      <tr key={po.id || po._id}>
+                      <tr 
+                        key={po.id || po._id} 
+                        style={{ 
+                          backgroundColor: approvalMode && selectedApprovalPOs.has(sid(po)) ? "#eef2ff" : "transparent",
+                          transition: "background-color 0.2s"
+                        }}
+                      >
+                        {approvalMode && (
+                          <td style={{ textAlign: "center" }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedApprovalPOs.has(sid(po))}
+                              onChange={() => togglePOSelection(sid(po))}
+                              style={{ cursor: "pointer" }}
+                            />
+                          </td>
+                        )}
                         <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
                         <td style={{ fontWeight: 600, color: "var(--accent)" }}>{po.poNo}</td>
                         <td>{po.date}</td>
@@ -1513,6 +2027,20 @@ async function performSave() {
                             {po.status}
                           </span>
                         </td>
+                        {approvalMode && (
+                          <>
+                            <td>
+                              <span className={`inv-badge ${po.level1Approved === 'Yes' ? 'inv-badge-yes' : 'inv-badge-warning'}`}>
+                                {po.level1Approved === 'Yes' ? '✓ Approved' : '⏳ Pending'}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`inv-badge ${po.level2Approved === 'Yes' ? 'inv-badge-yes' : 'inv-badge-warning'}`}>
+                                {po.level2Approved === 'Yes' ? '✓ Approved' : '⏳ Pending'}
+                              </span>
+                            </td>
+                          </>
+                        )}
                         <td>
                           ₹{fmt(
                             (safeDetails(po.details) || []).reduce((s, d) => {
@@ -1523,12 +2051,42 @@ async function performSave() {
                         </td>
                         <td>
                           <div className="inv-actions">
-                            <button className="inv-btn-icon" onClick={() => openEdit(po)}>
+                            <button 
+                              className="inv-btn-icon" 
+                              onClick={() => openEdit(po)}
+                              title="View/Edit PO"
+                            >
                               <EditIcon />
                             </button>
-                            <button className="inv-btn-icon inv-btn-danger" onClick={() => handleDelete(po.id || po._id)}>
-                              <DeleteIcon />
-                            </button>
+                            {!approvalMode && (
+                              <button 
+                                className="inv-btn-icon inv-btn-danger" 
+                                onClick={() => handleDelete(po.id || po._id)}
+                                title="Delete PO"
+                              >
+                                <DeleteIcon />
+                              </button>
+                            )}
+                            {approvalMode && (
+                              <button 
+                                className="inv-btn-icon" 
+                                onClick={() => {
+                                  openEdit(po);
+                                  // Show a message that this is for viewing only in approval mode
+                                  setTimeout(() => {
+                                    const approvalInfo = document.createElement('div');
+                                    approvalInfo.className = 'inv-toast-info';
+                                    approvalInfo.textContent = `⚠️ This PO is pending Level ${approvalLevel} approval. You can view details but cannot modify until approved.`;
+                                    approvalInfo.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #f59e0b; color: #fff; padding: 12px 20px; border-radius: 8px; z-index: 10000; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
+                                    document.body.appendChild(approvalInfo);
+                                    setTimeout(() => approvalInfo.remove(), 3000);
+                                  }, 500);
+                                }}
+                                title="View PO Details"
+                              >
+                                <ViewIcon />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1539,12 +2097,20 @@ async function performSave() {
             </div>
           )}
         </div>
+        
+        {approvalMode && filteredPos.length > 0 && (
+          <div className="inv-card" style={{ marginTop: 16, background: "#f8fafc" }}>
+            <div className="inv-card-body" style={{ fontSize: "12px", color: "#64748b", textAlign: "center" }}>
+              💡 Tip: Select one or more POs using the checkboxes, then click "Approve Selected" to approve them in bulk
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   // FORM VIEW
-  return (
+   return (
     <div className="inv-page">
       <div className="inv-page-header">
         <div><h1 className="inv-page-title">{editId ? "Edit Purchase Order" : "New Purchase Order"}</h1><p className="inv-page-sub">Header-Detail-Summary layout</p></div>
@@ -1558,7 +2124,7 @@ async function performSave() {
           </div>
         )} 
 
-        {(pendingModalOpen || showSaveConfirm) && (
+         {(pendingModalOpen || showSaveConfirm) && (
           <div style={{ display: "flex", gap: 8, visibility: "hidden" }}>
             <button className="inv-btn-secondary">View List</button>
             <button className="inv-btn-ghost">Print</button>
@@ -1583,6 +2149,8 @@ async function performSave() {
           {saveToast}
         </div>
       )}
+
+      
 
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         <div className="inv-card">
@@ -1709,18 +2277,6 @@ async function performSave() {
                   ref={pickIndentRef}
                   className="inv-btn-secondary inv-btn-sm" 
                   onClick={() => setPendingModalOpen(true)}
-                  onKeyDown={(e) => { 
-                    if (e.key === 'Enter') { 
-                      e.preventDefault(); 
-                      setPendingModalOpen(true); 
-                    }
-                    if (e.key === 'Tab' && !e.shiftKey) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const viewListBtn = document.querySelector('.inv-page-header button:first-child');
-                      if (viewListBtn) viewListBtn.focus();
-                    }
-                  }}
                   style={{ borderRadius: 4 }}
                   tabIndex={9}
                 >
@@ -1776,14 +2332,6 @@ async function performSave() {
                           <button 
                             onClick={() => removeRow(idx)} 
                             tabIndex={isLastRow && (itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 4 : -1}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Tab' && !e.shiftKey && isLastRow && (itemsFromPickIndent || tableEnabled) && hasItems) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const pickIndentBtn = document.querySelector('button[tabIndex="9"]');
-                                if (pickIndentBtn) pickIndentBtn.focus();
-                              }
-                            }}
                           >
                             ✕
                           </button>
@@ -1798,26 +2346,127 @@ async function performSave() {
         </div>
 
         <div className="inv-card">
-          <div className="inv-card-body">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, padding: "10px 20px" }}>
-              <div><div style={{ fontSize: 11, color: "#64748b" }}>Gross Amount</div><div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.grossAmount)}</div></div>
-              <div><div style={{ fontSize: 11, color: "#64748b" }}>Total Discount</div><div style={{ fontSize: 18, fontWeight: 700, color: "#b45309" }}>−₹{fmt(totals.discPrice)}</div><div style={{ fontSize: 11, color: "#92400e" }}>{Number(effectiveDiscPct || 0).toFixed(2)}% effective</div></div>
-              <div><div style={{ fontSize: 11, color: "#64748b" }}>PO Amount (after disc, before GST)</div><div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div></div>
-              <div><div style={{ fontSize: 11, color: "#64748b" }}>Total GST</div><div style={{ fontSize: 18, fontWeight: 700 }}>₹{fmt(totals.totGst)}</div></div>
-              <div><div style={{ fontSize: 11, color: "#64748b" }}>IGST (Other State)</div><div style={{ fontSize: 18, fontWeight: 700, color: "#7c3aed" }}>₹{fmt(totals.igst)}</div></div>
-              <div><div style={{ fontSize: 11, color: "#64748b" }}>Grand Total</div><div style={{ fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>₹{fmt(totals.totalAmount)}</div></div>
+          <div className="inv-card-body" style={{ display: "grid", gridTemplateColumns: "1fr 3fr" }}>
+            <div style={{ marginTop: 0, paddingTop: 10, borderTop: "0px solid #f1f5f9" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 0, width: '100%' }}>
+                <div className="inv-field-v" style={{ display: "grid", gridTemplateColumns: "1fr 3fr", gap: 2 }}>
+                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
+                  <input 
+                    className="inv-input" 
+                    value={header.preparedBy || ""} 
+                    onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
+                    placeholder="System Administrator"
+                  />
+                </div>
+                <div className="inv-field-v" style={{ marginTop: 10 }}>
+                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Remarks & Special Instructions</label>
+                  <textarea
+                    rows={4}
+                    className="inv-input"
+                    style={{ fontSize: "13px", padding: "12px" }}
+                    value={header.remarks || ""}
+                    onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))}
+                    placeholder="Enter any specific terms, instructions or internal notes..."
+                  />
+                </div>
+              </div>
             </div>
 
-            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
-                <div className="inv-field-v">
-                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
-                  <input className="inv-input" value={header.preparedBy || ""} onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))} placeholder="System Administrator" />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, padding: "10px 20px", width: '100%' }}>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>PO Qty</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>{fmtQty(totals.poQty)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>PO Amount</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.grossAmount)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total Discount</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>−₹{fmt(totals.discPrice)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Amount after Disc</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>CGST</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.cgst)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>SGST</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.sgst)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>IGST</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.igst)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total GST</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.totGst)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total Amount</div>
+                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.totalAmount)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Approval Buttons Section */}
+        <div className="inv-card" style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+          <div className="inv-card-body">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "20px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
+                <div>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", display: "block", marginBottom: "4px" }}>Level 1 Approval</label>
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <span style={{ 
+                      padding: "6px 16px", 
+                      borderRadius: "20px", 
+                      fontSize: "13px", 
+                      fontWeight: 600,
+                      background: header.level1Approved === "Yes" ? "#10b981" : "#ef4444",
+                      color: "#fff"
+                    }}>
+                      {header.level1Approved === "Yes" ? "APPROVED" : "PENDING"}
+                    </span>
+                    {!editId && header.level1Approved === "No" && (
+                      <span style={{ fontSize: "11px", color: "#64748b" }}>Will be approved by Level 1 Approver</span>
+                    )}
+                    {editId && header.level1Approved === "Yes" && (
+                      <span style={{ fontSize: "11px", color: "#10b981" }}>✓ Approved</span>
+                    )}
+                  </div>
                 </div>
-                <div className="inv-field-v">
-                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Remarks & Special Instructions</label>
-                  <textarea className="inv-input" style={{ height: 40, resize: "none", fontSize: "13px", padding: "12px" }} value={header.remarks || ""} onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))} placeholder="Enter any specific terms, instructions or internal notes..." />
+                
+                <div>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", display: "block", marginBottom: "4px" }}>Level 2 Approval</label>
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <span style={{ 
+                      padding: "6px 16px", 
+                      borderRadius: "20px", 
+                      fontSize: "13px", 
+                      fontWeight: 600,
+                      background: header.level2Approved === "Yes" ? "#10b981" : "#ef4444",
+                      color: "#fff"
+                    }}>
+                      {header.level2Approved === "Yes" ? "APPROVED" : "PENDING"}
+                    </span>
+                    {header.level1Approved === "Yes" && header.level2Approved === "No" && (
+                      <span style={{ fontSize: "11px", color: "#f59e0b" }}>Awaiting Level 2 Approval</span>
+                    )}
+                    {header.level2Approved === "Yes" && (
+                      <span style={{ fontSize: "11px", color: "#10b981" }}>✓ Fully Approved</span>
+                    )}
+                  </div>
                 </div>
+              </div>
+              
+              <div style={{ fontSize: "11px", color: "#64748b", fontStyle: "italic" }}>
+                {header.level1Approved === "No" && "⏳ Pending Level 1 Approval"}
+                {header.level1Approved === "Yes" && header.level2Approved === "No" && "⏳ Pending Level 2 Approval"}
+                {header.level2Approved === "Yes" && "✅ Purchase Order Fully Approved"}
               </div>
             </div>
           </div>
@@ -2062,56 +2711,72 @@ async function performSave() {
 )}
       {viewingSupplier && <SupplierDetailsModal supplier={viewingSupplier} onClose={() => setViewingSupplier(null)} />}
 
-    {showSaveConfirm && (
-  <Modal 
-    id="confirm-save-modal"
-    title="Confirm Save" 
-    onClose={() => setShowSaveConfirm(false)} 
-    hideDefaultButtons={true}
-  >
-    <style>
-      {`
-        #confirm-save-modal .inv-modal-header button,
-        #confirm-save-modal .inv-modal-header .inv-btn-ghost,
-        #confirm-save-modal .inv-modal-header .inv-save-btn,
-        #confirm-save-modal .inv-modal-header .inv-btn-secondary,
-        #confirm-save-modal .inv-modal-header .inv-btn-primary,
-        #confirm-save-modal .inv-modal-header [class*="btn"],
-        #confirm-save-modal .inv-modal-header > *:not(h2):not(h3):not(.inv-modal-title),
-        #confirm-save-modal .inv-modal-footer {
-          display: none !important;
-        }
+        {showSaveConfirm && (
+        <Modal 
+          id="confirm-save-modal"
+          title="Confirm Save" 
+          onClose={() => {
+            setShowSaveConfirm(false);
+            setTimeout(() => {
+              const saveBtn = document.querySelector('button[tabIndex="103"]');
+              if (saveBtn) saveBtn.focus();
+            }, 50);
+          }} 
+          hideDefaultButtons={true}
+        >
+          <style>
+            {`
+              #confirm-save-modal .inv-modal-header button,
+              #confirm-save-modal .inv-modal-header .inv-btn-ghost,
+              #confirm-save-modal .inv-modal-header .inv-save-btn,
+              #confirm-save-modal .inv-modal-header .inv-btn-secondary,
+              #confirm-save-modal .inv-modal-header .inv-btn-primary,
+              #confirm-save-modal .inv-modal-header [class*="btn"],
+              #confirm-save-modal .inv-modal-header > *:not(h2):not(h3):not(.inv-modal-title),
+              #confirm-save-modal .inv-modal-footer {
+                display: none !important;
+              }
 
-        #confirm-save-modal .inv-btn-primary,
-        #confirm-save-modal .inv-btn-secondary {
-          display: inline-flex !important;
-        }
-      `}
-    </style>
-    
-    <div style={{ textAlign: "center", padding: 20 }}>
-      <p style={{ fontSize: 14, marginBottom: 8 }}>Do you want to save this record?</p>
-      <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 20 }}>
-        <button 
-          className="inv-btn-primary" 
-          onClick={performSave}
-          tabIndex={0}
-          autoFocus
-        >
-          Save
-        </button>
-        <button 
-          id="cancel-save-btn"
-          className="inv-btn-secondary" 
-          onClick={() => setShowSaveConfirm(false)}
-          tabIndex={0}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  </Modal>
-)}
+              #confirm-save-modal .inv-btn-primary,
+              #confirm-save-modal .inv-btn-secondary {
+                display: inline-flex !important;
+              }
+            `}
+          </style>
+          
+          <div style={{ textAlign: "center", padding: 20 }}>
+            <p style={{ fontSize: 14, marginBottom: 8 }}>Do you want to save this record?</p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 20 }}>
+              <button 
+                className="inv-btn-primary" 
+                onClick={performSave}
+                tabIndex={0}
+                autoFocus
+              >
+                Save
+              </button>
+              <button 
+                id="cancel-save-btn"
+                className="inv-btn-secondary" 
+                onClick={() => setShowSaveConfirm(false)}
+                tabIndex={0}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+       {saveSuccessModal && (
+        <Modal title="Success" onClose={() => setSaveSuccessModal(false)}>
+          <div style={{ textAlign: "center", padding: "20px" }}>
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>✓</div>
+            <p style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>Purchase Order Saved Successfully!</p>
+            <p style={{ fontSize: "14px", color: "#64748b" }}>PO Number: {header.poNo}</p>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
