@@ -51,7 +51,7 @@ export default function POLevel2Pending() {
 
     setBulkApproving(true);
     try {
-      const userStr = localStorage.getItem('user');
+      const userStr = localStorage.getItem('honc_user');
       let approvedBy = "System";
       
       if (userStr) {
