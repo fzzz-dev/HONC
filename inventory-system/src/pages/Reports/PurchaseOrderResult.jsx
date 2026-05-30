@@ -54,39 +54,38 @@ export default function PurchaseOrderReportPage() {
   const [filtersApplied, setFiltersApplied] = useState(false);
 
   // Fetch report data
-    const fetchReport = useCallback(async () => {
+  const fetchReport = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-        const params = {};
-        if (fromDate) params.fromDate = fromDate;
-        if (toDate) params.toDate = toDate;
-        if (searchTerm) params.searchTerm = searchTerm;
-        if (searchPONo) params.searchPONo = searchPONo;
-        if (selectedSupplier) params.supplier = selectedSupplier;
-        
-        const result = await reportAPI.getReport(params);
-        if (result.success) {
-        console.log("=== FRONTEND DEBUG ===");
-        console.log("First 3 records:", result.data.slice(0, 3));
-        
-        // Check deliveryDate in first record
-        if (result.data.length > 0) {
-            console.log("First record deliverydate:", result.data[0].deliverydate);
-            console.log("First record full:", result.data[0]);
-        }
-        
+      const params = {};
+      if (fromDate) params.fromDate = fromDate;
+      if (toDate) params.toDate = toDate;
+      if (searchTerm) params.searchTerm = searchTerm;
+      if (searchPONo) params.searchPONo = searchPONo;
+      if (selectedSupplier) params.supplier = selectedSupplier;
+      
+      console.log("Fetching with params:", params);
+      const result = await reportAPI.getReport(params);
+      if (result.success) {
         setReportData(result.data || []);
-        // ... rest of code
-        }
-    } catch (err) {
-        console.error("Fetch error:", err);
-        setError(err.message);
+        
+        // Extract unique suppliers from the data
+        const uniqueSuppliers = [...new Set((result.data || []).map(item => item.supplier).filter(Boolean))];
+        setSuppliers(uniqueSuppliers);
+        setFiltersApplied(true);
+      } else {
+        setError(result.message || "Failed to fetch report");
         setFiltersApplied(false);
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(err.message);
+      setFiltersApplied(false);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-    }, [fromDate, toDate, searchTerm, searchPONo, selectedSupplier]);
+  }, [fromDate, toDate, searchTerm, searchPONo, selectedSupplier]);
 
   // Auto-fetch on component mount
   useEffect(() => {
@@ -112,6 +111,32 @@ export default function PurchaseOrderReportPage() {
   // Handle Result button click
   const handleResult = () => {
     fetchReport();
+  };
+  
+  // Handle Reset button click
+  const handleReset = () => {
+    setFromDate("");
+    setToDate("");
+    setSearchTerm("");
+    setSearchPONo("");
+    setSelectedSupplier("");
+    
+    // Fetch all data without filters
+    setTimeout(() => {
+      setLoading(true);
+      reportAPI.getReport({}).then(result => {
+        if (result.success) {
+          setReportData(result.data || []);
+          const uniqueSuppliers = [...new Set((result.data || []).map(item => item.supplier).filter(Boolean))];
+          setSuppliers(uniqueSuppliers);
+          setFiltersApplied(true);
+        }
+        setLoading(false);
+      }).catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+    }, 100);
   };
   
   // Group data by PO Number
@@ -178,6 +203,44 @@ export default function PurchaseOrderReportPage() {
     document.addEventListener('keydown', handleKeyNavigation);
     return () => document.removeEventListener('keydown', handleKeyNavigation);
   }, [groupedData]);
+
+  // Tab index navigation for filters
+  useEffect(() => {
+    const handleTabKey = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = Array.from(
+        document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
+      ).filter(el => {
+        const tabIndex = parseInt(el.getAttribute('tabIndex'));
+        return !isNaN(tabIndex) && tabIndex >= 1 && el.offsetParent !== null && !el.disabled;
+      }).sort((a, b) => {
+        const tabA = parseInt(a.getAttribute('tabIndex'));
+        const tabB = parseInt(b.getAttribute('tabIndex'));
+        return tabA - tabB;
+      });
+      
+      if (focusableElements.length === 0) return;
+      
+      const currentElement = document.activeElement;
+      const currentIndex = focusableElements.indexOf(currentElement);
+      
+      if (!e.shiftKey) {
+        if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[0]?.focus();
+        }
+      } else {
+        if (currentIndex === 0 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[focusableElements.length - 1]?.focus();
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleTabKey);
+    return () => document.removeEventListener('keydown', handleTabKey);
+  }, []);
 
   return (
     <div className="inv-page">
@@ -252,8 +315,11 @@ export default function PurchaseOrderReportPage() {
           
           {/* Filter Action Buttons */}
           <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
-            <button className="inv-btn-primary" onClick={handleResult} tabIndex={7} style={{ minWidth: 50 }}>
-               Result
+            <button className="inv-btn-secondary" onClick={handleReset} tabIndex={6}>
+              Reset
+            </button>
+            <button className="inv-btn-primary" onClick={handleResult} tabIndex={7}>
+              Result
             </button>
           </div>
         </div>
