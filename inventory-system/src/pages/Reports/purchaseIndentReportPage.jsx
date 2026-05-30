@@ -4,7 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const API = "http://localhost:5173/api";
+const API = "http://192.168.1.100:5173/api";
 
 // ─── API Calls ────────────────────────────────────────────────────────────────
 const reportAPI = {
