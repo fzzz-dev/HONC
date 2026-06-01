@@ -4,8 +4,16 @@ import { useAuth } from "../../context/AuthContext";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const API = "http://192.168.1.100:5173/api"; // Change this to your actual API base URL
+const API = "http://localhost:5000/api"; // Change to your backend port
 
+// Helper function to get today's date in YYYY-MM-DD format
+const getTodayDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 // ─── API Calls ────────────────────────────────────────────────────────────────
 const reportAPI = {
@@ -33,6 +41,18 @@ const reportAPI = {
     if (params.departmentId) queryParams.append('departmentId', params.departmentId);
     
     window.open(`${API}/reports/purchase-indent-report/export/csv?${queryParams.toString()}`, '_blank');
+  },
+  // Fetch ALL categories (not filtered by report results)
+  getAllCategories: async () => {
+    const response = await fetch(`${API}/reports/purchase-indent-report/all-categories`);
+    const data = await response.json();
+    return data;
+  },
+  // Fetch ALL departments (not filtered by report results)
+  getAllDepartments: async () => {
+    const response = await fetch(`${API}/reports/purchase-indent-report/all-departments`);
+    const data = await response.json();
+    return data;
   }
 };
 
@@ -46,19 +66,50 @@ export default function PurchaseIndentReportPage() {
   const tableBodyRef = useRef(null);
   
   // Filter states
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(getTodayDate);
+  const [toDate, setToDate] = useState(getTodayDate);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchIndentNo, setSearchIndentNo] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("");
   
-  // Dropdown options
-  const [categories, setCategories] = useState([]);
-  const [departments, setDepartments] = useState([]);
+  // Dropdown options - ALWAYS show all categories and departments alphabetically
+  const [allCategories, setAllCategories] = useState([]);
+  const [allDepartments, setAllDepartments] = useState([]);
   
   // State to track if filters have been applied
   const [filtersApplied, setFiltersApplied] = useState(false);
+
+  // Fetch ALL categories and ALL departments on component mount (only once)
+  useEffect(() => {
+    const fetchDropdownOptions = async () => {
+      try {
+        // Fetch all categories
+        const categoriesResult = await reportAPI.getAllCategories();
+        if (categoriesResult.success) {
+          // Already sorted from backend, but ensure alphabetical order
+          const sortedCategories = [...categoriesResult.data].sort((a, b) => 
+            a.localeCompare(b, 'en', { sensitivity: 'base' })
+          );
+          setAllCategories(sortedCategories);
+        }
+        
+        // Fetch all departments
+        const departmentsResult = await reportAPI.getAllDepartments();
+        if (departmentsResult.success) {
+          // Already sorted from backend, but ensure alphabetical order
+          const sortedDepartments = [...departmentsResult.data].sort((a, b) => 
+            a.localeCompare(b, 'en', { sensitivity: 'base' })
+          );
+          setAllDepartments(sortedDepartments);
+        }
+      } catch (err) {
+        console.error("Error fetching dropdown options:", err);
+      }
+    };
+    
+    fetchDropdownOptions();
+  }, []); // Empty dependency array - runs only once on mount
 
   // Fetch report data (only called when Result button is clicked)
   const fetchReport = useCallback(async () => {
@@ -76,10 +127,6 @@ export default function PurchaseIndentReportPage() {
       const result = await reportAPI.getReport(params);
       if (result.success) {
         setReportData(result.data || []);
-        const uniqueCategories = [...new Set((result.data || []).map(item => item.groupName).filter(Boolean))];
-        setCategories(uniqueCategories);
-        const uniqueDepartments = [...new Set((result.data || []).map(item => item.deptname).filter(Boolean))];
-        setDepartments(uniqueDepartments);
         setFiltersApplied(true);
       } else {
         setError(result.message || "Failed to fetch report");
@@ -93,7 +140,7 @@ export default function PurchaseIndentReportPage() {
     }
   }, [fromDate, toDate, searchTerm, searchIndentNo, selectedCategory, selectedDepartment]);
 
-  // Auto-fetch on component mount with empty filters (show all data initially)
+  // Auto-fetch on component mount with today's date filters
   useEffect(() => {
     fetchReport();
   }, []); // Empty dependency array - only runs once on mount
@@ -122,19 +169,19 @@ export default function PurchaseIndentReportPage() {
   
   // Handle Reset button click
   const handleReset = () => {
-    setFromDate("");
-    setToDate("");
+    setFromDate(getTodayDate());
+    setToDate(getTodayDate());
     setSearchTerm("");
     setSearchIndentNo("");
     setSelectedCategory("");
     setSelectedDepartment("");
-    // Fetch with empty filters after reset
+    // Fetch with reset filters after state updates
     setTimeout(() => {
       fetchReport();
     }, 0);
   };
   
-  // Group data by Indent No
+  // Group data by Indent No and sort with new ones first (by date descending)
   const groupedData = useMemo(() => {
     const groups = {};
     reportData.forEach(item => {
@@ -160,7 +207,14 @@ export default function PurchaseIndentReportPage() {
       groups[item.indentno].totalQty += Number(item.indentQty) || 0;
       groups[item.indentno].totalItems += 1;
     });
-    return Object.values(groups);
+    
+    // Convert to array and sort by date (newest first)
+    return Object.values(groups).sort((a, b) => {
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return new Date(b.date) - new Date(a.date);
+    });
   }, [reportData]);
 
   // Keyboard navigation for arrow keys and tab
@@ -255,24 +309,42 @@ export default function PurchaseIndentReportPage() {
             </div>
             <div className="inv-field">
               <label className="inv-label">Category</label>
-              <select className="inv-input" tabIndex={5} value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
+              <select 
+                className="inv-input" 
+                tabIndex={5} 
+                value={selectedCategory} 
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
                 <option value="">All Categories</option>
-                {categories.map(cat => (
+                {allCategories.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
             </div>
             <div className="inv-field">
               <label className="inv-label">Department</label>
-              <select className="inv-input" tabIndex={6} value={selectedDepartment} onChange={(e) => setSelectedDepartment(e.target.value)}>
+              <select 
+                className="inv-input" 
+                tabIndex={6} 
+                value={selectedDepartment} 
+                onChange={(e) => setSelectedDepartment(e.target.value)}
+              >
                 <option value="">All Departments</option>
-                {departments.map(dept => (
+                {allDepartments.map(dept => (
                   <option key={dept} value={dept}>{dept}</option>
                 ))}
               </select>
             </div>
           </div>
           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
+            <button 
+              className="inv-btn-secondary" 
+              onClick={handleReset}
+              tabIndex={7}
+              style={{ minWidth: 50 }}
+            >
+              Reset
+            </button>
             <button 
               className="inv-btn-primary" 
               onClick={handleResult}

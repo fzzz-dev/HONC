@@ -332,42 +332,44 @@ exports.update = async (req, res) => {
     const oldDetails = await PurchaseOrderDetail.findAll({ where: { purchaseOrderId: po.id } });
     const oldIndentDetailIds = oldDetails.map(d => d.indentDetailId).filter(Boolean);
 
-    await po.update({
-      poNo,
-      poType,
-      date,
-      deliveryDate,  // ← ADD THIS
-      supplierId: supplierId || null,
-      supplierName: finalSupplierName,
-      paymentTermsId: ptId,
-      paymentTermsName,
-      gstEnabled,
-      gstType,
-      createdBy,
-      createdOn,
-      status,
-      remarks,
-      grossAmount,
-      discAmount,
-      poAmount,
-      igstAmount,
-      cgstAmount,
-      sgstAmount,
-      netAmount,
-      totalAmount,
-      roundoff: roundOff,
-      totalItems: computedDetails.length,
-    });
+    // Prepare update data object
+const updateData = {
+  poNo,
+  poType,
+  date,
+  deliveryDate,
+  supplierId: supplierId || null,
+  supplierName: finalSupplierName,
+  paymentTermsId: ptId,
+  paymentTermsName,
+  gstEnabled,
+  gstType,
+  createdBy,
+  createdOn,
+  status,
+  remarks,
+  grossAmount,
+  discAmount,
+  poAmount,
+  igstAmount,
+  cgstAmount,
+  sgstAmount,
+  netAmount,
+  totalAmount,
+  roundoff: roundOff,
+  totalItems: computedDetails.length
+};
 
-      // Only add approval fields if they are provided
-    if (level1Approved !== undefined) updateData.level1Approved = level1Approved;
-    if (level2Approved !== undefined) updateData.level2Approved = level2Approved;
-    if (level1ApprovedBy !== undefined) updateData.level1ApprovedBy = level1ApprovedBy;
-    if (level1ApprovedDate !== undefined) updateData.level1ApprovedDate = level1ApprovedDate;
-    if (level2ApprovedBy !== undefined) updateData.level2ApprovedBy = level2ApprovedBy;
-    if (level2ApprovedDate !== undefined) updateData.level2ApprovedDate = level2ApprovedDate;
+// Add approval fields if provided
+if (level1Approved !== undefined) updateData.level1Approved = level1Approved;
+if (level2Approved !== undefined) updateData.level2Approved = level2Approved;
+if (level1ApprovedBy !== undefined) updateData.level1ApprovedBy = level1ApprovedBy;
+if (level1ApprovedDate !== undefined) updateData.level1ApprovedDate = level1ApprovedDate;
+if (level2ApprovedBy !== undefined) updateData.level2ApprovedBy = level2ApprovedBy;
+if (level2ApprovedDate !== undefined) updateData.level2ApprovedDate = level2ApprovedDate;
 
-    await po.update(updateData);
+// Single update call
+await po.update(updateData);
     
     await PurchaseOrderDetail.destroy({ where: { purchaseOrderId: po.id } });
     if (computedDetails && computedDetails.length > 0) {

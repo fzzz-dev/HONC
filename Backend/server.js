@@ -192,6 +192,7 @@ async function startServer() {
     app.use("/api/permissions", require("./routes/permissionRoutes"));
     app.use("/api/factories", require("./routes/factoryRoutes"));
     app.use("/api/reports", require("./routes/reportRoutes"));
+    app.use("/api/level", require("./routes/levelRoutes"));
     
 
     // Test routes

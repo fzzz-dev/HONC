@@ -29,6 +29,8 @@ const RolePermissions = () => {
         { path: "/purchase-order-report", label: "Purchase Order Report" },
         { path: "/purchase-grn-report", label: "Purchase GRN Report" },
         {path: "/inventory-report", label: "Inventory Stock Flow Report" },
+        {path:"/po-level1-pending", label: "Level 1 Pending PO Report"},
+        {path:"/po-level2-pending", label: "Level 2 Pending PO Report"},
       ]
     },
     {

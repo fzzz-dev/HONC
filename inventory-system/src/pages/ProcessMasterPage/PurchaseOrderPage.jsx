@@ -26,7 +26,7 @@ const sid = (v) => {
 };
 const toTitleCase = (str) => {
   if (!str) return "";
-  return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  return str;
 };
 
 
@@ -953,7 +953,7 @@ useEffect(() => {
           rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`,
           detailId: sid(d.id || d._id),
           itemId: sid(d.itemId),
-          itemName: toTitleCase(d.itemDescription || d.itemName),
+          itemName: (d.itemDescription || d.itemName),
           categoryName: d.mainCategoryName || d.categoryName || "",
           uom: d.uom,
           balQty: realBalQty,
@@ -1341,6 +1341,16 @@ useEffect(() => {
   }
 
 function openEdit(po) {
+  console.log("=== openEdit START ===");
+  console.log("Received po:", po);
+  console.log("Received po.details:", po.details);
+  console.log("First detail itemId:", po.details?.[0]?.itemId);
+  console.log("openEdit called with parameter:", po);
+  
+  if (!po) {
+    console.error("openEdit received undefined PO!");
+    return;
+  }
 
   // Map the PO properties to what the function expects
   const mappedPO = {
@@ -1354,9 +1364,7 @@ function openEdit(po) {
     paymentTermsId: po.paymentTermsId,
     paymentTermsName: po.paymentTermsName,
     refNo: po.refNo,
-    // IMPORTANT: Handle both deliveryDate and deliverydate
     deliveryDate: po.deliveryDate || po.deliverydate,
-    // IMPORTANT: Handle both poType and potype
     poType: po.poType || po.potype,
     preparedBy: po.preparedBy,
     remarks: po.remarks,
@@ -1365,9 +1373,18 @@ function openEdit(po) {
     gstEnabled: po.gstEnabled !== false,
     level1Approved: po.level1Approved || "No",
     level2Approved: po.level2Approved || "No",
+    level1ApprovedBy: po.level1ApprovedBy,
+    level1ApprovedDate: po.level1ApprovedDate,
+    level2ApprovedBy: po.level2ApprovedBy,
+    level2ApprovedDate: po.level2ApprovedDate,
     details: po.details || po.items || []
   };
   
+  console.log("Mapped PO:", mappedPO);
+  console.log("Delivery Date:", mappedPO.deliveryDate);
+  console.log("PO Type:", mappedPO.poType);
+  console.log("Supplier Name:", mappedPO.supplierName);
+  console.log("Details count:", mappedPO.details.length);
   
   // Find supplier by ID or name
   let sId = mappedPO.supplierId;
@@ -1415,38 +1432,47 @@ function openEdit(po) {
   };
 
   setHeader({
-  poNo: mappedPO.poNo,
-  date: normalizeDate(mappedPO.date),
-  supplierId: sId || "",
-  supplierName: mappedPO.supplierName || Supplier,
-  supplierAddress: addrText,
-  supplierGst: mappedPO.supplierGst || supplier?.gstNo || "",
-  paymentTermsId: mappedPO.paymentTermsId,
-  paymentTermsName: mappedPO.paymentTermsName,
-  refNo: mappedPO.refNo || "",
-  deliveryDate: normalizeDate(mappedPO.deliveryDate),
-  poType: mappedPO.poType || "",
-  preparedBy: mappedPO.preparedBy || "System Administrator",
-  remarks: mappedPO.remarks || "",
-  status: mappedPO.status || "Open",
-  level1Approved: mappedPO.level1Approved || "No",
-  level2Approved: mappedPO.level2Approved || "No"
-});
-
-// If we found supplier by name but sId is empty, set it manually
-if (!sId && supplier) {
-  setHeader(prev => ({ ...prev, supplierId: sid(supplier) }));
-}
+    poNo: mappedPO.poNo,
+    date: normalizeDate(mappedPO.date),
+    supplierId: sId || "",
+    supplierName: mappedPO.supplierName,
+    supplierAddress: addrText,
+    supplierGst: mappedPO.supplierGst || supplier?.gstNo || "",
+    paymentTermsId: mappedPO.paymentTermsId,
+    paymentTermsName: mappedPO.paymentTermsName,
+    refNo: mappedPO.refNo || "",
+    deliveryDate: normalizeDate(mappedPO.deliveryDate),
+    poType: mappedPO.poType || "",
+    preparedBy: mappedPO.preparedBy || "System Administrator",
+    remarks: mappedPO.remarks || "",
+    status: mappedPO.status || "Open",
+    level1Approved: mappedPO.level1Approved || "No",
+    level2Approved: mappedPO.level2Approved || "No"
+  });
 
   const gType = mappedPO.gstType || "local";
   const detailsList = safeDetails(mappedPO.details);
   
+  console.log("Details list to set:", detailsList);
+  console.log("Details list to set:", detailsList);
+if (detailsList.length > 0) {
+  console.log("First detail item GST values:", {
+    gstPct: detailsList[0].gstPct,
+    sgst: detailsList[0].sgst,
+    cgst: detailsList[0].cgst,
+    igst: detailsList[0].igst,
+    totGst: detailsList[0].totGst,
+    totalAmount: detailsList[0].totalAmount
+  });
+}
+  
   if (detailsList.length > 0) {
-    setDetails(detailsList.map(d => calcRow({ 
+  const mappedDetails = detailsList.map(d => {
+    const mapped = { 
       ...d, 
       _rowId: Math.random(), 
       indentDetailId: sid(d.indentDetailId), 
-      itemId: sid(d.itemId),
+      itemId: d.itemId ? String(d.itemId) : "",
       indentNo: d.indentNo || "",
       itemName: d.itemName || d.itemDescription || "",
       uom: d.uom || "",
@@ -1456,8 +1482,18 @@ if (!sId && supplier) {
       discMode: d.discMode || "pct",
       discPct: d.discPct || 0,
       discPrice: d.discPrice || 0
-    }, gType)));
-  } else {
+    };
+    console.log("Mapped detail item:", {
+      originalItemId: d.itemId,
+      mappedItemId: mapped.itemId,
+      itemName: mapped.itemName
+    });
+    return mapped;
+  });
+  
+  console.log("All mapped details:", mappedDetails);
+  setDetails(mappedDetails);
+} else {
     setDetails([emptyDetail()]);
   }
   
@@ -1469,6 +1505,7 @@ if (!sId && supplier) {
   // Clear approval mode
   setApprovalMode(false);
   setApprovalLevel(null);
+   console.log("=== openEdit END - details set ===");
 }
 // Handle editing from pending page - with higher priority
 useEffect(() => {
@@ -1504,31 +1541,75 @@ useEffect(() => {
   }
 }, [location.state?.po, params.id]);
 
-  const calcRow = (row, gType = gstType) => {
-    const qty = Number(row.poQty || 0); 
-    const rate = Number(row.poRate || 0);
-    let disc = 0;
-    if (row.discMode === 'pct') {
-      disc = (qty * rate) * (Number(row.discPct || 0) / 100);
-    } else {
-      disc = Number(row.discPrice || 0);
-    }
-    const amt = (qty * rate) - disc;
+const calcRow = (row, gType = gstType) => {
+  console.log("calcRow input GST values:", {
+    gstPct: row.gstPct,
+    sgst: row.sgst,
+    cgst: row.cgst,
+    igst: row.igst,
+    totGst: row.totGst
+  });
+  
+  const qty = Number(row.poQty || 0); 
+  const rate = Number(row.poRate || 0);
+  let disc = 0;
+  if (row.discMode === 'pct') {
+    disc = (qty * rate) * (Number(row.discPct || 0) / 100);
+  } else {
+    disc = Number(row.discPrice || 0);
+  }
+  const amt = (qty * rate) - disc;
+  
+  // Check if we already have GST values from the database
+  const hasExistingGST = row.sgst !== undefined && row.sgst !== null && row.sgst !== 0;
+  
+  let sgstVal = 0, cgstVal = 0, igstVal = 0, totGstVal = 0, totalAmtVal = 0;
+  
+  if (hasExistingGST) {
+    // Use existing GST values from database
+    sgstVal = Number(row.sgst) || 0;
+    cgstVal = Number(row.cgst) || 0;
+    igstVal = Number(row.igst) || 0;
+    totGstVal = Number(row.totGst) || 0;
+    totalAmtVal = Number(row.totalAmount) || 0;
+    console.log("Using existing GST values:", { sgstVal, cgstVal, igstVal, totGstVal });
+  } else {
+    // Calculate GST if no existing values
     const gPct = Number(row.gstPct || 0);
     const tax = gstEnabled ? (amt * gPct / 100) : 0;
+    totGstVal = tax;
+    totalAmtVal = amt + tax;
     
-    return {
-      ...row,
-      grossAmount: (qty * rate) || 0,
-      rowDisc: disc || 0,
-      poAmount: amt || 0, 
-      totGst: tax || 0, 
-      totalAmount: (amt + tax) || 0,
-      sgst: (gType === 'local' ? tax / 2 : 0) || 0, 
-      cgst: (gType === 'local' ? tax / 2 : 0) || 0, 
-      igst: (gType === 'other' ? tax : 0) || 0
-    };
+    if (gType === 'local') {
+      sgstVal = tax / 2;
+      cgstVal = tax / 2;
+    } else {
+      igstVal = tax;
+    }
+    console.log("Calculated GST values:", { sgstVal, cgstVal, igstVal, totGstVal });
+  }
+  
+  const result = {
+    ...row,
+    grossAmount: (qty * rate) || 0,
+    rowDisc: disc || 0,
+    poAmount: amt || 0,
+    sgst: sgstVal,
+    cgst: cgstVal,
+    igst: igstVal,
+    totGst: totGstVal,
+    totalAmount: totalAmtVal
   };
+  
+  console.log("calcRow result GST values:", {
+    sgst: result.sgst,
+    cgst: result.cgst,
+    igst: result.igst,
+    totGst: result.totGst
+  });
+  
+  return result;
+};
 
   function updateDetail(idx, field, val) {
     setDetails(prev => {
@@ -1590,45 +1671,43 @@ useEffect(() => {
 
 
    // New function for bulk approval
-  async function handleBulkApprove() {
-    if (selectedApprovalPOs.size === 0) {
-      setFormError("Please select at least one PO to approve");
-      return;
-    }
-    
-    if (!window.confirm(`Approve ${selectedApprovalPOs.size} PO(s) for Level ${approvalLevel}?`)) return;
-    
-    setBulkApproving(true);
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const poId of selectedApprovalPOs) {
-      try {
-        const po = pos.find(p => sid(p) === poId);
-        if (!po) continue;
-        
-        const updateData = { ...po };
-        if (approvalLevel === 1) {
-          updateData.level1Approved = "Yes";
-        } else if (approvalLevel === 2) {
-          updateData.level2Approved = "Yes";
-        }
-        
-        await purchaseOrderApi.update(poId, updateData);
-        successCount++;
-      } catch (err) {
-        console.error(`Failed to approve PO ${poId}:`, err);
-        errorCount++;
-      }
-    }
-    
-    setBulkApproving(false);
-    setSelectedApprovalPOs(new Set());
-    await loadPos();
-    
-    setSaveToast(`Approved ${successCount} PO(s) successfully${errorCount > 0 ? `, ${errorCount} failed` : ""}!`);
-    setTimeout(() => setSaveToast(""), 4000);
+async function handleBulkApprove() {
+  if (selectedApprovalPOs.size === 0) {
+    setFormError("Please select at least one PO to approve");
+    return;
   }
+  
+  if (!window.confirm(`Approve ${selectedApprovalPOs.size} PO(s) for Level ${approvalLevel}?`)) return;
+  
+  setBulkApproving(true);
+  let successCount = 0;
+  let errorCount = 0;
+  
+  for (const poId of selectedApprovalPOs) {
+    try {
+      const po = pos.find(p => sid(p) === poId);
+      if (!po) continue;
+      
+      // Use the dedicated approval API instead of update
+      if (approvalLevel === 1) {
+        await purchaseOrderApi.approveLevel1(poId, "System");
+      } else if (approvalLevel === 2) {
+        await purchaseOrderApi.approveLevel2(poId, "System");
+      }
+      successCount++;
+    } catch (err) {
+      console.error(`Failed to approve PO ${poId}:`, err);
+      errorCount++;
+    }
+  }
+  
+  setBulkApproving(false);
+  setSelectedApprovalPOs(new Set());
+  await loadPos();
+  
+  setSaveToast(`Approved ${successCount} PO(s) successfully${errorCount > 0 ? `, ${errorCount} failed` : ""}!`);
+  setTimeout(() => setSaveToast(""), 4000);
+}
 
 
   // Toggle selection for bulk approval
@@ -1651,38 +1730,13 @@ useEffect(() => {
     }
   }
 
-  async function handleSave() {
-    console.log("handleSave called");
-    
-    if (!header.poNo.trim()) {
-      setFormError("PO No is required");
-      return;
-    }
-    if (!header.supplierId) {
-      setFormError("Supplier is required");
-      return;
-    }
-    
-    for (const row of details) {
-      if (!row.itemId) {
-        setFormError("Item Description is required for all rows");
-        return;
-      }
-      if (!row.poQty || Number(row.poQty) <= 0) {
-        setFormError("PO Qty is required and must be greater than 0");
-        return;
-      }
-      if (!row.poRate || Number(row.poRate) <= 0) {
-        setFormError("Unit Price is required and must be greater than 0");
-        return;
-      }
-    }
-    
-    setShowSaveConfirm(true);
-  }
-
-  async function handleSave() {
-  console.log("handleSave called"); // Debug log
+async function handleSave() {
+  console.log("=== handleSave START ===");
+  console.log("Current details array:", details);
+  details.forEach((row, idx) => {
+    console.log(`Row ${idx}: itemId =`, row.itemId, "type:", typeof row.itemId);
+  });
+  console.log("handleSave called");
   
   if (!header.poNo.trim()) {
     setFormError("PO No is required");
@@ -1693,11 +1747,23 @@ useEffect(() => {
     return;
   }
   
-  for (const row of details) {
-    if (!row.itemId) {
-      setFormError("Item Description is required for all rows");
-      return;
-    }
+  // Filter out rows that don't have itemId (handle both string and number)
+  const validRows = details.filter(row => {
+    if (row.itemId === undefined || row.itemId === null) return false;
+    if (typeof row.itemId === 'string' && row.itemId.trim() === "") return false;
+    if (typeof row.itemId === 'number' && row.itemId === 0) return false;
+    return true;
+  });
+  
+  console.log("Valid rows:", validRows.length);
+  
+  if (validRows.length === 0) {
+    setFormError("At least one item is required");
+    return;
+  }
+  
+  // Validate only valid rows
+  for (const row of validRows) {
     if (!row.poQty || Number(row.poQty) <= 0) {
       setFormError("PO Qty is required and must be greater than 0");
       return;
@@ -1708,8 +1774,12 @@ useEffect(() => {
     }
   }
   
+  // Update details to only include valid rows
+  setDetails(validRows);
+  
   setShowSaveConfirm(true);
 }
+
 
 async function performSave() {
   setShowSaveConfirm(false);

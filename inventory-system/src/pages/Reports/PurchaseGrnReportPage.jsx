@@ -4,8 +4,16 @@ import { useAuth } from "../../context/AuthContext";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const API = "http://192.168.1.100:5173/api"; // Change this to your actual API base URL
+const API = "http://localhost:5173/api";
 
+// Helper function to get today's date in YYYY-MM-DD format
+const getTodayDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 // ─── API Calls ────────────────────────────────────────────────────────────────
 const reportAPI = {
@@ -45,9 +53,9 @@ export default function PurchaseGrnReportPage() {
   const [expandedRows, setExpandedRows] = useState({});
   const tableBodyRef = useRef(null);
   
-  // Filter states
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  // Filter states - with fromDate and toDate set to today's date
+  const [fromDate, setFromDate] = useState(getTodayDate);
+  const [toDate, setToDate] = useState(getTodayDate);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchGRNNo, setSearchGRNNo] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState("");
@@ -90,7 +98,7 @@ export default function PurchaseGrnReportPage() {
   }
 }, [fromDate, toDate, searchTerm, searchGRNNo, selectedSupplier, searchPONo]);
 
-  // Auto-fetch on component mount
+  // Auto-fetch on component mount with today's date filters
   useEffect(() => {
     fetchReport();
   }, []);
@@ -120,33 +128,19 @@ export default function PurchaseGrnReportPage() {
   
   // Handle Reset button click
   const handleReset = () => {
-  setFromDate("");
-  setToDate("");
+  setFromDate(getTodayDate()); // Reset to today's date
+  setToDate(getTodayDate());   // Reset to today's date
   setSearchTerm("");
   setSearchGRNNo("");
   setSelectedSupplier("");
   setSearchPONo("");
-  // Wait for state updates to complete
+  // Fetch with reset filters after state updates
   setTimeout(() => {
-    setLoading(true);
-    // Create empty params
-    const params = {};
-    reportAPI.getReport(params).then(result => {
-      if (result.success) {
-        setReportData(result.data || []);
-        const uniqueSuppliers = [...new Set((result.data || []).map(item => item.supplierName).filter(Boolean))];
-        setSuppliers(uniqueSuppliers);
-        setFiltersApplied(true);
-      }
-      setLoading(false);
-    }).catch(err => {
-      setError(err.message);
-      setLoading(false);
-    });
-  }, 100);
+    fetchReport();
+  }, 0);
 };
   
-  // Group data by GRN Number
+  // Group data by GRN Number and sort with new ones first (by date descending)
   const groupedData = useMemo(() => {
     const groups = {};
     reportData.forEach(item => {
@@ -183,7 +177,16 @@ export default function PurchaseGrnReportPage() {
       groups[grnNo].totalAmount += Number(item.detailTotalAmount || item.totalAmount || 0);
       groups[grnNo].totalItems += 1;
     });
-    return Object.values(groups);
+    
+    // Convert to array and sort by date (newest first)
+    return Object.values(groups).sort((a, b) => {
+      // Handle null/undefined dates
+      if (!a.grnDate && !b.grnDate) return 0;
+      if (!a.grnDate) return 1;
+      if (!b.grnDate) return -1;
+      // Sort descending (newest first)
+      return new Date(b.grnDate) - new Date(a.grnDate);
+    });
   }, [reportData]);
 
   // Keyboard navigation
@@ -338,6 +341,9 @@ export default function PurchaseGrnReportPage() {
           
           {/* Filter Action Buttons */}
           <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
+            <button className="inv-btn-secondary" onClick={handleReset} tabIndex={7}>
+              Reset
+            </button>
             <button className="inv-btn-primary" onClick={handleResult} tabIndex={8} style={{ minWidth: 50 }}>
                Result
             </button>
@@ -402,7 +408,7 @@ export default function PurchaseGrnReportPage() {
                         <td style={{ textAlign: "right", fontWeight: 500 }}>{fmtQty(grn.totalQty)}</td>
                         <td style={{ textAlign: "right", fontWeight: 500, color: "#7c3aed" }}>{fmt(grn.totalGST)}</td>
                         <td style={{ textAlign: "right", fontWeight: 500, color: "#10b981" }}>{fmt(grn.totalAmount)}</td>
-                      </tr>
+                       </tr>
                       
                       {/* Expanded Items Row */}
                       {isExpanded && (
@@ -431,7 +437,7 @@ export default function PurchaseGrnReportPage() {
                                   <th style={{ width: "8%", padding: "8px 12px", textAlign: "center" }}>Disc %</th>
                                   <th style={{ width: "10%", padding: "8px 12px", textAlign: "right" }}>GST</th>
                                   <th style={{ width: "12%", padding: "8px 12px", textAlign: "right" }}>Total Amount</th>
-                                </tr>
+                                 </tr>
                               </thead>
                               <tbody>
                                 {grn.items.map((item, idx) => (
@@ -453,7 +459,7 @@ export default function PurchaseGrnReportPage() {
                                     <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "center", verticalAlign: "top" }}>{item.discPct || 0}%</td>
                                     <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top" }}>{fmt(item.totGst)}</td>
                                     <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top", fontWeight: 600, color: "#10b981" }}>{fmt(item.totalAmount)}</td>
-                                  </tr>
+                                   </tr>
                                 ))}
                               </tbody>
                               <tfoot>
@@ -463,7 +469,7 @@ export default function PurchaseGrnReportPage() {
                                   <td colSpan={3}></td>
                                   <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmt(grn.totalGST)}</td>
                                   <td style={{ padding: "10px 12px", textAlign: "right", color: "#10b981" }}>{fmt(grn.totalAmount)}</td>
-                                </tr>
+                                 </tr>
                               </tfoot>
                             </table>
                           </td>

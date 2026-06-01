@@ -4,7 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const API = "http://192.168.1.100:5173/api"; // Change this to your actual API base URL
+const API = "http://localhost:5173/api";
 
 
 
@@ -173,7 +173,7 @@ export default function InventoryStockFlow() {
     <div className="inv-page">
       <div className="inv-page-header">
         <div>
-          <h1 className="inv-page-title">Inventory Stock Flow Report</h1>
+          <h1 className="inv-page-title">Inventory Stock Report</h1>
           <p className="inv-page-sub"></p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>

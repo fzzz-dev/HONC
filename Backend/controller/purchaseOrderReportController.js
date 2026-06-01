@@ -32,7 +32,9 @@ const createPurchaseOrder = async (req, res) => {
       totalAmount,
       roundoff,
       totalItems,
-      createdBy
+      createdBy,
+      level1Approved,
+      level2Approved
     } = req.body;
 
     console.log("Creating PO with deliveryDate:", deliveryDate);
@@ -64,7 +66,9 @@ const createPurchaseOrder = async (req, res) => {
       roundoff,
       totalItems,
       createdBy: createdBy || "Admin",
-      status: "Open"
+      status: "Open",
+      level1Approved: level1Approved || "No",
+      level2Approved: level2Approved || "No"
     });
 
     // Create order details
@@ -137,13 +141,19 @@ const updatePurchaseOrder = async (req, res) => {
       totalAmount,
       roundoff,
       totalItems,
-      status
+      status,
+      level1Approved,
+      level1ApprovedBy,
+      level1ApprovedDate,
+      level2Approved,
+      level2ApprovedBy,
+      level2ApprovedDate
     } = req.body;
 
     console.log("Updating PO ID:", id, "with deliveryDate:", deliveryDate);
 
-    // Update purchase order
-    await PurchaseOrder.update({
+    // Build update object
+    const updateData = {
       poNo,
       date,
       supplierId,
@@ -170,7 +180,18 @@ const updatePurchaseOrder = async (req, res) => {
       roundoff,
       totalItems,
       status
-    }, { where: { id } });
+    };
+
+    // Add approval fields if they exist
+    if (level1Approved !== undefined) updateData.level1Approved = level1Approved;
+    if (level1ApprovedBy !== undefined) updateData.level1ApprovedBy = level1ApprovedBy;
+    if (level1ApprovedDate !== undefined) updateData.level1ApprovedDate = level1ApprovedDate;
+    if (level2Approved !== undefined) updateData.level2Approved = level2Approved;
+    if (level2ApprovedBy !== undefined) updateData.level2ApprovedBy = level2ApprovedBy;
+    if (level2ApprovedDate !== undefined) updateData.level2ApprovedDate = level2ApprovedDate;
+
+    // Update purchase order
+    await PurchaseOrder.update(updateData, { where: { id } });
 
     // Update details if provided
     if (details && details.length > 0) {
@@ -202,7 +223,15 @@ const updatePurchaseOrder = async (req, res) => {
       await PurchaseOrderDetail.bulkCreate(orderDetails);
     }
 
-    const updatedOrder = await PurchaseOrder.findByPk(id);
+    const updatedOrder = await PurchaseOrder.findByPk(id, {
+      attributes: ['id', 'poNo', 'date', 'supplierId', 'supplierName', 'deliveryDate', 'poType',
+                   'gstEnabled', 'gstType', 'paymentTermsId', 'paymentTermsName', 'refNo', 'refDate',
+                   'purchaseIndentId', 'purchaseIndentNo', 'remarks', 'grossAmount', 'discAmount',
+                   'poAmount', 'igstAmount', 'cgstAmount', 'sgstAmount', 'netAmount', 'totalAmount',
+                   'roundoff', 'totalItems', 'createdBy', 'status', 'level1Approved', 'level1ApprovedBy',
+                   'level1ApprovedDate', 'level2Approved', 'level2ApprovedBy', 'level2ApprovedDate',
+                   'createdAt', 'updatedAt']
+    });
     
     res.json({
       success: true,
@@ -220,6 +249,13 @@ const getAllPurchaseOrders = async (req, res) => {
   try {
     const orders = await PurchaseOrder.findAll({
       order: [['createdAt', 'DESC']],
+      attributes: ['id', 'poNo', 'date', 'supplierId', 'supplierName', 'deliveryDate', 'poType', 
+                   'gstEnabled', 'gstType', 'paymentTermsId', 'paymentTermsName', 'refNo', 'refDate',
+                   'purchaseIndentId', 'purchaseIndentNo', 'remarks', 'grossAmount', 'discAmount',
+                   'poAmount', 'igstAmount', 'cgstAmount', 'sgstAmount', 'netAmount', 'totalAmount',
+                   'roundoff', 'totalItems', 'createdBy', 'status', 'level1Approved', 'level1ApprovedBy',
+                   'level1ApprovedDate', 'level2Approved', 'level2ApprovedBy', 'level2ApprovedDate',
+                   'createdAt', 'updatedAt'],
       include: [{
         model: PurchaseOrderDetail,
         as: 'details'
@@ -241,6 +277,13 @@ const getPurchaseOrderById = async (req, res) => {
   try {
     const { id } = req.params;
     const order = await PurchaseOrder.findByPk(id, {
+      attributes: ['id', 'poNo', 'date', 'supplierId', 'supplierName', 'deliveryDate', 'poType',
+                   'gstEnabled', 'gstType', 'paymentTermsId', 'paymentTermsName', 'refNo', 'refDate',
+                   'purchaseIndentId', 'purchaseIndentNo', 'remarks', 'grossAmount', 'discAmount',
+                   'poAmount', 'igstAmount', 'cgstAmount', 'sgstAmount', 'netAmount', 'totalAmount',
+                   'roundoff', 'totalItems', 'createdBy', 'status', 'level1Approved', 'level1ApprovedBy',
+                   'level1ApprovedDate', 'level2Approved', 'level2ApprovedBy', 'level2ApprovedDate',
+                   'createdAt', 'updatedAt'],
       include: [{
         model: PurchaseOrderDetail,
         as: 'details'

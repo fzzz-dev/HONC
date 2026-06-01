@@ -4,7 +4,16 @@ import { useAuth } from "../../context/AuthContext";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const API = "http://192.168.1.100:5173/api"; // Change this to your actual API base URL
+const API = "http://localhost:5000/api"; // Change to your backend port
+
+// Helper function to get today's date in YYYY-MM-DD format
+const getTodayDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 // ─── API Calls ────────────────────────────────────────────────────────────────
 const reportAPI = {
@@ -30,6 +39,12 @@ const reportAPI = {
     if (params.supplier) queryParams.append('supplier', params.supplier);
     
     window.open(`${API}/reports/purchase-order-report/export/csv?${queryParams.toString()}`, '_blank');
+  },
+  // Fetch ALL suppliers (not filtered by report results)
+  getAllSuppliers: async () => {
+    const response = await fetch(`${API}/reports/purchase-order-report/all-suppliers`);
+    const data = await response.json();
+    return data;
   }
 };
 
@@ -42,16 +57,36 @@ export default function PurchaseOrderReportPage() {
   const [expandedRows, setExpandedRows] = useState({});
   const tableBodyRef = useRef(null);
   
-  // Filter states
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  // Filter states - with fromDate and toDate set to today's date
+  const [fromDate, setFromDate] = useState(getTodayDate);
+  const [toDate, setToDate] = useState(getTodayDate);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchPONo, setSearchPONo] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState("");
   
-  // Dropdown options
-  const [suppliers, setSuppliers] = useState([]);
+  // Dropdown options - ALWAYS show all suppliers alphabetically
+  const [allSuppliers, setAllSuppliers] = useState([]);
   const [filtersApplied, setFiltersApplied] = useState(false);
+
+  // Fetch ALL suppliers on component mount (only once)
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const result = await reportAPI.getAllSuppliers();
+        if (result.success) {
+          // Sort alphabetically
+          const sortedSuppliers = [...result.data].sort((a, b) => 
+            a.localeCompare(b, 'en', { sensitivity: 'base' })
+          );
+          setAllSuppliers(sortedSuppliers);
+        }
+      } catch (err) {
+        console.error("Error fetching suppliers:", err);
+      }
+    };
+    
+    fetchSuppliers();
+  }, []);
 
   // Fetch report data
   const fetchReport = useCallback(async () => {
@@ -69,10 +104,6 @@ export default function PurchaseOrderReportPage() {
       const result = await reportAPI.getReport(params);
       if (result.success) {
         setReportData(result.data || []);
-        
-        // Extract unique suppliers from the data
-        const uniqueSuppliers = [...new Set((result.data || []).map(item => item.supplier).filter(Boolean))];
-        setSuppliers(uniqueSuppliers);
         setFiltersApplied(true);
       } else {
         setError(result.message || "Failed to fetch report");
@@ -87,7 +118,7 @@ export default function PurchaseOrderReportPage() {
     }
   }, [fromDate, toDate, searchTerm, searchPONo, selectedSupplier]);
 
-  // Auto-fetch on component mount
+  // Auto-fetch on component mount with today's date filters
   useEffect(() => {
     fetchReport();
   }, []);
@@ -115,31 +146,18 @@ export default function PurchaseOrderReportPage() {
   
   // Handle Reset button click
   const handleReset = () => {
-    setFromDate("");
-    setToDate("");
+    setFromDate(getTodayDate());
+    setToDate(getTodayDate());
     setSearchTerm("");
     setSearchPONo("");
     setSelectedSupplier("");
-    
-    // Fetch all data without filters
+    // Fetch with reset filters after state updates
     setTimeout(() => {
-      setLoading(true);
-      reportAPI.getReport({}).then(result => {
-        if (result.success) {
-          setReportData(result.data || []);
-          const uniqueSuppliers = [...new Set((result.data || []).map(item => item.supplier).filter(Boolean))];
-          setSuppliers(uniqueSuppliers);
-          setFiltersApplied(true);
-        }
-        setLoading(false);
-      }).catch(err => {
-        setError(err.message);
-        setLoading(false);
-      });
-    }, 100);
+      fetchReport();
+    }, 0);
   };
   
-  // Group data by PO Number
+  // Group data by PO Number and sort with new ones first
   const groupedData = useMemo(() => {
     const groups = {};
     reportData.forEach(item => {
@@ -171,7 +189,14 @@ export default function PurchaseOrderReportPage() {
       groups[item.ponumber].totalAmount += Number(item.totalAmount) || 0;
       groups[item.ponumber].totalItems += 1;
     });
-    return Object.values(groups);
+    
+    // Sort by PO date (newest first)
+    return Object.values(groups).sort((a, b) => {
+      if (!a.poDate && !b.poDate) return 0;
+      if (!a.poDate) return 1;
+      if (!b.poDate) return -1;
+      return new Date(b.poDate) - new Date(a.poDate);
+    });
   }, [reportData]);
 
   // Keyboard navigation
@@ -304,9 +329,14 @@ export default function PurchaseOrderReportPage() {
             </div>
             <div className="inv-field">
               <label className="inv-label">Supplier</label>
-              <select className="inv-input" tabIndex={5} value={selectedSupplier} onChange={(e) => setSelectedSupplier(e.target.value)}>
+              <select 
+                className="inv-input" 
+                tabIndex={5} 
+                value={selectedSupplier} 
+                onChange={(e) => setSelectedSupplier(e.target.value)}
+              >
                 <option value="">All Suppliers</option>
-                {suppliers.map(sup => (
+                {allSuppliers.map(sup => (
                   <option key={sup} value={sup}>{sup}</option>
                 ))}
               </select>

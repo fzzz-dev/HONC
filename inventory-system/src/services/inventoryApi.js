@@ -166,13 +166,22 @@ export const purchaseOrderApi = {
   update: (id, b) => request(`/purchase-orders/${id}`, { method: "PUT", body: j(b) }),
   remove: (id) => request(`/purchase-orders/${id}`, { method: "DELETE" }),
   
-  // Approval methods
+  // Existing approval methods
   getLevel1Pending: () => request("/reports/po-level1-pending"),
   getLevel2Pending: () => request("/reports/po-level2-pending"),
   approveLevel1: (id, approvedBy) => request(`/reports/approve-level1/${id}`, { method: "PUT", body: JSON.stringify({ approvedBy }) }),
   approveLevel2: (id, approvedBy) => request(`/reports/approve-level2/${id}`, { method: "PUT", body: JSON.stringify({ approvedBy }) }),
   bulkApproveLevel1: (poIds, approvedBy) => request("/reports/bulk-approve-level1", { method: "POST", body: JSON.stringify({ poIds, approvedBy }) }),
   bulkApproveLevel2: (poIds, approvedBy) => request("/reports/bulk-approve-level2", { method: "POST", body: JSON.stringify({ poIds, approvedBy }) }),
+  
+  // NEW SIMPLE METHODS - Add these
+  getLevel2PendingSimple: () => request("/level/level2-pending"),
+  getLevel1PendingSimple: () => request("/level/level1-pending"),
+  getPOItems: (poId) => request(`/level/po-items/${poId}`),
+  approveLevel2Simple: (id, approvedBy) => request(`/level/approve-level2/${id}`, { method: "PUT", body: JSON.stringify({ approvedBy }) }),
+  approveLevel1Simple: (id, approvedBy) => request(`/level/approve-level1/${id}`, { method: "PUT", body: JSON.stringify({ approvedBy }) }),
+  bulkApproveLevel2Simple: (poIds, approvedBy) => request("/level/bulk-approve-level2", { method: "POST", body: JSON.stringify({ poIds, approvedBy }) }),
+  bulkApproveLevel1Simple: (poIds, approvedBy) => request("/level/bulk-approve-level1", { method: "POST", body: JSON.stringify({ poIds, approvedBy }) }),
 };
 
 export const grnApi = {
