@@ -26,6 +26,8 @@ const safeDetails = (details) => {
 
 const emptyDetail = () => ({
   _rowId: Math.random(), 
+  headId: "",
+  headName: "",
   mainCategoryId: "", 
   mainCategoryName: "",
   itemId: "", 
@@ -65,7 +67,8 @@ export default function PurchaseIndentPage() {
   const { user } = useAuth();
   const [departments, setDepartments] = useState([]);
   const [heads, setHeads] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState({}); // Grouped by headId
+  const [allCategoriesFlat, setAllCategoriesFlat] = useState([]); // Flat list for lookups
   const [items, setItems] = useState([]);
   const [indents, setIndents] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -79,6 +82,7 @@ export default function PurchaseIndentPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [formError, setFormError] = useState(null);
+  const [lookupsLoaded, setLookupsLoaded] = useState(false);
 
   useEffect(() => {
     loadLookups(); 
@@ -145,14 +149,31 @@ export default function PurchaseIndentPage() {
       setHeads(headsData || []); 
       setCompany(comp);
       
-      const mapped = Array.from(
-        new Map(
-          (catsData || []).map(c => [c.groupName, c])
-        ).values()
-      );
-      setCategories(mapped);
-      setItems((itemsData || []).map(it => ({ ...it, id: sid(it), headId: sid(it.headId), groupId: sid(it.groupId) })));
-    } catch (e) { console.error(e); }
+      // Store flat list for lookups
+      setAllCategoriesFlat(catsData || []);
+      
+      // Group categories by headId
+      const grouped = (catsData || []).reduce((acc, cat) => {
+        const headId = sid(cat.headId);
+        if (!acc[headId]) acc[headId] = [];
+        acc[headId].push(cat);
+        return acc;
+      }, {});
+      setCategories(grouped);
+      
+      setItems((itemsData || []).map(it => ({ 
+        ...it, 
+        id: sid(it), 
+        headId: sid(it.headId), 
+        groupId: sid(it.groupId),
+        categoryName: it.group || it.groupName || ""
+      })));
+      
+      setLookupsLoaded(true);
+    } catch (e) { 
+      console.error(e); 
+      setLookupsLoaded(true);
+    }
   }
 
   async function loadIndents() {
@@ -179,6 +200,14 @@ export default function PurchaseIndentPage() {
   }
 
   function openEdit(indent) {
+    if (!lookupsLoaded) {
+      // Wait for lookups to load, then retry
+      const timer = setTimeout(() => {
+        openEdit(indent);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+    
     setEditId(sid(indent));
     
     setHeader({
@@ -191,18 +220,52 @@ export default function PurchaseIndentPage() {
     });
     
     const safeDetailsList = safeDetails(indent.details);
-    setDetails(safeDetailsList.map(d => ({
-      ...d, 
-      _rowId: Math.random(), 
-      mainCategoryId: sid(d.mainCategoryId), 
-      itemId: sid(d.itemId),
-      mainCategoryName: d.mainCategoryName || "",
-      itemName: d.itemName || "",
-      uom: d.uom || "",
-      indentQty: d.indentQty || "0.000",
-      dueDate: d.dueDate || indent.dueDate || getTodayDate(),
-      remarks: d.remarks || ""
-    })));
+    
+    // Process details to ensure proper data structure
+    const processedDetails = safeDetailsList.map((d, index) => {
+      // Find the head ID from head name if needed
+      let headIdValue = sid(d.headId);
+      if (!headIdValue && d.headName) {
+        const foundHead = heads.find(h => h.headName === d.headName);
+        headIdValue = foundHead ? sid(foundHead) : "";
+      }
+      
+      // Find the category ID from category name if needed
+      let categoryIdValue = sid(d.mainCategoryId);
+      if (!categoryIdValue && d.mainCategoryName) {
+        const foundCat = allCategoriesFlat.find(c => 
+          c.groupName === d.mainCategoryName || c.name === d.mainCategoryName
+        );
+        categoryIdValue = foundCat ? sid(foundCat) : "";
+      }
+      
+      // Find item ID from item name if needed
+      let itemIdValue = sid(d.itemId);
+      if (!itemIdValue && d.itemName) {
+        const foundItem = items.find(it => 
+          it.itemName === d.itemName || it.itemDescription === d.itemName
+        );
+        itemIdValue = foundItem ? sid(foundItem) : "";
+      }
+      
+      return {
+        ...d, 
+        _rowId: Math.random(),
+        _originalIndex: index,
+        headId: headIdValue,
+        headName: d.headName || "",
+        mainCategoryId: categoryIdValue, 
+        mainCategoryName: d.mainCategoryName || "",
+        itemId: itemIdValue,
+        itemName: d.itemName || "",
+        uom: d.uom || "",
+        indentQty: d.indentQty || "0.000",
+        dueDate: d.dueDate || indent.dueDate || getTodayDate(),
+        remarks: d.remarks || ""
+      };
+    });
+    
+    setDetails(processedDetails);
     setView("form");
   }
 
@@ -210,30 +273,43 @@ export default function PurchaseIndentPage() {
     setDetails(prev => {
       const rows = [...prev];
       const row = { ...rows[idx], [field]: val };
-      if (field === "mainCategoryId") {
-        const found = categories.find(c => sid(c) === val);
-        row.mainCategoryName = found?.groupName || ""; 
+      
+      if (field === "headId") {
+        const found = heads.find(h => sid(h) === val);
+        row.headName = found?.headName || "";
+        row.mainCategoryId = ""; 
+        row.mainCategoryName = "";
         row.itemId = ""; 
         row.itemName = ""; 
         row.uom = "";
       }
+      
+      if (field === "mainCategoryId") {
+        const found = allCategoriesFlat.find(c => sid(c) === val);
+        row.mainCategoryName = found?.groupName || found?.name || "";
+        row.itemId = ""; 
+        row.itemName = ""; 
+        row.uom = "";
+      }
+      
       if (field === "itemId") {
         const found = items.find(it => sid(it) === val);
         row.itemName = (found?.itemDescription || found?.itemName || ""); 
         row.uom = found?.uom || "";
       }
+      
       rows[idx] = row;
       return rows;
     });
   }
 
   function addRow() { 
-    setDetails(p => [...p, emptyDetail()]);
+    setDetails(p => [...p, { ...emptyDetail(), _originalIndex: p.length }]);
     setTimeout(() => {
-      const categoryElements = document.querySelectorAll('.category-select');
-      const lastCategory = categoryElements[categoryElements.length - 1];
-      if (lastCategory) {
-        lastCategory.focus();
+      const headElements = document.querySelectorAll('.head-select');
+      const lastHead = headElements[headElements.length - 1];
+      if (lastHead) {
+        lastHead.focus();
       }
     }, 100);
   }
@@ -247,6 +323,9 @@ export default function PurchaseIndentPage() {
     if (!header.departmentId) return setFormError("Department is required");
 
     for (const row of details) {
+      if (row.headId === "" || row.headId === null) {
+        return setFormError("Head is required");
+      }
       if (row.mainCategoryId === "" || row.mainCategoryId === null) {
         return setFormError("Category is required");
       }
@@ -264,12 +343,14 @@ export default function PurchaseIndentPage() {
     setFormError("");
     setSaving(true);
     
-    const cleanDetails = details.filter(d => d.itemId).map(({ _rowId, ...rest }) => {
-      if (!rest.dueDate && header.dueDate) {
-        rest.dueDate = header.dueDate;
-      }
-      return rest;
-    });
+    const cleanDetails = details
+      .filter(d => d.itemId)
+      .map(({ _rowId, _originalIndex, ...rest }) => {
+        if (!rest.dueDate && header.dueDate) {
+          rest.dueDate = header.dueDate;
+        }
+        return rest;
+      });
     
     if (cleanDetails.length === 0) { 
       setSaving(false); 
@@ -283,8 +364,6 @@ export default function PurchaseIndentPage() {
       dueDate: header.dueDate,
       details: cleanDetails 
     };
-    
-    console.log("Saving payload:", payload);
     
     try {
       if (editId) {
@@ -340,6 +419,14 @@ export default function PurchaseIndentPage() {
   };
 
   const totalQty = details.reduce((s, r) => s + Number(r.indentQty || 0), 0);
+
+  const sortedDetails = [...details].sort((a, b) => {
+    const indexA = a._originalIndex !== undefined ? a._originalIndex : 0;
+    const indexB = b._originalIndex !== undefined ? b._originalIndex : 0;
+    return indexA - indexB;
+  });
+
+  const displayDetails = editId ? sortedDetails : details;
 
   // ─────────────────────────────────────────────────────────────────────────────
   // LIST VIEW
@@ -622,6 +709,7 @@ export default function PurchaseIndentPage() {
                 <thead>
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
+                    <th style={{ minWidth: 180 }}>Head *</th>
                     <th style={{ minWidth: 200 }}>Category *</th>
                     <th style={{ minWidth: 200 }}>Item Description *</th>
                     <th style={{ width: 80, textAlign: "center" }}>UOM</th>
@@ -632,9 +720,19 @@ export default function PurchaseIndentPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {details.map((row, idx) => {
-                    const filteredItems = row.mainCategoryName ? items.filter(it => it.group === row.mainCategoryName) : [];
-                    const baseTab = 5 + (idx * 7);
+                  {displayDetails.map((row, idx) => {
+                    const filteredCategories = row.headId ? (categories[sid(row.headId)] || []) : [];
+                    
+                    const filteredItems = row.mainCategoryId 
+                      ? items.filter(it => {
+                          const itemCategoryId = sid(it.groupId);
+                          const itemCategoryName = it.group || it.categoryName;
+                          return itemCategoryId === sid(row.mainCategoryId) || 
+                                itemCategoryName === row.mainCategoryName;
+                        }) 
+                      : [];
+                    
+                    const baseTab = 5 + (idx * 8);
                     
                     return (
                       <tr key={row._rowId}>
@@ -643,19 +741,33 @@ export default function PurchaseIndentPage() {
                         <td style={{ minWidth: "180px" }}>
                           <SearchSelect
                             tabIndex={baseTab}
+                            className="inv-select-cell head-select"
+                            style={{ padding: 0, border: "none", width: "100%" }}
+                            value={row.headId}
+                            onChange={val => updateDetail(idx, "headId", val)}
+                            options={heads.map(h => ({ value: sid(h), label: h.headName }))}
+                            placeholder="Select Head"
+                            menuPortalTarget={document.body}
+                          />
+                        </td>
+                        
+                        <td style={{ minWidth: "180px" }}>
+                          <SearchSelect
+                            tabIndex={baseTab + 1}
                             className="inv-select-cell category-select"
                             style={{ padding: 0, border: "none", width: "100%" }}
                             value={row.mainCategoryId}
                             onChange={val => updateDetail(idx, "mainCategoryId", val)}
-                            options={categories.map(c => ({ value: sid(c), label: c.groupName }))}
-                            placeholder="Select Category"
+                            options={filteredCategories.map(c => ({ value: sid(c), label: c.groupName || c.name }))}
+                            placeholder={row.headId ? "Select Category" : "Select Head First"}
+                            disabled={!row.headId}
                             menuPortalTarget={document.body}
                           />
                         </td>
                         
                         <td style={{ minWidth: "220px" }}>
                           <SearchSelect
-                            tabIndex={baseTab + 1}
+                            tabIndex={baseTab + 2}
                             className="inv-select-cell"
                             style={{ padding: 0, border: "none", width: "100%" }}
                             value={row.itemId}
@@ -673,7 +785,7 @@ export default function PurchaseIndentPage() {
                             value={row.uom} 
                             readOnly 
                             style={{ textAlign: "center" }}
-                            tabIndex={baseTab + 2}
+                            tabIndex={baseTab + 3}
                           />
                         </td>
                         
@@ -686,7 +798,7 @@ export default function PurchaseIndentPage() {
                             onChange={e => updateDetail(idx, "indentQty", e.target.value)} 
                             onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value || 0).toFixed(3))} 
                             style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} 
-                            tabIndex={baseTab + 3}
+                            tabIndex={baseTab + 4}
                           />
                         </td>
                         
@@ -699,7 +811,7 @@ export default function PurchaseIndentPage() {
                             onChange={e => {
                               updateDetail(idx, "dueDate", e.target.value);
                             }}
-                            tabIndex={baseTab + 4}
+                            tabIndex={baseTab + 5}
                           />
                         </td>
                         
@@ -709,7 +821,7 @@ export default function PurchaseIndentPage() {
                             value={row.remarks} 
                             onChange={e => updateDetail(idx, "remarks", e.target.value)} 
                             placeholder="Notes..." 
-                            tabIndex={baseTab + 5}
+                            tabIndex={baseTab + 6}
                           />
                         </td>
                         
@@ -718,12 +830,12 @@ export default function PurchaseIndentPage() {
                             className="inv-btn-icon inv-btn-danger" 
                             onClick={() => removeRow(idx)} 
                             style={{ border: "none", background: "transparent", cursor: "pointer", color: "#ef4444", padding: "4px" }}
-                            tabIndex={baseTab + 6}
+                            tabIndex={baseTab + 7}
                           >
                             ✕
                           </button>
                         </td>
-                       </tr>
+                      </tr>
                     );
                   })}
                 </tbody>                
@@ -802,4 +914,4 @@ export default function PurchaseIndentPage() {
       )}
     </div>
   );
-} 
+}

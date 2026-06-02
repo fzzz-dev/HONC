@@ -15,6 +15,15 @@ const getTodayDate = () => {
   return `${year}-${month}-${day}`;
 };
 
+// Compare dates without time component
+const isDateGreater = (date1, date2) => {
+  const d1 = new Date(date1);
+  const d2 = new Date(date2);
+  d1.setHours(0, 0, 0, 0);
+  d2.setHours(0, 0, 0, 0);
+  return d1 > d2;
+};
+
 // ─── API Calls ────────────────────────────────────────────────────────────────
 const reportAPI = {
   getReport: async (params = {}) => {
@@ -58,10 +67,15 @@ export default function InventoryStockFlow() {
 
   // Validate dates - to date cannot be greater than today
   const validateDates = useCallback(() => {
+    // Reset error first
+    setError(null);
+    
     const currentFromDate = new Date(fromDate);
     const currentToDate = new Date(toDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    currentFromDate.setHours(0, 0, 0, 0);
+    currentToDate.setHours(0, 0, 0, 0);
     
     if (currentFromDate > currentToDate) {
       setError("From date cannot be greater than To date");
@@ -73,7 +87,6 @@ export default function InventoryStockFlow() {
       return false;
     }
     
-    setError(null);
     return true;
   }, [fromDate, toDate]);
 
@@ -84,7 +97,8 @@ export default function InventoryStockFlow() {
     
     if (selectedDate > today) {
       setError("To date cannot be greater than today's date");
-      setToDate(today);
+      // Don't update the date if it's invalid
+      return;
     } else {
       setError(null);
       setToDate(selectedDate);
@@ -94,6 +108,8 @@ export default function InventoryStockFlow() {
   // Handle From Date change
   const handleFromDateChange = (e) => {
     setFromDate(e.target.value);
+    // Clear error when user changes date
+    setError(null);
   };
 
   // Fetch report data (only called when Result button is clicked)
@@ -260,6 +276,18 @@ export default function InventoryStockFlow() {
               />
             </div>
           </div>
+          {error && (
+            <div style={{ 
+              marginBottom: 16, 
+              padding: 8, 
+              backgroundColor: "#fee2e2", 
+              color: "#dc2626", 
+              borderRadius: 6,
+              fontSize: 14 
+            }}>
+              {error}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button 
               className="inv-btn-primary" 

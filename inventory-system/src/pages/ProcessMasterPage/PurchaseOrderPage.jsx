@@ -839,6 +839,7 @@ export default function PurchaseOrderPage() {
   const addRowBtnRef = useRef(null);
   const [expandedGroups, setExpandedGroups] = useState({});
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [pendingSearchTerm, setPendingSearchTerm] = useState("");
  
 
      // New state for approval workflow
@@ -2303,30 +2304,35 @@ async function performSave() {
               <Field label="Reference No">
                 <input tabIndex={5} className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" />
               </Field>
-              
+            
               <Field label="Delivery Date">
-                <input 
-                  tabIndex={6} 
-                  className="inv-input" 
-                  type="date" 
-                  min="2026-05-01"
-                  value={header.deliveryDate || ""} 
-                  onChange={e => {
-                    const selectedDate = e.target.value;
-                    const minDate = "2026-05-01";
-                    if (selectedDate < minDate) {
-                      setHeader(h => ({ ...h, deliveryDate: minDate, deliveryDateError: "Past dates are not allowed." }));
-                    } else {
-                      setHeader(h => ({ ...h, deliveryDate: selectedDate, deliveryDateError: "" }));
-                    }
-                  }} 
-                />
-                {header.deliveryDateError && (
-                  <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
-                    ⚠️ {header.deliveryDateError}
-                  </div>
-                )}
-              </Field>
+  <input 
+    tabIndex={6} 
+    className="inv-input" 
+    type="date" 
+    min={header.date || "2026-05-01"}
+    value={header.deliveryDate || ""} 
+    onChange={e => {
+      const selectedDate = e.target.value;
+      const poDate = header.date;
+      
+      if (selectedDate && poDate && selectedDate < poDate) {
+        setHeader(h => ({ 
+          ...h, 
+          deliveryDate: poDate, 
+          deliveryDateError: "Delivery date cannot be earlier than PO date" 
+        }));
+      } else {
+        setHeader(h => ({ ...h, deliveryDate: selectedDate, deliveryDateError: "" }));
+      }
+    }} 
+  />
+  {header.deliveryDateError && (
+    <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+      ⚠️ {header.deliveryDateError}
+    </div>
+  )}
+</Field>
               
               <Field label="GST No">
                 <input tabIndex={7} className="inv-input" value={header.supplierGst} readOnly style={{ background: "#f8fafc" }} />
@@ -2359,17 +2365,17 @@ async function performSave() {
                 <thead>
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
-                    <th style={{ width: 140 }}>Indent No</th>
-                    <th style={{ minWidth: 200 }}>Item Description</th>
+                    <th style={{ width: 140, textAlign: "left" }}>Indent No</th>
+                    <th style={{ minWidth: 200, textAlign: "left" }}>Item Description</th>
                     <th style={{ width: 80, textAlign: "center" }}>UOM</th>
-                    <th style={{ width: 80, textAlign: "right" }}>Bal</th>
-                    <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
-                    <th style={{ width: 100, textAlign: "right" }}>Unit Price</th>
-                    <th style={{ width: 100, textAlign: "right" }}>Disc</th>
-                    <th style={{ width: 110, textAlign: "right" }}>PO Amt</th>
+                    <th style={{ width: 80, textAlign: "left" }}>Bal</th>
+                    <th style={{ width: 100, textAlign: "left" }}>PO Qty</th>
+                    <th style={{ width: 100, textAlign: "left" }}>Unit Price</th>
+                    <th style={{ width: 100, textAlign: "left" }}>Disc</th>
+                    <th style={{ width: 110, textAlign: "left" }}>PO Amt</th>
                     <th style={{ width: 70, textAlign: "center" }}>GST%</th>
-                    <th style={{ width: 90, textAlign: "right" }}>IGST</th>
-                    <th style={{ width: 120, textAlign: "right" }}>Total</th>
+                    <th style={{ width: 90, textAlign: "left" }}>IGST</th>
+                    <th style={{ width: 120, textAlign: "left" }}>Total</th>
                     <th style={{ width: 40 }}></th>
                   </tr>
                 </thead>
@@ -2379,25 +2385,88 @@ async function performSave() {
                     const isLastRow = idx === details.length - 1;
                     const hasItems = row.itemId || row.itemName;
                     
+                    // Format numbers: PO Qty with 3 decimals, others with 2 decimals
+                    const formatPoQty = (val) => {
+                      if (val === undefined || val === null) return "";
+                      return Number(val).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+                    };
+                    
+                    const formatNumber = (val) => {
+                      if (val === undefined || val === null) return "";
+                      return Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    };
+                    
                     return (
                       <tr key={row._rowId}>
                         <td style={{ textAlign: "center" }}>{idx + 1}</td>
-                        <td><input tabIndex={-1} className="inv-input-cell" value={row.indentNo || ""} readOnly /></td>
-                        <td><input tabIndex={-1} className="inv-input-cell" value={row.itemName || ""} readOnly /></td>
-                        <td><input tabIndex={-1} className="inv-input-cell" value={row.uom || ""} readOnly /></td>
-                        <td><input tabIndex={-1} className="inv-input-cell" value={row.balQty ? fmtQty(row.balQty) : "—"} readOnly /></td>
-                        <td><input tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex : -1} className="inv-input-cell" type="number" value={row.poQty} onChange={e => updateDetail(idx, "poQty", e.target.value)} /></td>
-                        <td><input tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 1 : -1} className="inv-input-cell" type="number" value={row.poRate} onChange={e => updateDetail(idx, "poRate", e.target.value)} /></td>
-                        <td>
+                        <td style={{ textAlign: "left" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={row.indentNo || ""} readOnly style={{ textAlign: "left" }} />
+                        </td>
+                        <td style={{ textAlign: "left" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={row.itemName || ""} readOnly style={{ textAlign: "left" }} />
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={row.uom || ""} readOnly style={{ textAlign: "center" }} />
+                        </td>
+                        <td style={{ textAlign: "left" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={formatPoQty(row.balQty)} readOnly style={{ textAlign: "left" }} />
+                        </td>
+                        <td style={{ textAlign: "left" }}>
+                          <input 
+                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex : -1} 
+                            className="inv-input-cell" 
+                            type="number" 
+                            step="0.001"
+                            value={row.poQty} 
+                            onChange={e => updateDetail(idx, "poQty", e.target.value)} 
+                            style={{ textAlign: "left" }}
+                          />
+                        </td>
+                        <td style={{ textAlign: "left" }}>
+                          <input 
+                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 1 : -1} 
+                            className="inv-input-cell" 
+                            type="number" 
+                            step="0.01"
+                            value={row.poRate} 
+                            onChange={e => updateDetail(idx, "poRate", e.target.value)} 
+                            style={{ textAlign: "left" }}
+                          />
+                        </td>
+                        <td style={{ textAlign: "left" }}>
                           <div style={{ display: "flex", alignItems: "center" }}>
-                            <input tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 2 : -1} className="inv-input-cell" type="number" value={row.discMode === 'pct' ? row.discPct : row.discPrice} onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} />
+                            <input 
+                              tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 2 : -1} 
+                              className="inv-input-cell" 
+                              type="number" 
+                              step="0.01"
+                              value={row.discMode === 'pct' ? row.discPct : row.discPrice} 
+                              onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} 
+                              style={{ textAlign: "left" }}
+                            />
                             <button type="button" onClick={() => toggleDiscMode(idx)} tabIndex={-1}>{row.discMode === 'pct' ? '%' : '₹'}</button>
                           </div>
                         </td>
-                        <td><input tabIndex={-1} className="inv-input-cell" value={fmt(row.poAmount)} readOnly /></td>
-                        <td><input tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 3 : -1} className="inv-input-cell" type="number" value={row.gstPct} onChange={e => updateDetail(idx, "gstPct", e.target.value)} /></td>
-                        <td><input tabIndex={-1} className="inv-input-cell" value={fmt(row.totGst)} readOnly /></td>
-                        <td><input tabIndex={-1} className="inv-input-cell" value={fmt(row.totalAmount)} readOnly /></td>
+                        <td style={{ textAlign: "left" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.poAmount)} readOnly style={{ textAlign: "left" }} />
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <input 
+                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 3 : -1} 
+                            className="inv-input-cell" 
+                            type="number" 
+                            step="0.01"
+                            value={row.gstPct} 
+                            onChange={e => updateDetail(idx, "gstPct", e.target.value)} 
+                            style={{ textAlign: "center" }}
+                          />
+                        </td>
+                        <td style={{ textAlign: "left" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totGst)} readOnly style={{ textAlign: "left" }} />
+                        </td>
+                        <td style={{ textAlign: "left" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totalAmount)} readOnly style={{ textAlign: "left" }} />
+                        </td>
                         <td style={{ textAlign: "center" }}>
                           <button 
                             onClick={() => removeRow(idx)} 
@@ -2544,11 +2613,11 @@ async function performSave() {
       </div>
 
       {/* Pick Indent Modal */}
-{pendingModalOpen && (
+      {pendingModalOpen && (
   <Modal 
     id="pick-indent-modal"
     title="Pick Pending Indent Lines" 
-    onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); }} 
+    onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); setPendingSearchTerm(""); }} 
     full={true}
     hideDefaultButtons={true}
   >
@@ -2580,202 +2649,311 @@ async function performSave() {
         .indent-item-row[style*="background-color: #eef2ff"] {
           background-color: #eef2ff !important;
         }
+        
+        .pending-search-input:focus {
+          outline: none;
+          border-color: #3b6ef8;
+          box-shadow: 0 0 0 2px rgba(59, 110, 248, 0.1);
+        }
+        
+        /* Fixed elements */
+        .modal-fixed-search {
+          position: sticky;
+          top: 0;
+          background: white;
+          z-index: 10;
+          border-bottom: 1px solid #e2e8f0;
+          padding: 12px 16px;
+        }
+        
+        .modal-fixed-footer {
+          position: sticky;
+          bottom: 0;
+          background: white;
+          z-index: 10;
+          border-top: 1px solid #e2e8f0;
+          padding: 12px 16px;
+        }
+        
+        .modal-scrollable-content {
+          overflow-y: auto;
+          flex: 1;
+          padding: 0 16px;
+          max-height: calc(85vh - 80px);
+        }
       `}
     </style>
     
-    <div style={{ padding: "0 16px" }}>
-      <div className="inv-table-wrap">
-        <table className="inv-table" id="pick-indent-table">
-          <thead>
-            <tr>
-              <th style={{ width: 30 }}></th>
-              <th>Indent No</th>
-              <th>Date</th>
-              <th>Department</th>
-              <th style={{ width: 100, textAlign: "right" }}>Total Qty</th>
-              <th style={{ width: 40, textAlign: "center" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.keys(pendingIndentGroups).length === 0 ? (
-              <tr key="no-data">
-                <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)" }}>No pending indents available</td>
-              </tr>
-            ) : (
-              Object.values(pendingIndentGroups).map((group) => {
-                const isExpanded = expandedGroups[group.indentNo];
-                const allGroupItemsSelected = group.items.every(item => pendingSelected.has(item.rowId));
-                const someGroupItemsSelected = group.items.some(item => pendingSelected.has(item.rowId));
-                const totalQty = group.items.reduce((sum, item) => sum + item.balQty, 0);
-                
-                return (
-                  <React.Fragment key={group.indentNo}>
-                    {/* Main Indent Row - REMOVED onKeyDown to avoid conflicts */}
-                    <tr 
-                      key={group.indentNo}
-                      className="indent-main-row"
-                      data-row-id={group.indentNo}
-                      data-row-type="main"
-                      role="row"
-                      aria-expanded={isExpanded}
-                      style={{ 
-                        cursor: "pointer",
-                        backgroundColor: "#ffffff",
-                        borderBottom: "1px solid #e2e8f0"
-                      }}
-                      tabIndex={0}
-                      onClick={() => {
-                        setExpandedGroups(prev => ({ ...prev, [group.indentNo]: !prev[group.indentNo] }));
-                      }}
-                    >
-                      <td style={{ textAlign: "center", color: "#64748b" }}>
-                        {isExpanded ? "▼" : "▶"}
-                      </td>
-                      <td style={{ fontWeight: 600, color: "#3b6ef8" }}>{group.indentNo}</td>
-                      <td style={{ color: "#475569" }}>{group.indentDate}</td>
-                      <td style={{ color: "#475569" }}>{group.departmentName || "—"}</td>
-                      <td style={{ textAlign: "right", fontWeight: 500, color: "#475569" }}>{fmtQty(totalQty)}</td>
-                      <td style={{ textAlign: "center" }}>
-                        <input 
-                          type="checkbox"
-                          checked={allGroupItemsSelected}
-                          ref={(el) => {
-                            if (el) el.indeterminate = !allGroupItemsSelected && someGroupItemsSelected;
-                          }}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            const newSelected = new Set(pendingSelected);
-                            group.items.forEach(item => {
-                              if (e.target.checked) {
-                                newSelected.add(item.rowId);
-                              } else {
-                                newSelected.delete(item.rowId);
-                              }
-                            });
-                            setPendingSelected(newSelected);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          tabIndex={-1}
-                        />
-                      </td>
-                    </tr>
-                    
-                    {/* Expanded Items Sub-table - REMOVED onKeyDown to avoid conflicts */}
-                    {isExpanded && (
-                      <tr className="indent-sub-row" data-parent-id={group.indentNo}>
-                        <td colSpan={6} style={{ padding: 0, backgroundColor: "#f8fafc" }}>
-                          <table className="inv-table" style={{ margin: 0, width: "100%", borderCollapse: "collapse" }}>
-                            <thead>
-                              <tr style={{ backgroundColor: "#f1f5f9", borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0" }}>
-                                <th style={{ width: 30, padding: "10px 8px" }}></th>
-                                <th style={{ padding: "10px 12px" }}>Item Description</th>
-                                <th style={{ width: 70, padding: "10px 12px", textAlign: "center" }}>UOM</th>
-                                <th style={{ width: 80, padding: "10px 12px", textAlign: "right" }}>Bal</th>
-                                <th style={{ width: 90, padding: "10px 12px", textAlign: "right" }}>PO Qty</th>
-                                <th style={{ width: 90, padding: "10px 12px", textAlign: "right" }}>Unit Price</th>
-                                <th style={{ width: 80, padding: "10px 12px", textAlign: "center" }}>Disc%</th>
-                                <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>PO Amt</th>
-                                <th style={{ width: 70, padding: "10px 12px", textAlign: "center" }}>GST%</th>
-                                <th style={{ width: 80, padding: "10px 12px", textAlign: "right" }}>IGST</th>
-                                <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>Total</th>
-                                <th style={{ width: 40, padding: "10px 8px", textAlign: "center" }}></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {group.items.map((item, itemIndex) => (
-                                <tr 
-                                  key={item.rowId}
-                                  className="indent-item-row"
-                                  data-row-id={item.rowId}
-                                  data-row-type="item"
-                                  data-parent-id={group.indentNo}
-                                  style={{ 
-                                    cursor: "pointer",
-                                    borderBottom: itemIndex === group.items.length - 1 ? "none" : "1px solid #e2e8f0",
-                                    backgroundColor: pendingSelected.has(item.rowId) ? "#eef2ff" : "#ffffff"
-                                  }}
-                                  tabIndex={0}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const newSelected = new Set(pendingSelected);
-                                    if (newSelected.has(item.rowId)) {
-                                      newSelected.delete(item.rowId);
-                                    } else {
-                                      newSelected.add(item.rowId);
-                                    }
-                                    setPendingSelected(newSelected);
-                                  }}
-                                >
-                                  <td style={{ paddingLeft: 28, color: "#64748b" }}>↳</td>
-                                  <td style={{ fontSize: 13 }}>{item.itemName}</td>
-                                  <td style={{ textAlign: "center", fontSize: 13 }}>{item.uom}</td>
-                                  <td style={{ textAlign: "right", fontSize: 13 }}>{fmtQty(item.balQty)}</td>
-                                  <td style={{ textAlign: "right", fontSize: 13 }}>
-                                    <input 
-                                      type="number" 
-                                      value={item.balQty}
-                                      style={{ width: 80, padding: "4px 8px", textAlign: "right", borderRadius: 4, border: "1px solid #e2e8f0" }}
-                                      onChange={(e) => { e.stopPropagation(); }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      tabIndex={-1}
-                                    />
-                                  </td>
-                                  <td style={{ textAlign: "right", fontSize: 13 }}>
-                                    <input 
-                                      type="number" 
-                                      value={item.rate}
-                                      style={{ width: 80, padding: "4px 8px", textAlign: "right", borderRadius: 4, border: "1px solid #e2e8f0" }}
-                                      onChange={(e) => { e.stopPropagation(); }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      tabIndex={-1}
-                                    />
-                                  </td>
-                                  <td style={{ textAlign: "center", fontSize: 13 }}>0</td>
-                                  <td style={{ textAlign: "right", fontSize: 13 }}>{fmt(item.balQty * item.rate)}</td>
-                                  <td style={{ textAlign: "center", fontSize: 13 }}>{item.gstPct || 0}</td>
-                                  <td style={{ textAlign: "right", fontSize: 13 }}>{fmt((item.balQty * item.rate) * (item.gstPct || 0) / 100)}</td>
-                                  <td style={{ textAlign: "right", fontSize: 13, fontWeight: 600 }}>{fmt((item.balQty * item.rate) + ((item.balQty * item.rate) * (item.gstPct || 0) / 100))}</td>
-                                  <td style={{ textAlign: "center" }}>
-                                    <input 
-                                      type="checkbox"
-                                      checked={pendingSelected.has(item.rowId)}
-                                      onChange={() => {}}
-                                      onClick={(e) => e.stopPropagation()}
-                                      tabIndex={-1}
-                                    />
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", maxHeight: "85vh" }}>
+      {/* FIXED SEARCH BAR */}
+      <div style={{ 
+        position: "sticky", 
+        top: 0, 
+        background: "white", 
+        zIndex: 10, 
+        borderBottom: "1px solid #e2e8f0", 
+        padding: "12px 16px",
+        margin: "-16px -16px 0 -16px"
+      }}>
+        <input
+          type="text"
+          className="inv-input"
+          placeholder=" Search by Indent Number..."
+          value={pendingSearchTerm}
+          onChange={(e) => setPendingSearchTerm(e.target.value)}
+          style={{ 
+            width: "100%", 
+            maxWidth: "220px",
+            borderRadius: 6,
+            border: "1px solid #e2e8f0",
+            padding: "10px 14px",
+            fontSize: 14
+          }}
+        />
+        {pendingSearchTerm && (
+          <div style={{ marginTop: 8, fontSize: 13, color: "#64748b" }}>
+            Found {Object.values(pendingIndentGroups).filter(group => 
+              group.indentNo.toLowerCase().includes(pendingSearchTerm.toLowerCase())
+            ).length} matching indent(s)
+          </div>
+        )}
       </div>
-    </div>
-    
-    {/* Custom Footer Buttons */}
-    <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20, paddingTop: 16, borderTop: "1px solid #e2e8f0", marginBottom: 16 }}>
-      <button 
-        className="inv-btn-secondary" 
-        id="cancel-pick-btn"
-        onClick={() => { setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); }}
-      >
-        Cancel
-      </button>
-      <button 
-        id="add-items-btn"
-        className="inv-btn-primary" 
-        onClick={() => { addPendingLinesToDetails(); setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); }}
-      >
-        Add {pendingSelected.size} Item(s) to PO
-      </button>
+      
+      {/* SCROLLABLE CONTENT - Only the table scrolls */}
+      <div className="modal-scrollable-content">
+        <div className="inv-table-wrap">
+          <table className="inv-table" id="pick-indent-table">
+            <thead>
+              <tr>
+                <th style={{ width: 30 }}></th>
+                <th>Indent No</th>
+                <th>Date</th>
+                <th>Department</th>
+                <th style={{ width: 100, textAlign: "right" }}>Total Qty</th>
+                <th style={{ width: 40, textAlign: "center" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.values(pendingIndentGroups)
+                .filter(group => pendingSearchTerm === "" || group.indentNo.toLowerCase().includes(pendingSearchTerm.toLowerCase()))
+                .length === 0 ? (
+                <tr key="no-data">
+                  <td colSpan={6} style={{ padding: 60, textAlign: "center", color: "var(--text-secondary)" }}>
+                    {pendingSearchTerm ? "No matching indents found" : "No pending indents available"}
+                  </td>
+                </tr>
+              ) : (
+                Object.values(pendingIndentGroups)
+                  .filter(group => pendingSearchTerm === "" || group.indentNo.toLowerCase().includes(pendingSearchTerm.toLowerCase()))
+                  .map((group) => {
+                    const isExpanded = expandedGroups[group.indentNo];
+                    const allGroupItemsSelected = group.items.every(item => pendingSelected.has(item.rowId));
+                    const someGroupItemsSelected = group.items.some(item => pendingSelected.has(item.rowId));
+                    const totalQty = group.items.reduce((sum, item) => sum + item.balQty, 0);
+                    
+                    return (
+                      <React.Fragment key={group.indentNo}>
+                        <tr 
+                          key={group.indentNo}
+                          className="indent-main-row"
+                          data-row-id={group.indentNo}
+                          data-row-type="main"
+                          role="row"
+                          aria-expanded={isExpanded}
+                          style={{ 
+                            cursor: "pointer",
+                            backgroundColor: "#ffffff",
+                            borderBottom: "1px solid #e2e8f0"
+                          }}
+                          tabIndex={0}
+                          onClick={() => {
+                            setExpandedGroups(prev => ({ ...prev, [group.indentNo]: !prev[group.indentNo] }));
+                          }}
+                        >
+                          <td style={{ textAlign: "center", color: "#64748b" }}>
+                            {isExpanded ? "▼" : "▶"}
+                           </td>
+                          <td style={{ fontWeight: 600, color: "#3b6ef8" }}>{group.indentNo}</td>
+                          <td style={{ color: "#475569" }}>{group.indentDate}</td>
+                          <td style={{ color: "#475569" }}>{group.departmentName || "—"}</td>
+                          <td style={{ textAlign: "right", fontWeight: 500, color: "#475569" }}>{fmtQty(totalQty)}</td>
+                          <td style={{ textAlign: "center" }}>
+                            <input 
+                              type="checkbox"
+                              checked={allGroupItemsSelected}
+                              ref={(el) => {
+                                if (el) el.indeterminate = !allGroupItemsSelected && someGroupItemsSelected;
+                              }}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const newSelected = new Set(pendingSelected);
+                                group.items.forEach(item => {
+                                  if (e.target.checked) {
+                                    newSelected.add(item.rowId);
+                                  } else {
+                                    newSelected.delete(item.rowId);
+                                  }
+                                });
+                                setPendingSelected(newSelected);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              tabIndex={-1}
+                            />
+                          </td>
+                        </tr>
+                        
+                        {isExpanded && (
+                          <tr className="indent-sub-row" data-parent-id={group.indentNo}>
+                            <td colSpan={6} style={{ padding: 0, backgroundColor: "#f8fafc" }}>
+                              <table className="inv-table" style={{ margin: 0, width: "100%", borderCollapse: "collapse" }}>
+                                <thead>
+                                  <tr style={{ backgroundColor: "#f1f5f9", borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0" }}>
+                                    <th style={{ width: 30, padding: "10px 8px" }}></th>
+                                    <th style={{ padding: "10px 12px", textAlign: "left" }}>Item Description</th>
+                                    <th style={{ width: 70, padding: "10px 12px", textAlign: "center" }}>UOM</th>
+                                    <th style={{ width: 80, padding: "10px 12px", textAlign: "right" }}>Bal</th>
+                                    <th style={{ width: 90, padding: "10px 12px", textAlign: "right" }}>PO Qty</th>
+                                    <th style={{ width: 90, padding: "10px 12px", textAlign: "right" }}>Unit Price</th>
+                                    <th style={{ width: 80, padding: "10px 12px", textAlign: "center" }}>Disc%</th>
+                                    <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>PO Amt</th>
+                                    <th style={{ width: 70, padding: "10px 12px", textAlign: "center" }}>GST%</th>
+                                    <th style={{ width: 80, padding: "10px 12px", textAlign: "right" }}>IGST</th>
+                                    <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>Total</th>
+                                    <th style={{ width: 40, padding: "10px 8px", textAlign: "center" }}></th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {group.items.map((item, itemIndex) => {
+                                    // Define formatting functions INSIDE the map
+                                    const formatQty3 = (val) => {
+                                      if (val === undefined || val === null) return "0.000";
+                                      return Number(val).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+                                    };
+                                    
+                                    const formatAmount2 = (val) => {
+                                      if (val === undefined || val === null) return "0.00";
+                                      return Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                    };
+                                    
+                                    const poQtyValue = item.balQty || 0;
+                                    const poAmount = poQtyValue * (item.rate || 0);
+                                    const igstAmount = poAmount * ((item.gstPct || 0) / 100);
+                                    const totalAmount = poAmount + igstAmount;
+                                    
+                                    return (
+                                      <tr 
+                                        key={item.rowId}
+                                        className="indent-item-row"
+                                        data-row-id={item.rowId}
+                                        data-row-type="item"
+                                        data-parent-id={group.indentNo}
+                                        style={{ 
+                                          cursor: "pointer",
+                                          borderBottom: itemIndex === group.items.length - 1 ? "none" : "1px solid #e2e8f0",
+                                          backgroundColor: pendingSelected.has(item.rowId) ? "#eef2ff" : "#ffffff"
+                                        }}
+                                        tabIndex={0}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const newSelected = new Set(pendingSelected);
+                                          if (newSelected.has(item.rowId)) {
+                                            newSelected.delete(item.rowId);
+                                          } else {
+                                            newSelected.add(item.rowId);
+                                          }
+                                          setPendingSelected(newSelected);
+                                        }}
+                                      >
+                                        <td style={{ paddingLeft: 28, color: "#64748b" }}>↳</td>
+                                        <td style={{ fontSize: 13, textAlign: "left" }}>{item.itemName}</td>
+                                        <td style={{ textAlign: "center", fontSize: 13 }}>{item.uom}</td>
+                                        {/* Bal - 3 decimals */}
+                                        <td style={{ textAlign: "right", fontSize: 13 }}>{formatQty3(item.balQty)}</td>
+                                        {/* PO Qty input - 3 decimals */}
+                                        <td style={{ textAlign: "right", fontSize: 13 }}>
+                                          <input 
+                                            type="number" 
+                                            step="0.001"
+                                            value={poQtyValue}
+                                            style={{ width: 80, padding: "4px 8px", textAlign: "right", borderRadius: 4, border: "1px solid #e2e8f0" }}
+                                            onChange={(e) => { 
+                                              e.stopPropagation();
+                                              const newValue = parseFloat(e.target.value).toFixed(3);
+                                              // Update logic here
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            tabIndex={-1}
+                                          />  
+                                        </td>
+                                        {/* Unit Price - 2 decimals */}
+                                        <td style={{ textAlign: "right", fontSize: 13 }}>
+                                          <input 
+                                            type="number" 
+                                            step="0.01"
+                                            value={item.rate}
+                                            style={{ width: 80, padding: "4px 8px", textAlign: "right", borderRadius: 4, border: "1px solid #e2e8f0" }}
+                                            onChange={(e) => { 
+                                              e.stopPropagation();
+                                              // Update rate logic here
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            tabIndex={-1}
+                                          />
+                                        </td>
+                                        <td style={{ textAlign: "center", fontSize: 13 }}>0.00</td>
+                                        {/* PO Amt - 2 decimals */}
+                                        <td style={{ textAlign: "right", fontSize: 13 }}>{formatAmount2(poAmount)}</td>
+                                        {/* GST% - 2 decimals */}
+                                        <td style={{ textAlign: "center", fontSize: 13 }}>{formatAmount2(item.gstPct || 0)}</td>
+                                        {/* IGST - 2 decimals */}
+                                        <td style={{ textAlign: "right", fontSize: 13 }}>{formatAmount2(igstAmount)}</td>
+                                        {/* Total - 2 decimals */}
+                                        <td style={{ textAlign: "right", fontSize: 13, fontWeight: 600 }}>{formatAmount2(totalAmount)}</td>
+                                        <td style={{ textAlign: "center" }}>
+                                          <input 
+                                            type="checkbox"
+                                            checked={pendingSelected.has(item.rowId)}
+                                            onChange={() => {}}
+                                            onClick={(e) => e.stopPropagation()}
+                                            tabIndex={-1}
+                                          />
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+              )}
+            </tbody>  
+          </table>
+        </div>
+      </div>
+      
+      {/* FIXED FOOTER - Buttons only */}
+      <div className="modal-fixed-footer">
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+          <button 
+            className="inv-btn-secondary" 
+            id="cancel-pick-btn"
+            onClick={() => { setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); setPendingSearchTerm(""); }}
+          >
+            Cancel
+          </button>
+          <button 
+            id="add-items-btn"
+            className="inv-btn-primary" 
+            onClick={() => { addPendingLinesToDetails(); setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); setPendingSearchTerm(""); }}
+          >
+            Add {pendingSelected.size} Item(s) to PO
+          </button>
+        </div>
+      </div>
     </div>
   </Modal>
 )}

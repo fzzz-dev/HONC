@@ -19,37 +19,41 @@ function sanitizeDetail(d = {}) {
   }
 
   return {
-    inventoryHeadId:   d.inventoryHeadId   || null,
-    inventoryHeadName: String(d.inventoryHeadName || ""),
-    mainCategoryId:    d.mainCategoryId    || null,
+    // Map frontend headId/inventoryHeadId to backend field
+    inventoryHeadId:   d.headId || d.inventoryHeadId || null,
+    inventoryHeadName: String(d.headName || d.inventoryHeadName || ""),
+    // Map frontend category fields
+    mainCategoryId:    d.mainCategoryId || null,
     mainCategoryName:  String(d.mainCategoryName || ""),
+    // Map item fields
     itemId:   d.itemId || null,
     itemName: String(d.itemName || ""),
-    itemDescription: String(d.itemDescription || d.itemName || ""), // alias for PO page
+    itemDescription: String(d.itemDescription || d.itemName || ""),
     uom:      String(d.uom || ""),
     indentQty,
-    dueDate:  String(d.dueDate  || ""),
-    remarks:  String(d.remarks  || ""),
+    dueDate:  String(d.dueDate || ""),
+    remarks:  String(d.remarks || ""),
     alPoQty,
     balQty,
-    // id removed to allow database auto-increment
   };
 }
 
 // ── Sanitize the full request body ───────────────────────────────────────────
 function sanitizeBody(body = {}) {
+  const details = Array.isArray(body.details) ? body.details : [];
+  
   return {
     indentNo: String(body.indentNo || "").trim(),
-    date: String(body.date || TODAY()),
+    date: String(body.indentDate || body.date || TODAY()),
     departmentId: body.departmentId || null,
     departmentName: String(body.departmentName || ""),
-    createdBy: String(body.createdBy || "Admin"),
+    createdBy: String(body.createdBy || body.preparedBy || "Admin"),
     createdOn: String(body.createdOn || TODAY()),
     status: ["Open", "Closed", "Cancelled"].includes(body.status) ? body.status : "Open",
     remarks: String(body.remarks || ""),
-    details: Array.isArray(body.details) ? body.details.map(sanitizeDetail) : [],
-    totalQty: Array.isArray(body.details) ? body.details.reduce((sum, d) => sum + (Number(d.indentQty) || 0), 0) : 0,
-    totalItems: Array.isArray(body.details) ? body.details.length : 0,
+    details: details.map(sanitizeDetail),
+    totalQty: details.reduce((sum, d) => sum + (Number(d.indentQty) || 0), 0),
+    totalItems: details.length,
   };
 }
 
@@ -86,7 +90,6 @@ async function generateIndentNo() {
   return `${prefix}${String(next).padStart(4, "0")}/${fy}`;
 }
 
-
 // ── GET all ───────────────────────────────────────────────────────────────────
 exports.getAll = async (req, res) => {
   try {
@@ -101,7 +104,23 @@ exports.getAll = async (req, res) => {
       include: ["details"],
       order: [["createdAt", "DESC"]],
     });
-    res.json({ success: true, data: indents });
+    
+    // Transform response to match frontend expectations
+    const transformedIndents = indents.map(indent => {
+      const indentData = indent.toJSON();
+      return {
+        ...indentData,
+        indentDate: indentData.date,
+        preparedBy: indentData.createdBy,
+        details: (indentData.details || []).map(detail => ({
+          ...detail,
+          headId: detail.inventoryHeadId,
+          headName: detail.inventoryHeadName,
+        }))
+      };
+    });
+    
+    res.json({ success: true, data: transformedIndents });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -110,7 +129,8 @@ exports.getAll = async (req, res) => {
 // ── GET next number ───────────────────────────────────────────────────────────
 exports.getNextNumber = async (req, res) => {
   try {
-    res.json({ success: true, data: { indentNo: await generateIndentNo() } });
+    const indentNo = await generateIndentNo();
+    res.json({ success: true, indentNo });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -124,7 +144,21 @@ exports.getOne = async (req, res) => {
     });
     if (!indent)
       return res.status(404).json({ success: false, message: "Indent not found" });
-    res.json({ success: true, data: indent });
+    
+    // Transform response to match frontend expectations
+    const indentData = indent.toJSON();
+    const transformedIndent = {
+      ...indentData,
+      indentDate: indentData.date,
+      preparedBy: indentData.createdBy,
+      details: (indentData.details || []).map(detail => ({
+        ...detail,
+        headId: detail.inventoryHeadId,
+        headName: detail.inventoryHeadName,
+      }))
+    };
+    
+    res.json({ success: true, data: transformedIndent });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -139,7 +173,21 @@ exports.create = async (req, res) => {
       return res.status(400).json({ success: false, message: "Department is required" });
 
     const indent = await PurchaseIndent.create(body, { include: ["details"] });
-    res.status(201).json({ success: true, data: indent });
+    
+    // Transform response
+    const indentData = indent.toJSON();
+    const transformedIndent = {
+      ...indentData,
+      indentDate: indentData.date,
+      preparedBy: indentData.createdBy,
+      details: (indentData.details || []).map(detail => ({
+        ...detail,
+        headId: detail.inventoryHeadId,
+        headName: detail.inventoryHeadName,
+      }))
+    };
+    
+    res.status(201).json({ success: true, data: transformedIndent });
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError')
       return res.status(400).json({ success: false, message: "Indent number already exists" });
@@ -164,14 +212,28 @@ exports.update = async (req, res) => {
     await PurchaseIndentDetail.destroy({ where: { purchaseIndentId: indent.id } });
     if (body.details && body.details.length > 0) {
       const detailsToCreate = body.details.map(d => {
-        const { id, ...rest } = d; // Remove provided ID to let autoIncrement handle it
+        const { id, ...rest } = d;
         return { ...rest, purchaseIndentId: indent.id };
       });
       await PurchaseIndentDetail.bulkCreate(detailsToCreate);
     }
 
     const updatedIndent = await PurchaseIndent.findByPk(req.params.id, { include: ["details"] });
-    res.json({ success: true, data: updatedIndent });
+    
+    // Transform response
+    const indentData = updatedIndent.toJSON();
+    const transformedIndent = {
+      ...indentData,
+      indentDate: indentData.date,
+      preparedBy: indentData.createdBy,
+      details: (indentData.details || []).map(detail => ({
+        ...detail,
+        headId: detail.inventoryHeadId,
+        headName: detail.inventoryHeadName,
+      }))
+    };
+    
+    res.json({ success: true, data: transformedIndent });
   } catch (err) {
     console.error("❌ update indent error:", err);
     res.status(400).json({ success: false, message: err.message });
