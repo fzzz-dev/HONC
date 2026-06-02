@@ -66,10 +66,21 @@ const getInventoryStockFlowReport = async (req, res) => {
     
     const [results] = await sequelize.query(query, { replacements });
     
+    // Map the results to match frontend expectations
+    const mappedResults = results.map(row => ({
+      storename: row.storename,
+      maincat: row.maincat,
+      itemdescription: row.itemdescription,
+      opstk: row.opstk || 0,
+      recqty: row.recqty || 0,
+      isstqy: row.isstqy || 0,
+      clsstk: row.clsstk || 0
+    }));
+    
     res.json({
       success: true,
-      data: results,
-      count: results.length
+      data: mappedResults,
+      count: mappedResults.length
     });
   } catch (error) {
     console.error('Error in getInventoryStockFlowReport:', error);
@@ -147,6 +158,7 @@ const exportToCSV = async (req, res) => {
       return res.status(404).json({ success: false, message: 'No data to export' });
     }
     
+    // CSV headers matching frontend expectations
     const headers = ['Store Name', 'Main Category', 'Item Description', 'Opening Stock', 'Received Qty', 'Issued Qty', 'Closing Stock'];
     const csvRows = [headers.join(',')];
     
@@ -235,15 +247,18 @@ const getReportSummary = async (req, res) => {
     
     const [results] = await sequelize.query(query, { replacements });
     
+    // Map to frontend expected field names
+    const summary = {
+      totalItems: Number(results[0]?.totalItems) || 0,
+      totalOpeningStock: Number(results[0]?.totalOpeningStock) || 0,
+      totalReceived: Number(results[0]?.totalReceived) || 0,
+      totalIssued: Number(results[0]?.totalIssued) || 0,
+      totalClosingStock: Number(results[0]?.totalClosingStock) || 0
+    };
+    
     res.json({
       success: true,
-      data: results[0] || {
-        totalItems: 0,
-        totalOpeningStock: 0,
-        totalReceived: 0,
-        totalIssued: 0,
-        totalClosingStock: 0
-      }
+      data: summary
     });
   } catch (error) {
     console.error('Error in getReportSummary:', error);
@@ -251,8 +266,34 @@ const getReportSummary = async (req, res) => {
   }
 };
 
+// Get available date range (min and max dates from data)
+const getDateRange = async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        MIN(date) AS minDate,
+        MAX(date) AS maxDate
+      FROM v_item_stock_new
+    `;
+    
+    const [results] = await sequelize.query(query);
+    
+    res.json({
+      success: true,
+      data: {
+        minDate: results[0]?.minDate || null,
+        maxDate: results[0]?.maxDate || null
+      }
+    });
+  } catch (error) {
+    console.error('Error in getDateRange:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = { 
   getInventoryStockFlowReport, 
   exportToCSV, 
-  getReportSummary 
+  getReportSummary,
+  getDateRange
 };

@@ -41,9 +41,14 @@ const reportAPI = {
     if (params.poNo) queryParams.append('poNo', params.poNo);
     
     window.open(`${API}/reports/purchase-grn-report/export/csv?${queryParams.toString()}`, '_blank');
+  },
+
+  getSuppliers: async () => {
+    const response = await fetch(`${API}/reports/purchase-grn-report/suppliers`);
+    const data = await response.json();
+    return data;
   }
 };
-
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function PurchaseGrnReportPage() {
   const { user } = useAuth();
@@ -82,8 +87,7 @@ export default function PurchaseGrnReportPage() {
     const result = await reportAPI.getReport(params);
     if (result.success) {
       setReportData(result.data || []);
-      const uniqueSuppliers = [...new Set((result.data || []).map(item => item.supplierName).filter(Boolean))];
-      setSuppliers(uniqueSuppliers);
+      // Don't overwrite suppliers here - they are already loaded separately
       setFiltersApplied(true);
     } else {
       setError(result.message || "Failed to fetch report");
@@ -102,6 +106,21 @@ export default function PurchaseGrnReportPage() {
   useEffect(() => {
     fetchReport();
   }, []);
+
+  // Add this useEffect after your other useEffects
+useEffect(() => {
+  const fetchSuppliers = async () => {
+    try {
+      const result = await reportAPI.getSuppliers();
+      if (result.success) {
+        setSuppliers(result.data);
+      }
+    } catch (err) {
+      console.error("Error fetching suppliers:", err);
+    }
+  };
+  fetchSuppliers();
+}, []);
 
   // Toggle expand/collapse for GRN row
   const toggleExpand = (grnNo) => {

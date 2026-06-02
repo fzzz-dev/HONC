@@ -244,27 +244,44 @@ const updatePurchaseOrder = async (req, res) => {
   }
 };
 
-// Get all Purchase Orders
+// Get all Purchase Orders - Using the view structure
 const getAllPurchaseOrders = async (req, res) => {
   try {
-    const orders = await PurchaseOrder.findAll({
-      order: [['createdAt', 'DESC']],
-      attributes: ['id', 'poNo', 'date', 'supplierId', 'supplierName', 'deliveryDate', 'poType', 
-                   'gstEnabled', 'gstType', 'paymentTermsId', 'paymentTermsName', 'refNo', 'refDate',
-                   'purchaseIndentId', 'purchaseIndentNo', 'remarks', 'grossAmount', 'discAmount',
-                   'poAmount', 'igstAmount', 'cgstAmount', 'sgstAmount', 'netAmount', 'totalAmount',
-                   'roundoff', 'totalItems', 'createdBy', 'status', 'level1Approved', 'level1ApprovedBy',
-                   'level1ApprovedDate', 'level2Approved', 'level2ApprovedBy', 'level2ApprovedDate',
-                   'createdAt', 'updatedAt'],
-      include: [{
-        model: PurchaseOrderDetail,
-        as: 'details'
-      }]
-    });
+    const query = `
+      SELECT 
+        po.poNo AS ponumber,
+        po.date AS podate,
+        s.supplierName AS supplier,
+        po.deliveryDate AS deliverydate,
+        po.poType AS potype,
+        pi.indentNo AS indentNo,
+        i.itemName AS itemName,
+        u.name AS uom,
+        pod.poQty AS poQty,
+        pod.poRate AS porate,
+        pod.discPrice AS discPrice,
+        pod.totGst AS totGst,
+        pod.totalAmount AS totalAmount,
+        po.level1Approved AS level1Approved,
+        po.level1ApprovedBy AS level1ApprovedBy,
+        po.level1ApprovedDate AS level1ApprovedDate,
+        po.level2Approved AS level2Approved,
+        po.level2ApprovedBy AS level2ApprovedBy,
+        po.level2ApprovedDate AS level2ApprovedDate
+      FROM purchaseorders po
+      LEFT JOIN purchaseorderdetails pod ON po.id = pod.purchaseOrderId
+      LEFT JOIN suppliers s ON po.supplierId = s.id
+      LEFT JOIN purchaseindents pi ON pod.indentNo = pi.indentNo
+      LEFT JOIN items i ON pod.itemId = i.id
+      LEFT JOIN uoms u ON pod.uom = u.name
+      ORDER BY po.date DESC, po.poNo
+    `;
+    
+    const [results] = await sequelize.query(query);
     
     res.json({
       success: true,
-      data: orders
+      data: results
     });
   } catch (error) {
     console.error("Error fetching purchase orders:", error);
@@ -272,27 +289,124 @@ const getAllPurchaseOrders = async (req, res) => {
   }
 };
 
-// Get single Purchase Order
+// Get single Purchase Order - Using the view structure with filter
 const getPurchaseOrderById = async (req, res) => {
   try {
     const { id } = req.params;
-    const order = await PurchaseOrder.findByPk(id, {
-      attributes: ['id', 'poNo', 'date', 'supplierId', 'supplierName', 'deliveryDate', 'poType',
-                   'gstEnabled', 'gstType', 'paymentTermsId', 'paymentTermsName', 'refNo', 'refDate',
-                   'purchaseIndentId', 'purchaseIndentNo', 'remarks', 'grossAmount', 'discAmount',
-                   'poAmount', 'igstAmount', 'cgstAmount', 'sgstAmount', 'netAmount', 'totalAmount',
-                   'roundoff', 'totalItems', 'createdBy', 'status', 'level1Approved', 'level1ApprovedBy',
-                   'level1ApprovedDate', 'level2Approved', 'level2ApprovedBy', 'level2ApprovedDate',
-                   'createdAt', 'updatedAt'],
-      include: [{
-        model: PurchaseOrderDetail,
-        as: 'details'
-      }]
+    
+    const query = `
+      SELECT 
+        po.poNo AS ponumber,
+        po.date AS podate,
+        s.supplierName AS supplier,
+        po.deliveryDate AS deliverydate,
+        po.poType AS potype,
+        pi.indentNo AS indentNo,
+        i.itemName AS itemName,
+        u.name AS uom,
+        pod.poQty AS poQty,
+        pod.poRate AS porate,
+        pod.discPrice AS discPrice,
+        pod.totGst AS totGst,
+        pod.totalAmount AS totalAmount,
+        po.level1Approved AS level1Approved,
+        po.level1ApprovedBy AS level1ApprovedBy,
+        po.level1ApprovedDate AS level1ApprovedDate,
+        po.level2Approved AS level2Approved,
+        po.level2ApprovedBy AS level2ApprovedBy,
+        po.level2ApprovedDate AS level2ApprovedDate,
+        po.id AS poId,
+        po.supplierId,
+        po.gstEnabled,
+        po.gstType,
+        po.paymentTermsId,
+        po.paymentTermsName,
+        po.refNo,
+        po.refDate,
+        po.purchaseIndentId,
+        po.purchaseIndentNo,
+        po.remarks,
+        po.grossAmount,
+        po.discAmount,
+        po.poAmount,
+        po.igstAmount,
+        po.cgstAmount,
+        po.sgstAmount,
+        po.netAmount,
+        po.totalAmount AS poTotalAmount,
+        po.roundoff,
+        po.totalItems,
+        po.status,
+        po.createdBy,
+        po.createdAt,
+        po.updatedAt
+      FROM purchaseorders po
+      LEFT JOIN purchaseorderdetails pod ON po.id = pod.purchaseOrderId
+      LEFT JOIN suppliers s ON po.supplierId = s.id
+      LEFT JOIN purchaseindents pi ON pod.indentNo = pi.indentNo
+      LEFT JOIN items i ON pod.itemId = i.id
+      LEFT JOIN uoms u ON pod.uom = u.name
+      WHERE po.id = ?
+      ORDER BY pod.id
+    `;
+    
+    const [results] = await sequelize.query(query, {
+      replacements: [id]
     });
     
-    if (!order) {
+    if (!results || results.length === 0) {
       return res.status(404).json({ success: false, message: "Purchase Order not found" });
     }
+    
+    // Group details under the main order
+    const order = {
+      id: results[0].poId,
+      ponumber: results[0].ponumber,
+      podate: results[0].podate,
+      supplier: results[0].supplier,
+      supplierId: results[0].supplierId,
+      deliverydate: results[0].deliverydate,
+      potype: results[0].potype,
+      gstEnabled: results[0].gstEnabled,
+      gstType: results[0].gstType,
+      paymentTermsId: results[0].paymentTermsId,
+      paymentTermsName: results[0].paymentTermsName,
+      refNo: results[0].refNo,
+      refDate: results[0].refDate,
+      purchaseIndentId: results[0].purchaseIndentId,
+      purchaseIndentNo: results[0].purchaseIndentNo,
+      remarks: results[0].remarks,
+      grossAmount: results[0].grossAmount,
+      discAmount: results[0].discAmount,
+      poAmount: results[0].poAmount,
+      igstAmount: results[0].igstAmount,
+      cgstAmount: results[0].cgstAmount,
+      sgstAmount: results[0].sgstAmount,
+      netAmount: results[0].netAmount,
+      totalAmount: results[0].poTotalAmount,
+      roundoff: results[0].roundoff,
+      totalItems: results[0].totalItems,
+      status: results[0].status,
+      level1Approved: results[0].level1Approved,
+      level1ApprovedBy: results[0].level1ApprovedBy,
+      level1ApprovedDate: results[0].level1ApprovedDate,
+      level2Approved: results[0].level2Approved,
+      level2ApprovedBy: results[0].level2ApprovedBy,
+      level2ApprovedDate: results[0].level2ApprovedDate,
+      createdBy: results[0].createdBy,
+      createdAt: results[0].createdAt,
+      updatedAt: results[0].updatedAt,
+      details: results.map(row => ({
+        indentNo: row.indentNo,
+        itemName: row.itemName,
+        uom: row.uom,
+        poQty: row.poQty,
+        poRate: row.porate,
+        discPrice: row.discPrice,
+        totGst: row.totGst,
+        totalAmount: row.totalAmount
+      }))
+    };
     
     res.json({
       success: true,
@@ -349,11 +463,30 @@ const getNextPONumber = async (req, res) => {
   }
 };
 
+// Get Purchase Order Result from view (direct view access)
+const getPurchaseOrderResultView = async (req, res) => {
+  try {
+    const [results] = await sequelize.query(`
+      SELECT * FROM purchaseorderresult
+      ORDER BY podate DESC, ponumber
+    `);
+    
+    res.json({
+      success: true,
+      data: results
+    });
+  } catch (error) {
+    console.error("Error fetching purchase order result view:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   createPurchaseOrder,
   updatePurchaseOrder,
   getAllPurchaseOrders,
   getPurchaseOrderById,
   deletePurchaseOrder,
-  getNextPONumber
+  getNextPONumber,
+  getPurchaseOrderResultView
 };

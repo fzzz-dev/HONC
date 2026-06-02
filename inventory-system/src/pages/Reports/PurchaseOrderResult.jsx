@@ -42,7 +42,7 @@ const reportAPI = {
   },
   // Fetch ALL suppliers (not filtered by report results)
   getAllSuppliers: async () => {
-    const response = await fetch(`${API}/reports/purchase-order-report/all-suppliers`);
+    const response = await fetch(`${API}/reports/purchase-order-report/suppliers`);
     const data = await response.json();
     return data;
   }
@@ -141,8 +141,16 @@ export default function PurchaseOrderReportPage() {
   
   // Handle Result button click
   const handleResult = () => {
-    fetchReport();
-  };
+  // Validate dates
+  if (fromDate && toDate) {
+    if (new Date(fromDate) > new Date(toDate)) {
+      setError("From Date cannot be greater than To Date");
+      return;
+    }
+  }
+  setError(null);
+  fetchReport();
+};  
   
   // Handle Reset button click
   const handleReset = () => {
@@ -285,26 +293,43 @@ export default function PurchaseOrderReportPage() {
       <div className="inv-card" style={{ marginBottom: 16 }}>
         <div className="inv-card-body">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 16 }}>
-            <div className="inv-field">
-              <label className="inv-label">From Date</label>
-              <input
-                type="date"
-                className="inv-input"
-                tabIndex={1}
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-              />
-            </div>
-            <div className="inv-field">
-              <label className="inv-label">To Date</label>
-              <input
-                type="date"
-                className="inv-input"
-                tabIndex={2}
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-              />
-            </div>
+          <div className="inv-field">
+  <label className="inv-label">From Date</label>
+  <input
+    type="date"
+    className="inv-input"
+    tabIndex={1}
+    value={fromDate}
+    onChange={(e) => {
+      const newFromDate = e.target.value;
+      if (toDate && newFromDate > toDate) {
+        setError("From Date cannot be greater than To Date");
+      } else {
+        setError(null);
+        setFromDate(newFromDate);
+      }
+    }}
+  />
+</div>
+
+<div className="inv-field">
+  <label className="inv-label">To Date</label>
+  <input
+    type="date"
+    className="inv-input"
+    tabIndex={2}
+    value={toDate}
+    onChange={(e) => {
+      const newToDate = e.target.value;
+      if (fromDate && fromDate > newToDate) {
+        setError("To Date cannot be less than From Date");
+      } else {
+        setError(null);
+        setToDate(newToDate);
+      }
+    }}
+  />
+</div>
             <div className="inv-field">
               <label className="inv-label">Search PO No</label>
               <input

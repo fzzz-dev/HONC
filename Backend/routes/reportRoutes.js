@@ -9,7 +9,7 @@ router.get('/test', (req, res) => {
 // ==================== PURCHASE INDENT REPORT ====================
 router.get('/purchase-indent-report', async (req, res) => {
   try {
-    const { fromDate, toDate, searchTerm, searchIndentNo, category, status, departmentId } = req.query;
+    const { fromDate, toDate, searchTerm, searchIndentNo, category, status, departmentName } = req.query;
     
     let query = `
       SELECT 
@@ -61,9 +61,10 @@ router.get('/purchase-indent-report', async (req, res) => {
       replacements.category = category;
     }
     
-    if (departmentId) {
-      whereConditions.push(`a.departmentid = :departmentId`);
-      replacements.departmentId = departmentId;
+    // FIXED: departmentId contains the department name
+    if (departmentName) {
+      whereConditions.push(`b.name = :departmentName`);
+      replacements.departmentName = departmentName;  
     }
     
     if (status && status !== 'All') {
@@ -88,8 +89,10 @@ router.get('/purchase-indent-report', async (req, res) => {
     console.error('Error in /purchase-indent-report:', error);
     res.status(500).json({ success: false, message: error.message });
   }
+  
+console.log("Received query params:", req.query);
+console.log("departmentName value:", departmentName);
 });
-
 // Add these after your existing routes in reports.js
 
 router.get('/purchase-indent-report/all-categories', async (req, res) => {
@@ -415,7 +418,7 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
   }
 });
 
-// Add this to your backend reports.js
+
 
 // Get all distinct suppliers for dropdown
 router.get('/purchase-order-report/suppliers', async (req, res) => {
@@ -619,7 +622,7 @@ router.get('/purchase-grn-report/export/csv', async (req, res) => {
 
 // Add this to your backend reports.js
 
-router.get('/purchase-grn-report/all-suppliers', async (req, res) => {
+router.get('/purchase-grn-report/suppliers', async (req, res) => {
   try {
     const [results] = await sequelize.query(`
       SELECT DISTINCT supplierName 
@@ -636,7 +639,10 @@ router.get('/purchase-grn-report/all-suppliers', async (req, res) => {
   }
 });
 
+
 // ==================== INVENTORY STOCK FLOW REPORT ====================
+
+// Get Inventory Stock Flow Report
 router.get('/inventory/stock-flow', async (req, res) => {
   const { fromDate, toDate } = req.query;
   
@@ -700,12 +706,8 @@ router.get('/inventory/stock-flow', async (req, res) => {
       ORDER BY a.storename, a.maincat, a.itemdescription
     `;
     
-    // FIX: Remove the array destructuring and type
     const results = await sequelize.query(query, { replacements });
-    
-    // The results[0] contains the actual data array
     const dataArray = results[0] || [];
-
     
     res.json({
       success: true,
@@ -718,6 +720,114 @@ router.get('/inventory/stock-flow', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
+// Get Report Summary
+router.get('/inventory/stock-flow/summary', async (req, res) => {
+  const { fromDate, toDate } = req.query;
+  
+  try {
+    let query = `
+      SELECT 
+        COUNT(DISTINCT CONCAT(a.storename, a.maincat, a.itemdescription)) AS totalItems,
+        SUM(a.opstk) AS totalOpeningStock,
+        SUM(a.recqty) AS totalReceived,
+        SUM(a.issqty) AS totalIssued,
+        SUM(a.opstk) + SUM(a.recqty) - SUM(a.issqty) AS totalClosingStock
+      FROM (
+        SELECT 
+          a.storename, 
+          a.maincat, 
+          a.itemdescription, 
+          SUM(a.recqty) - SUM(a.issqty) AS opstk, 
+          0 AS recqty, 
+          0 AS issqty  
+        FROM v_item_stock_new a 
+    `;
+    
+    const replacements = {};
+    
+    if (fromDate) {
+      query += ` WHERE a.date < :fromDate`;
+      replacements.fromDate = fromDate;
+    }
+    
+    query += `
+        GROUP BY a.storename, a.maincat, a.itemdescription 
+        
+        UNION ALL
+        
+        SELECT 
+          a.storename, 
+          a.maincat, 
+          a.itemdescription, 
+          0 AS opty, 
+          SUM(a.recqty) AS recqty, 
+          SUM(a.issqty) AS issqty   
+        FROM v_item_stock_new a 
+    `;
+    
+    if (fromDate && toDate) {
+      query += ` WHERE a.date BETWEEN :fromDate AND :toDate`;
+      replacements.toDate = toDate;
+    } else if (fromDate) {
+      query += ` WHERE a.date >= :fromDate`;
+    } else if (toDate) {
+      query += ` WHERE a.date <= :toDate`;
+      replacements.toDate = toDate;
+    }
+    
+    query += `
+        GROUP BY a.storename, a.maincat, a.itemdescription
+      ) a 
+    `;
+    
+    const results = await sequelize.query(query, { replacements });
+    const summaryData = results[0] || [{}];
+    
+    res.json({
+      success: true,
+      data: {
+        totalItems: Number(summaryData[0]?.totalItems) || 0,
+        totalOpeningStock: Number(summaryData[0]?.totalOpeningStock) || 0,
+        totalReceived: Number(summaryData[0]?.totalReceived) || 0,
+        totalIssued: Number(summaryData[0]?.totalIssued) || 0,
+        totalClosingStock: Number(summaryData[0]?.totalClosingStock) || 0
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching report summary:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get Date Range (min and max dates from data)
+router.get('/inventory/stock-flow/date-range', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        MIN(date) AS minDate,
+        MAX(date) AS maxDate
+      FROM v_item_stock_new
+    `;
+    
+    const results = await sequelize.query(query);
+    const dateRange = results[0] || [{}];
+    
+    res.json({
+      success: true,
+      data: {
+        minDate: dateRange[0]?.minDate || null,
+        maxDate: dateRange[0]?.maxDate || null
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching date range:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 
 // Export CSV for Stock Flow Report
 router.get('/inventory/stock-flow/export/csv', async (req, res) => {

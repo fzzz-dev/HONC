@@ -9,12 +9,12 @@ const getPurchaseGRNReport = async (req, res) => {
       SELECT 
         pg.grnNo,
         pg.date AS grnDate,
-        pg.supplierName,
+        s.supplierName AS supplierName,
         pg.invoiceNo,
-        pgd.poNo,
-        pgd.indentNo,
-        pgd.itemName,
-        pgd.uom,
+        po.poNo AS poNo,
+        pi.indentNo AS indentNo,
+        i.itemName AS itemName,
+        u.name AS uom,
         pgd.grnQty,
         pgd.phyQty,
         pgd.grnRate,
@@ -22,7 +22,12 @@ const getPurchaseGRNReport = async (req, res) => {
         pgd.totGst,
         pgd.totalAmount AS detailTotalAmount
       FROM purchasegrns pg 
-      LEFT JOIN purchasegrndetails pgd ON pg.id = pgd.purchaseGRNId 
+      LEFT JOIN purchasegrndetails pgd ON pg.id = pgd.purchaseGRNId
+      LEFT JOIN suppliers s ON pg.supplierId = s.id
+      LEFT JOIN purchaseorders po ON pgd.poNo = po.poNo
+      LEFT JOIN purchaseindents pi ON pgd.indentNo = pi.indentNo
+      LEFT JOIN items i ON pgd.itemId = i.id
+      LEFT JOIN uoms u ON i.uom = u.id
       WHERE 1=1
     `;
     
@@ -44,17 +49,17 @@ const getPurchaseGRNReport = async (req, res) => {
     }
     
     if (searchTerm) {
-      query += ` AND (pgd.itemName LIKE :searchTerm OR pgd.indentNo LIKE :searchTerm)`;
+      query += ` AND (i.itemName LIKE :searchTerm OR pi.indentNo LIKE :searchTerm)`;
       replacements.searchTerm = `%${searchTerm}%`;
     }
     
     if (supplier) {
-      query += ` AND pg.supplierName = :supplier`;
+      query += ` AND s.supplierName = :supplier`;
       replacements.supplier = supplier;
     }
     
     if (poNo) {
-      query += ` AND pgd.poNo LIKE :poNo`;
+      query += ` AND po.poNo LIKE :poNo`;
       replacements.poNo = `%${poNo}%`;
     }
     
@@ -81,12 +86,12 @@ const exportGRNToCSV = async (req, res) => {
       SELECT 
         pg.grnNo AS 'GRN No',
         pg.date AS 'GRN Date',
-        pg.supplierName AS 'Supplier',
+        s.supplierName AS 'Supplier',
         pg.invoiceNo AS 'Invoice No',
-        pgd.poNo AS 'PO No',
-        pgd.indentNo AS 'Indent No',
-        pgd.itemName AS 'Item Name',
-        pgd.uom AS 'UOM',
+        po.poNo AS 'PO No',
+        pi.indentNo AS 'Indent No',
+        i.itemName AS 'Item Name',
+        u.name AS 'UOM',
         pgd.grnQty AS 'GRN Qty',
         pgd.phyQty AS 'Physical Qty',
         pgd.grnRate AS 'Rate',
@@ -94,7 +99,12 @@ const exportGRNToCSV = async (req, res) => {
         pgd.totGst AS 'Total GST',
         pgd.totalAmount AS 'Total Amount'
       FROM purchasegrns pg 
-      LEFT JOIN purchasegrndetails pgd ON pg.id = pgd.purchaseGRNId 
+      LEFT JOIN purchasegrndetails pgd ON pg.id = pgd.purchaseGRNId
+      LEFT JOIN suppliers s ON pg.supplierId = s.id
+      LEFT JOIN purchaseorders po ON pgd.poNo = po.poNo
+      LEFT JOIN purchaseindents pi ON pgd.indentNo = pi.indentNo
+      LEFT JOIN items i ON pgd.itemId = i.id
+      LEFT JOIN uoms u ON i.uom = u.id
       WHERE 1=1
     `;
     
@@ -116,17 +126,17 @@ const exportGRNToCSV = async (req, res) => {
     }
     
     if (searchTerm) {
-      query += ` AND (pgd.itemName LIKE :searchTerm OR pgd.indentNo LIKE :searchTerm)`;
+      query += ` AND (i.itemName LIKE :searchTerm OR pi.indentNo LIKE :searchTerm)`;
       replacements.searchTerm = `%${searchTerm}%`;
     }
     
     if (supplier) {
-      query += ` AND pg.supplierName = :supplier`;
+      query += ` AND s.supplierName = :supplier`;
       replacements.supplier = supplier;
     }
     
     if (poNo) {
-      query += ` AND pgd.poNo LIKE :poNo`;
+      query += ` AND po.poNo LIKE :poNo`;
       replacements.poNo = `%${poNo}%`;
     }
     
@@ -198,6 +208,7 @@ const getGRNReportSummary = async (req, res) => {
         SUM(pgd.totalAmount) AS totalAmount
       FROM purchasegrns pg 
       LEFT JOIN purchasegrndetails pgd ON pg.id = pgd.purchaseGRNId
+      LEFT JOIN suppliers s ON pg.supplierId = s.id
       WHERE 1=1
     `;
     
@@ -214,7 +225,7 @@ const getGRNReportSummary = async (req, res) => {
     }
     
     if (supplier) {
-      query += ` AND pg.supplierName = :supplier`;
+      query += ` AND s.supplierName = :supplier`;
       replacements.supplier = supplier;
     }
     
@@ -470,7 +481,7 @@ const getIndentReportSummary = async (req, res) => {
   }
 };
 
-// ==================== PURCHASE ORDER REPORT ====================
+// ==================== PURCHASE ORDER REPORT (UPDATED) ====================
 const getPurchaseOrderReport = async (req, res) => {
   try {
     const { fromDate, toDate, searchTerm, searchPONo, supplier } = req.query;
@@ -479,20 +490,24 @@ const getPurchaseOrderReport = async (req, res) => {
       SELECT 
         po.poNo AS ponumber,
         po.date AS podate,
-        po.supplierName AS supplier,
+        s.supplierName AS supplier,
         po.deliveryDate AS deliverydate,
         po.poType AS potype,
-        pod.indentNo,
-        pod.itemName,
-        pod.uom,
-        pod.poQty,
+        pi.indentNo AS indentNo,
+        i.itemName AS itemName,
+        u.name AS uom,
+        pod.poQty AS poQty,
         pod.poAmount AS poamt,
         pod.poRate AS porate,
-        pod.discPrice,
-        pod.totGst,
-        pod.totalAmount
+        pod.discPrice AS discPrice,
+        pod.totGst AS totGst,
+        pod.totalAmount AS totalAmount
       FROM purchaseorders po 
-      LEFT JOIN purchaseorderdetails pod ON po.id = pod.purchaseOrderId 
+      LEFT JOIN purchaseorderdetails pod ON po.id = pod.purchaseOrderId
+      LEFT JOIN suppliers s ON po.supplierId = s.id
+      LEFT JOIN purchaseindents pi ON pod.indentNo = pi.indentNo
+      LEFT JOIN items i ON pod.itemId = i.id
+      LEFT JOIN uoms u ON pod.uom = u.name
       WHERE 1=1
     `;
     
@@ -514,12 +529,12 @@ const getPurchaseOrderReport = async (req, res) => {
     }
     
     if (searchTerm) {
-      query += ` AND (pod.itemName LIKE :searchTerm OR pod.indentNo LIKE :searchTerm)`;
+      query += ` AND (i.itemName LIKE :searchTerm OR pi.indentNo LIKE :searchTerm)`;
       replacements.searchTerm = `%${searchTerm}%`;
     }
     
     if (supplier) {
-      query += ` AND po.supplierName = :supplier`;
+      query += ` AND s.supplierName = :supplier`;
       replacements.supplier = supplier;
     }
     
@@ -533,7 +548,7 @@ const getPurchaseOrderReport = async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error in getPurchaseOrderReport:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -546,19 +561,23 @@ const exportOrderToCSV = async (req, res) => {
       SELECT 
         po.poNo AS 'PO Number',
         po.date AS 'PO Date',
-        po.supplierName AS 'Supplier',
+        s.supplierName AS 'Supplier',
         po.deliveryDate AS 'Delivery Date',
         po.poType AS 'PO Type',
-        pod.indentNo AS 'Indent No',
-        pod.itemName AS 'Item Name',
-        pod.uom AS 'UOM',
+        pi.indentNo AS 'Indent No',
+        i.itemName AS 'Item Name',
+        u.name AS 'UOM',
         pod.poQty AS 'PO Qty',
         pod.poRate AS 'Rate',
         pod.discPrice AS 'Discount',
         pod.totGst AS 'GST',
         pod.totalAmount AS 'Total Amount'
       FROM purchaseorders po 
-      LEFT JOIN purchaseorderdetails pod ON po.id = pod.purchaseOrderId 
+      LEFT JOIN purchaseorderdetails pod ON po.id = pod.purchaseOrderId
+      LEFT JOIN suppliers s ON po.supplierId = s.id
+      LEFT JOIN purchaseindents pi ON pod.indentNo = pi.indentNo
+      LEFT JOIN items i ON pod.itemId = i.id
+      LEFT JOIN uoms u ON pod.uom = u.name
       WHERE 1=1
     `;
     
@@ -580,12 +599,12 @@ const exportOrderToCSV = async (req, res) => {
     }
     
     if (searchTerm) {
-      query += ` AND (pod.itemName LIKE :searchTerm OR pod.indentNo LIKE :searchTerm)`;
+      query += ` AND (i.itemName LIKE :searchTerm OR pi.indentNo LIKE :searchTerm)`;
       replacements.searchTerm = `%${searchTerm}%`;
     }
     
     if (supplier) {
-      query += ` AND po.supplierName = :supplier`;
+      query += ` AND s.supplierName = :supplier`;
       replacements.supplier = supplier;
     }
     
@@ -638,7 +657,7 @@ const exportOrderToCSV = async (req, res) => {
     const BOM = '\uFEFF';
     res.send(BOM + csvRows.join('\n'));
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error in exportOrderToCSV:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -658,6 +677,7 @@ const getOrderReportSummary = async (req, res) => {
         MAX(po.date) AS latestOrderDate
       FROM purchaseorders po 
       LEFT JOIN purchaseorderdetails pod ON po.id = pod.purchaseOrderId
+      LEFT JOIN suppliers s ON po.supplierId = s.id
       WHERE 1=1
     `;
     
@@ -674,7 +694,7 @@ const getOrderReportSummary = async (req, res) => {
     }
     
     if (supplier) {
-      query += ` AND po.supplierName = :supplier`;
+      query += ` AND s.supplierName = :supplier`;
       replacements.supplier = supplier;
     }
     
@@ -685,7 +705,7 @@ const getOrderReportSummary = async (req, res) => {
       data: results[0] || {}
     });
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error in getOrderReportSummary:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

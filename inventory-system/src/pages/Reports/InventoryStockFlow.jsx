@@ -6,7 +6,14 @@ const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigit
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 const API = "http://192.168.1.100:5173/api";
 
-
+// Get today's date in YYYY-MM-DD format
+const getTodayDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 // ─── API Calls ────────────────────────────────────────────────────────────────
 const reportAPI = {
@@ -38,26 +45,56 @@ export default function InventoryStockFlow() {
   const [error, setError] = useState(null);
   const tableBodyRef = useRef(null);
   
-  // Filter states
-  const [fromDate, setFromDate] = useState("2026-05-20");
-  const [toDate, setToDate] = useState("2026-05-27");
+  // Get today's date for default values
+  const todayDate = getTodayDate();
+  
+  // Filter states - default to today's date
+  const [fromDate, setFromDate] = useState(todayDate);
+  const [toDate, setToDate] = useState(todayDate);
   const [searchTerm, setSearchTerm] = useState("");
   
   // State to track if report has been fetched
   const [reportFetched, setReportFetched] = useState(false);
 
-  // Validate dates
+  // Validate dates - to date cannot be greater than today
   const validateDates = useCallback(() => {
     const currentFromDate = new Date(fromDate);
     const currentToDate = new Date(toDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
     if (currentFromDate > currentToDate) {
       setError("From date cannot be greater than To date");
       return false;
     }
+    
+    if (currentToDate > today) {
+      setError("To date cannot be greater than today's date");
+      return false;
+    }
+    
     setError(null);
     return true;
   }, [fromDate, toDate]);
+
+  // Handle To Date change - ensure it doesn't exceed today
+  const handleToDateChange = (e) => {
+    const selectedDate = e.target.value;
+    const today = getTodayDate();
+    
+    if (selectedDate > today) {
+      setError("To date cannot be greater than today's date");
+      setToDate(today);
+    } else {
+      setError(null);
+      setToDate(selectedDate);
+    }
+  };
+
+  // Handle From Date change
+  const handleFromDateChange = (e) => {
+    setFromDate(e.target.value);
+  };
 
   // Fetch report data (only called when Result button is clicked)
   const fetchReport = useCallback(async () => {
@@ -183,63 +220,59 @@ export default function InventoryStockFlow() {
         </div>
       </div>
 
-{/* search and filter section */}
-
+      {/* search and filter section */}
       <div className="inv-card" style={{ marginBottom: 16 }}>
-  <div className="inv-card-body">
-    <div style={{ display: "flex", gap: 20, marginBottom: 16 }}>
-      <div className="inv-field" style={{ width: 220 }}>
-        <label className="inv-label">From Date (Min: 20-05-2026)</label>
-        <input
-          type="date"
-          className="inv-input"
-          tabIndex={1}
-          min="2026-05-20"
-          max="2026-05-27"
-          value={fromDate}
-          onChange={(e) => setFromDate(e.target.value)}
-          style={{ width: "100%" }}
-        />
+        <div className="inv-card-body">
+          <div style={{ display: "flex", gap: 20, marginBottom: 16 }}>
+            <div className="inv-field" style={{ width: 220 }}>
+              <label className="inv-label">From Date</label>
+              <input
+                type="date"
+                className="inv-input"
+                tabIndex={1}
+                value={fromDate}
+                onChange={handleFromDateChange}
+                style={{ width: "100%" }}
+              />
+            </div>
+            <div className="inv-field" style={{ width: 220 }}>
+              <label className="inv-label">To Date (Cannot exceed today)</label>
+              <input
+                type="date"
+                className="inv-input"
+                tabIndex={2}
+                max={todayDate}
+                value={toDate}
+                onChange={handleToDateChange}
+                style={{ width: "100%" }}
+              />
+            </div>
+            <div className="inv-field" style={{ width: 280 }}>
+              <label className="inv-label">Search Item</label>
+              <input
+                type="text"
+                className="inv-input"
+                tabIndex={3}
+                placeholder="Search by item name, store or category..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{ width: "100%" }}
+              />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button 
+              className="inv-btn-primary" 
+              onClick={handleResult}
+              disabled={loading}
+              tabIndex={4}
+              style={{ minWidth: 50 }}
+            >
+              {loading ? "Loading..." : "Result"}
+            </button>
+          </div>
+        </div>
       </div>
-      <div className="inv-field" style={{ width: 220 }}>
-        <label className="inv-label">To Date (Max: 27-05-2026)</label>
-        <input
-          type="date"
-          className="inv-input"
-          tabIndex={2}
-          min="2026-05-20"
-          max="2026-05-27"
-          value={toDate}
-          onChange={(e) => setToDate(e.target.value)}
-          style={{ width: "100%" }}
-        />
-      </div>
-      <div className="inv-field" style={{ width: 280 }}>
-        <label className="inv-label">Search Item</label>
-        <input
-          type="text"
-          className="inv-input"
-          tabIndex={3}
-          placeholder="Search by item name, store or category..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={{ width: "100%" }}
-        />
-      </div>
-    </div>
-    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-      <button 
-        className="inv-btn-primary" 
-        onClick={handleResult}
-        disabled={loading}
-        tabIndex={4}
-        style={{ minWidth: 50 }}
-      >
-        {loading ? "Loading..." : "Result"}
-      </button>
-    </div>
-  </div>
-</div>
 
       {/* Report Table */}
       <div className="inv-card">

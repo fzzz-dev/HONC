@@ -24,9 +24,10 @@ const reportAPI = {
     if (params.searchTerm) queryParams.append('searchTerm', params.searchTerm);
     if (params.searchIndentNo) queryParams.append('searchIndentNo', params.searchIndentNo);
     if (params.category) queryParams.append('category', params.category);
-    if (params.departmentId) queryParams.append('departmentId', params.departmentId);
+    if (params.departmentName) queryParams.append('departmentName', params.departmentName);  // ← This must match
     
     const url = `${API}/reports/purchase-indent-report${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    console.log("Full URL being called:", url);  // ← Add this debug
     const response = await fetch(url);
     const data = await response.json();
     return data;
@@ -38,7 +39,7 @@ const reportAPI = {
     if (params.searchTerm) queryParams.append('searchTerm', params.searchTerm);
     if (params.searchIndentNo) queryParams.append('searchIndentNo', params.searchIndentNo);
     if (params.category) queryParams.append('category', params.category);
-    if (params.departmentId) queryParams.append('departmentId', params.departmentId);
+    if (params.departmentId) queryParams.append('departmentName', params.departmentName);
     
     window.open(`${API}/reports/purchase-indent-report/export/csv?${queryParams.toString()}`, '_blank');
   },
@@ -113,32 +114,35 @@ export default function PurchaseIndentReportPage() {
 
   // Fetch report data (only called when Result button is clicked)
   const fetchReport = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = {};
-      if (fromDate) params.fromDate = fromDate;
-      if (toDate) params.toDate = toDate;
-      if (searchTerm) params.searchTerm = searchTerm;
-      if (searchIndentNo) params.searchIndentNo = searchIndentNo;
-      if (selectedCategory) params.category = selectedCategory;
-      if (selectedDepartment) params.departmentId = selectedDepartment;
-      
-      const result = await reportAPI.getReport(params);
-      if (result.success) {
-        setReportData(result.data || []);
-        setFiltersApplied(true);
-      } else {
-        setError(result.message || "Failed to fetch report");
-        setFiltersApplied(false);
-      }
-    } catch (err) {
-      setError(err.message);
+  setLoading(true);
+  setError(null);
+  try {
+    const params = {};
+    if (fromDate) params.fromDate = fromDate;
+    if (toDate) params.toDate = toDate;
+    if (searchTerm) params.searchTerm = searchTerm;
+    if (searchIndentNo) params.searchIndentNo = searchIndentNo;
+    if (selectedCategory) params.category = selectedCategory;
+    if (selectedDepartment) params.departmentName = selectedDepartment;
+    
+    console.log("Sending params to backend:", params); // Debug log
+    
+    const result = await reportAPI.getReport(params);
+    if (result.success) {
+      console.log("API Response count:", result.data?.length); // Debug log
+      setReportData(result.data || []);
+      setFiltersApplied(true);
+    } else {
+      setError(result.message || "Failed to fetch report");
       setFiltersApplied(false);
-    } finally {
-      setLoading(false);
     }
-  }, [fromDate, toDate, searchTerm, searchIndentNo, selectedCategory, selectedDepartment]);
+  } catch (err) {
+    setError(err.message);
+    setFiltersApplied(false);
+  } finally {
+    setLoading(false);
+  }
+}, [fromDate, toDate, searchTerm, searchIndentNo, selectedCategory, selectedDepartment]);
 
   // Auto-fetch on component mount with today's date filters
   useEffect(() => {
@@ -158,15 +162,24 @@ export default function PurchaseIndentReportPage() {
     if (searchTerm) params.searchTerm = searchTerm;
     if (searchIndentNo) params.searchIndentNo = searchIndentNo;
     if (selectedCategory) params.category = selectedCategory;
-    if (selectedDepartment) params.departmentId = selectedDepartment;
+    if (selectedDepartment) params.departmentName = selectedDepartment;
     reportAPI.exportToExcel(params);
   };
   
   // Handle Result button click
-  const handleResult = () => {
-    fetchReport();
-  };
-  
+  // Handle Result button click
+
+const handleResult = () => {
+  // Validate dates
+  if (fromDate && toDate) {
+    if (new Date(fromDate) > new Date(toDate)) {
+      setError("From Date cannot be greater than To Date");
+      return;
+    }
+  }
+  setError(null);
+  fetchReport();
+};
   // Handle Reset button click
   const handleReset = () => {
     setFromDate(getTodayDate());
@@ -267,23 +280,39 @@ export default function PurchaseIndentReportPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 16 }}>
             <div className="inv-field">
               <label className="inv-label">From Date</label>
-              <input
-                type="date"
-                className="inv-input"
-                tabIndex={1}
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-              />
+             <input
+  type="date"
+  className="inv-input"
+  tabIndex={1}
+  value={fromDate}
+  onChange={(e) => {
+    const newFromDate = e.target.value;
+    if (toDate && newFromDate > toDate) {
+      setError("From Date cannot be greater than To Date");
+    } else {
+      setError(null);
+      setFromDate(newFromDate);
+    }
+  }}
+/>
             </div>
             <div className="inv-field">
               <label className="inv-label">To Date</label>
               <input
-                type="date"
-                className="inv-input"
-                tabIndex={2}
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-              />
+  type="date"
+  className="inv-input"
+  tabIndex={2}
+  value={toDate}
+  onChange={(e) => {
+    const newToDate = e.target.value;
+    if (fromDate && fromDate > newToDate) {
+      setError("To Date cannot be less than From Date");
+    } else {
+      setError(null);
+      setToDate(newToDate);
+    }
+  }}
+/>
             </div>
             <div className="inv-field">
               <label className="inv-label">Search Item</label>
