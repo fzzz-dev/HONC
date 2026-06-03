@@ -1054,7 +1054,7 @@ async function handleSave() {
           <SectionLabel>Addresses</SectionLabel>
 {/* Debug - show count */}
 <div style={{ fontSize: 10, color: "gray", marginBottom: 5 }}>
-  Addresses in form: {form.addresses?.length || 0}
+  Addresses in xform: {form.addresses?.length || 0}
 </div>
 <AddressList 
   addresses={form.addresses || []} 

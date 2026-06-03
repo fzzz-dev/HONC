@@ -655,7 +655,7 @@ export default function PurchaseIndentPage() {
                   </div>
                 )}
               </Field>
-              
+
               <Field label="Department *">
                 <SearchSelect
                   className="department-select"
@@ -678,7 +678,7 @@ export default function PurchaseIndentPage() {
                   menuPortalTarget={document.body}
                 />
               </Field>
-              
+
               <Field label="Requested By">
                 <input 
                   tabIndex={4} 
@@ -709,9 +709,9 @@ export default function PurchaseIndentPage() {
                 <thead>
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
-                    <th style={{ minWidth: 180 }}>Head *</th>
-                    <th style={{ minWidth: 200 }}>Category *</th>
-                    <th style={{ minWidth: 200 }}>Item Description *</th>
+                    <th style={{ minWidth: 220 }}>Head *</th>
+                    <th style={{ minWidth: 220 }}>Category *</th>
+                    <th style={{ minWidth: 250 }}>Item Description *</th>
                     <th style={{ width: 80, textAlign: "center" }}>UOM</th>
                     <th style={{ width: 100, textAlign: "right" }}>Qty *</th>
                     <th style={{ width: 140 }}>Due Date</th>
@@ -721,15 +721,22 @@ export default function PurchaseIndentPage() {
                 </thead>
                 <tbody>
                   {displayDetails.map((row, idx) => {
+                    // ✅ Category filter: based ONLY on Head
                     const filteredCategories = row.headId ? (categories[sid(row.headId)] || []) : [];
                     
-                    const filteredItems = row.mainCategoryId 
+                    // ✅ Get the selected category name for item matching
+                    const selectedCategory = row.mainCategoryId 
+                      ? allCategoriesFlat.find(c => sid(c) === sid(row.mainCategoryId))
+                      : null;
+                    const selectedCategoryName = selectedCategory?.groupName || selectedCategory?.name || "";
+                    
+                    // ✅ FIXED: Item filter based on Head ID AND Category Name (using 'group' field)
+                    const filteredItems = (row.mainCategoryId && row.headId && selectedCategoryName)
                       ? items.filter(it => {
-                          const itemCategoryId = sid(it.groupId);
-                          const itemCategoryName = it.group || it.categoryName;
-                          return itemCategoryId === sid(row.mainCategoryId) || 
-                                itemCategoryName === row.mainCategoryName;
-                        }) 
+                          // Items have: headId (ID), group (Category Name)
+                          return sid(it.headId) === sid(row.headId) && 
+                                (it.group === selectedCategoryName || it.categoryName === selectedCategoryName);
+                        })
                       : [];
                     
                     const baseTab = 5 + (idx * 8);
@@ -738,47 +745,83 @@ export default function PurchaseIndentPage() {
                       <tr key={row._rowId}>
                         <td style={{ textAlign: "center" }}>{idx + 1}</td>
                         
-                        <td style={{ minWidth: "180px" }}>
-                          <SearchSelect
-                            tabIndex={baseTab}
-                            className="inv-select-cell head-select"
-                            style={{ padding: 0, border: "none", width: "100%" }}
-                            value={row.headId}
-                            onChange={val => updateDetail(idx, "headId", val)}
-                            options={heads.map(h => ({ value: sid(h), label: h.headName }))}
-                            placeholder="Select Head"
-                            menuPortalTarget={document.body}
-                          />
-                        </td>
-                        
-                        <td style={{ minWidth: "180px" }}>
-                          <SearchSelect
-                            tabIndex={baseTab + 1}
-                            className="inv-select-cell category-select"
-                            style={{ padding: 0, border: "none", width: "100%" }}
-                            value={row.mainCategoryId}
-                            onChange={val => updateDetail(idx, "mainCategoryId", val)}
-                            options={filteredCategories.map(c => ({ value: sid(c), label: c.groupName || c.name }))}
-                            placeholder={row.headId ? "Select Category" : "Select Head First"}
-                            disabled={!row.headId}
-                            menuPortalTarget={document.body}
-                          />
-                        </td>
-                        
+                        {/* Head - SearchSelect */}
                         <td style={{ minWidth: "220px" }}>
                           <SearchSelect
-                            tabIndex={baseTab + 2}
-                            className="inv-select-cell"
-                            style={{ padding: 0, border: "none", width: "100%" }}
-                            value={row.itemId}
-                            onChange={val => updateDetail(idx, "itemId", val)}
-                            options={filteredItems.map(it => ({ value: sid(it), label: it.itemDescription || it.itemName }))}
-                            placeholder={row.mainCategoryId ? "Select Item" : "Select Category First"}
-                            disabled={!row.mainCategoryId}
+                            tabIndex={baseTab}
+                            className="inv-input-cell"
+                            style={{ width: "100%" }}
+                            value={row.headId || ""}
+                            onChange={(val) => {
+                              const selectedHead = heads.find(h => sid(h) === val);
+                              updateDetail(idx, "headId", val);
+                              updateDetail(idx, "headName", selectedHead?.headName || "");
+                              // Clear dependent fields when head changes
+                              updateDetail(idx, "mainCategoryId", "");
+                              updateDetail(idx, "mainCategoryName", "");
+                              updateDetail(idx, "itemId", "");
+                              updateDetail(idx, "itemName", "");
+                              updateDetail(idx, "uom", "");
+                            }}
+                            options={heads.map(h => ({ 
+                              value: sid(h), 
+                              label: h.headName 
+                            }))}
+                            placeholder="Search Head..."
                             menuPortalTarget={document.body}
                           />
                         </td>
                         
+                        {/* Category - SearchSelect */}
+                        <td style={{ minWidth: "220px" }}>
+                          <SearchSelect
+                            tabIndex={baseTab + 1}
+                            className="inv-input-cell"
+                            style={{ width: "100%" }}
+                            value={row.mainCategoryId || ""}
+                            onChange={(val) => {
+                              const selectedCategory = filteredCategories.find(c => sid(c) === val);
+                              updateDetail(idx, "mainCategoryId", val);
+                              updateDetail(idx, "mainCategoryName", selectedCategory?.groupName || selectedCategory?.name || "");
+                              // Clear item when category changes
+                              updateDetail(idx, "itemId", "");
+                              updateDetail(idx, "itemName", "");
+                              updateDetail(idx, "uom", "");
+                            }}
+                            options={filteredCategories.map(c => ({ 
+                              value: sid(c), 
+                              label: c.groupName || c.name 
+                            }))}
+                            placeholder={row.headId ? "Search Category..." : "Select Head First"}
+                            isDisabled={!row.headId}
+                            menuPortalTarget={document.body}
+                          />
+                        </td>
+                        
+                        {/* Item Description - SearchSelect - FIXED: matches using Head ID + Category Name */}
+                        <td style={{ minWidth: "250px" }}>
+                          <SearchSelect
+                            tabIndex={baseTab + 2}
+                            className="inv-input-cell"
+                            style={{ width: "100%" }}
+                            value={row.itemId || ""}
+                            onChange={(val) => {
+                              const selectedItem = filteredItems.find(it => sid(it) === val);
+                              updateDetail(idx, "itemId", val);
+                              updateDetail(idx, "itemName", selectedItem?.itemDescription || selectedItem?.itemName || "");
+                              updateDetail(idx, "uom", selectedItem?.uom || "");
+                            }}
+                            options={filteredItems.map(it => ({ 
+                              value: sid(it), 
+                              label: it.itemDescription || it.itemName 
+                            }))}
+                            placeholder={(row.headId && row.mainCategoryId) ? "Search Item..." : "Select Head & Category First"}
+                            isDisabled={!row.headId || !row.mainCategoryId}
+                            menuPortalTarget={document.body}
+                          />
+                        </td>
+                        
+                        {/* UOM */}
                         <td style={{ width: "80px" }}>
                           <input 
                             className="inv-input-cell" 
@@ -789,6 +832,7 @@ export default function PurchaseIndentPage() {
                           />
                         </td>
                         
+                        {/* Qty */}
                         <td style={{ width: "100px" }}>
                           <input 
                             className="inv-input-cell" 
@@ -802,19 +846,19 @@ export default function PurchaseIndentPage() {
                           />
                         </td>
                         
+                        {/* Due Date */}
                         <td style={{ width: "140px" }}>
                           <input 
                             className="inv-input-cell"  
                             type="date" 
                             min={getTodayDate()}  
                             value={row.dueDate || header.dueDate}
-                            onChange={e => {
-                              updateDetail(idx, "dueDate", e.target.value);
-                            }}
+                            onChange={e => updateDetail(idx, "dueDate", e.target.value)}
                             tabIndex={baseTab + 5}
                           />
                         </td>
                         
+                        {/* Remarks */}
                         <td style={{ minWidth: "200px" }}>
                           <input 
                             className="inv-input-cell" 
@@ -825,6 +869,7 @@ export default function PurchaseIndentPage() {
                           />
                         </td>
                         
+                        {/* Remove Button */}
                         <td style={{ textAlign: "center", width: "50px" }}>
                           <button 
                             className="inv-btn-icon inv-btn-danger" 
@@ -914,4 +959,4 @@ export default function PurchaseIndentPage() {
       )}
     </div>
   );
-}
+} 

@@ -7,7 +7,7 @@ import {
   addCountry,
   updateCountry,
   deleteCountry,
-} from "../slices/countrySlice";
+} from "../slices/countrySlice"; 
 const EMPTY = { name: "", code: "", active: true };
 import { useEffect } from "react";
 export default function CountryPage() {

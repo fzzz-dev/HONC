@@ -33,8 +33,10 @@ const Icons = {
   POresult: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-chevron-left-icon lucide-square-chevron-left"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m14 16-4-4 4-4"/></svg>,
   GRNresult :() => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-package-icon lucide-package"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/></svg>,
   INVresult : () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-kanban-icon lucide-square-kanban"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v7"/><path d="M12 7v4"/><path d="M16 7v9"/></svg>,
-   POLevel1: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-big-icon lucide-circle-check-big"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>,
+  POLevel1: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-big-icon lucide-circle-check-big"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>,
   POLevel2: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-icon lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>,
+  SlideLeft: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>,
+  SlideRight: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>,
 };
 
 const TRANSACTIONS = [
@@ -77,42 +79,62 @@ const REPORTS = [
   { path: "/po-level1-pending", label: "PO Level 1 Pending", icon: Icons.POLevel1 },
 ];
 
-function NavGroup({ label, items, navigate, pathname, onHover, onLeave }) {
+function NavGroup({ label, items, navigate, pathname, onHover, onLeave, isOpen, onToggle }) {
   return (
-    <div className="inv-nav-section" style={{ marginBottom: '24px' }}>
-      <div className="inv-section-label">{label}</div>
-      <div className="inv-nav-grid">
-        {items.map((item) => (
-          <button
-            key={item.path}
-            data-path={item.path}
-            className={`inv-nav-item ${pathname === item.path ? "active" : ""}`}
-            onClick={() => {
-              navigate(item.path);
-              setTimeout(() => {
-                const firstField = document.querySelector('[tabIndex="1"]');
-                if (firstField) firstField.focus();
-              }, 150);
-            }}
-            onKeyDown={(e) => {
-              // Only handle Enter key to navigate
-              if (e.key === 'Enter') {
-                e.preventDefault();
+    <div className="inv-nav-section" style={{ marginBottom: '16px' }}>
+      <div 
+        className="inv-section-label" 
+        onClick={onToggle}
+        style={{ 
+          cursor: 'pointer', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          userSelect: 'none'
+        }}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+      >
+        <span>{label}</span>
+        <Icons.Chevron open={isOpen} />
+      </div>
+      {isOpen && (
+        <div className="inv-nav-grid" style={{ marginTop: '12px' }}>
+          {items.map((item) => (
+            <button
+              key={item.path}
+              data-path={item.path}
+              className={`inv-nav-item ${pathname === item.path ? "active" : ""}`}
+              onClick={() => {
                 navigate(item.path);
                 setTimeout(() => {
                   const firstField = document.querySelector('[tabIndex="1"]');
                   if (firstField) firstField.focus();
                 }, 150);
-              }
-              // Let Tab key bubble up to the sidebar's circular navigation
-            }}
-            onMouseEnter={(e) => onHover(e, item.label)}
-            onMouseLeave={onLeave}
-          >
-            <item.icon />
-          </button>
-        ))}
-      </div>
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  navigate(item.path);
+                  setTimeout(() => {
+                    const firstField = document.querySelector('[tabIndex="1"]');
+                    if (firstField) firstField.focus();
+                  }, 150);
+                }
+              }}
+              onMouseEnter={(e) => onHover(e, item.label)}
+              onMouseLeave={onLeave}
+            >
+              <item.icon />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -124,6 +146,10 @@ export default function Sidebar() {
   const [permissions, setPermissions] = useState([]);
   const [hoveredLabel, setHoveredLabel] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
+  
+  const [openSection, setOpenSection] = useState(null);
+  const [isVisible, setIsVisible] = useState(true);
+  const toggleSidebar = () => setIsVisible(!isVisible);
 
   const handleMouseEnter = (e, label) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -131,7 +157,10 @@ export default function Sidebar() {
     setHoveredLabel(label);
   };
 
-  // Fetch permissions
+  const toggleSection = (section) => {
+    setOpenSection(openSection === section ? null : section);
+  };
+
   useEffect(() => {
     const fetchPerms = async () => {
       try {
@@ -146,7 +175,6 @@ export default function Sidebar() {
     fetchPerms();
   }, []);
 
-  // Focus on first sidebar icon when page loads/refreshes
   useEffect(() => {
     const attemptFocus = (attempt = 0) => {
       const firstNavItem = document.querySelector('.inv-nav-item');
@@ -160,7 +188,6 @@ export default function Sidebar() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Focus on first sidebar icon when navigating to non-form pages
   useEffect(() => {
     const isFormPage = pathname === "/purchase-indent" || 
                        pathname === "/purchase-order" || 
@@ -179,97 +206,77 @@ export default function Sidebar() {
     }
   }, [pathname]);
 
-  // Press Escape to focus on sidebar
-  // Replace the existing "Press Escape to focus on sidebar" useEffect with this:
-
-// Press Escape to focus on the current page's sidebar icon
-useEffect(() => {
-  const handleEscKey = (e) => {
-    if (e.key === 'Escape') {
-      // Find which icon corresponds to the current pathname
-      const allNavItems = document.querySelectorAll('.inv-nav-item');
-      
-      // Find the active nav item based on current pathname
-      let activeNavItem = null;
-      for (const item of allNavItems) {
-        const parent = item.closest('.inv-nav-section');
-        if (parent) {
-          // Check if this nav item's path matches current pathname
-          const button = item;
-          const onClickAttr = button.getAttribute('onclick');
-          // Better approach: find by checking if the pathname matches the href or data attribute
-          if (button.getAttribute('data-path') === pathname) {
-            activeNavItem = button;
+  useEffect(() => {
+    const handleEscKey = (e) => {
+      if (e.key === 'Escape') {
+        const allNavItems = document.querySelectorAll('.inv-nav-item');
+        
+        let activeNavItem = null;
+        for (const item of allNavItems) {
+          if (item.getAttribute('data-path') === pathname) {
+            activeNavItem = item;
             break;
           }
         }
+        
+        if (!activeNavItem) {
+          activeNavItem = document.querySelector('.inv-nav-item.active');
+        }
+        
+        if (activeNavItem) {
+          activeNavItem.focus();
+        } else {
+          const firstNavItem = document.querySelector('.inv-nav-item');
+          if (firstNavItem) firstNavItem.focus();
+        }
       }
-      
-      // Fallback: try to find by checking the active class
-      if (!activeNavItem) {
-        activeNavItem = document.querySelector('.inv-nav-item.active');
-      }
-      
-      // If found, focus on it, otherwise focus on first icon
-      if (activeNavItem) {
-        activeNavItem.focus();
-      } else {
-        const firstNavItem = document.querySelector('.inv-nav-item');
-        if (firstNavItem) firstNavItem.focus();
-      }
-    }
-  };
-  
-  document.addEventListener('keydown', handleEscKey);
-  return () => document.removeEventListener('keydown', handleEscKey);
-}, [pathname]);
-
-  // Circular keyboard navigation for sidebar
- // Circular keyboard navigation for sidebar
-useEffect(() => {
-  const handleKeyDown = (e) => {
-    // Only handle keys when sidebar element has focus
-    const sidebar = document.querySelector('.inv-sidebar');
-    if (!sidebar || !sidebar.contains(document.activeElement)) return;
+    };
     
-    if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
-      return;
-    }
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, [pathname]);
 
-    const allFocusable = Array.from(sidebar.querySelectorAll('.inv-nav-item, [tabindex="0"], button'));
-    const currentFocused = document.activeElement;
-    const currentIndex = allFocusable.indexOf(currentFocused);
-
-    if (currentIndex === -1) return;
-
-    let nextIndex;
-
-    if (e.key === 'Tab') {
-      if (e.shiftKey) {
-        // Shift+Tab: go to previous
-        nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
-      } else {
-        // Tab: go to next
-        nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const sidebar = document.querySelector('.inv-sidebar');
+      if (!sidebar || !sidebar.contains(document.activeElement)) return;
+      
+      if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+        return;
       }
-      e.preventDefault();
-    } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-      nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-      nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
-      e.preventDefault();
-    }
 
-    const nextElement = allFocusable[nextIndex];
-    if (nextElement) {
-      nextElement.focus();
-    }
-  };
+      const allFocusable = Array.from(sidebar.querySelectorAll('.inv-nav-item, [tabindex="0"], button'));
+      const currentFocused = document.activeElement;
+      const currentIndex = allFocusable.indexOf(currentFocused);
 
-  window.addEventListener('keydown', handleKeyDown);
-  return () => window.removeEventListener('keydown', handleKeyDown);
-}, []);
+      if (currentIndex === -1) return;
+
+      let nextIndex;
+
+      if (e.key === 'Tab') {
+        if (e.shiftKey) {
+          nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
+        } else {
+          nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
+        }
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
+        e.preventDefault();
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
+        e.preventDefault();
+      }
+
+      const nextElement = allFocusable[nextIndex];
+      if (nextElement) {
+        nextElement.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const hasAccess = (path) => {
     if (!user) return false;
@@ -283,8 +290,19 @@ useEffect(() => {
   const filteredAdmin = ADMIN.filter(a => hasAccess(a.path));
   const filteredReports = REPORTS.filter(r => hasAccess(r.path));
 
+  if (!isVisible) {
+    return (
+      <div style={{ position: 'fixed', left: '0px', top: '0px', zIndex: 1000, cursor: 'pointer' }} onClick={toggleSidebar}>
+        <Icons.SlideRight />
+      </div>
+    );
+  }
+
   return (
     <aside className="inv-sidebar no-scrollbar">
+    <div style={{ color: 'white', display: 'flex', justifyContent: 'flex-end', padding: '0px 0px 10px 10px', cursor: 'pointer' }} onClick={toggleSidebar}>
+      <Icons.SlideLeft />
+    </div>
       <div 
         className="inv-logo" 
         style={{ cursor: 'pointer', padding: '32px 0', border: 'none' }} 
@@ -306,16 +324,52 @@ useEffect(() => {
 
       <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '10px 0' }}>
         {filteredAdmin.length > 0 && (
-          <NavGroup label="Admin" items={filteredAdmin} navigate={navigate} pathname={pathname} onHover={handleMouseEnter} onLeave={() => setHoveredLabel(null)} />
+          <NavGroup 
+            label="Admin" 
+            items={filteredAdmin} 
+            navigate={navigate} 
+            pathname={pathname} 
+            onHover={handleMouseEnter} 
+            onLeave={() => setHoveredLabel(null)}
+            isOpen={openSection === 'admin'}
+            onToggle={() => toggleSection('admin')}
+          />
         )}
         {filteredTransactions.length > 0 && (
-          <NavGroup label="Transactions" items={filteredTransactions} navigate={navigate} pathname={pathname} onHover={handleMouseEnter} onLeave={() => setHoveredLabel(null)} />
+          <NavGroup 
+            label="Transactions" 
+            items={filteredTransactions} 
+            navigate={navigate} 
+            pathname={pathname} 
+            onHover={handleMouseEnter} 
+            onLeave={() => setHoveredLabel(null)}
+            isOpen={openSection === 'transactions'}
+            onToggle={() => toggleSection('transactions')}
+          />
         )}
         {filteredReports.length > 0 && (
-          <NavGroup label="Reports" items={filteredReports} navigate={navigate} pathname={pathname} onHover={handleMouseEnter} onLeave={() => setHoveredLabel(null)} />
+          <NavGroup 
+            label="Reports" 
+            items={filteredReports} 
+            navigate={navigate} 
+            pathname={pathname} 
+            onHover={handleMouseEnter} 
+            onLeave={() => setHoveredLabel(null)}
+            isOpen={openSection === 'reports'}
+            onToggle={() => toggleSection('reports')}
+          />
         )}
         {filteredMasters.length > 0 && (
-          <NavGroup label="Masters" items={filteredMasters} navigate={navigate} pathname={pathname} onHover={handleMouseEnter} onLeave={() => setHoveredLabel(null)} />
+          <NavGroup 
+            label="Masters" 
+            items={filteredMasters} 
+            navigate={navigate} 
+            pathname={pathname} 
+            onHover={handleMouseEnter} 
+            onLeave={() => setHoveredLabel(null)}
+            isOpen={openSection === 'masters'}
+            onToggle={() => toggleSection('masters')}
+          />
         )}
       </div>
 
@@ -324,7 +378,7 @@ useEffect(() => {
           className="inv-nav-item" 
           data-tooltip={`${user?.username} (${user?.role})`}
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { /* optional action */ } }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { } }}
         >
           <div style={{ width: '36px', height: '36px', background: 'linear-gradient(135deg, #3b6ef8, #10b981)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', fontWeight: 'bold', flexShrink: 0, boxShadow: '0 4px 12px rgba(59, 110, 248, 0.3)' }}>
             {user?.username?.charAt(0).toUpperCase()}

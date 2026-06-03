@@ -768,3 +768,16 @@ div[class*="modal"]:not(.inv-modal-overlay) {
   background: #fee2e2;
   color: #991b1b;
 }
+
+/* Add data attributes or section identifiers to help navigation */
+.inv-card:first-of-type {
+  position: relative;
+}
+
+.inv-card:has(table) {
+  position: relative;
+}
+
+.inv-card:last-of-type {
+  position: relative;
+}

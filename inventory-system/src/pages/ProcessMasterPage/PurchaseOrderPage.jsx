@@ -2021,7 +2021,7 @@ async function performSave() {
         <div className="inv-card" style={{ marginBottom: 16 }}>
           <div className="inv-card-body">
             <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
-              <label className="inv-label">🔍 Search PO No</label>
+              <label className="inv-label"> Search PO No</label>
               <input
                 className="inv-input"
                 value={searchTerm}
@@ -2253,7 +2253,7 @@ async function performSave() {
                 </select>
               </Field>
               
-              <Field label="Supplier *">
+ <Field label="Supplier *">
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                   <div style={{ flex: 1 }}>
                     <SearchSelect tabIndex={4} value={header.supplierId} onChange={val => {
@@ -2304,35 +2304,35 @@ async function performSave() {
               <Field label="Reference No">
                 <input tabIndex={5} className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" />
               </Field>
-            
+
               <Field label="Delivery Date">
-  <input 
-    tabIndex={6} 
-    className="inv-input" 
-    type="date" 
-    min={header.date || "2026-05-01"}
-    value={header.deliveryDate || ""} 
-    onChange={e => {
-      const selectedDate = e.target.value;
-      const poDate = header.date;
-      
-      if (selectedDate && poDate && selectedDate < poDate) {
-        setHeader(h => ({ 
-          ...h, 
-          deliveryDate: poDate, 
-          deliveryDateError: "Delivery date cannot be earlier than PO date" 
-        }));
-      } else {
-        setHeader(h => ({ ...h, deliveryDate: selectedDate, deliveryDateError: "" }));
-      }
-    }} 
-  />
-  {header.deliveryDateError && (
-    <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
-      ⚠️ {header.deliveryDateError}
-    </div>
-  )}
-</Field>
+              <input 
+                tabIndex={6} 
+                className="inv-input" 
+                type="date" 
+                min={header.date || today()}
+                value={header.deliveryDate || today()} 
+                onChange={e => {
+                  const selectedDate = e.target.value;
+                  const poDate = header.date;
+                  
+                  if (selectedDate && poDate && selectedDate < poDate) {
+                    setHeader(h => ({ 
+                      ...h, 
+                      deliveryDate: poDate, 
+                      deliveryDateError: "Delivery date cannot be earlier than PO date" 
+                    }));
+                  } else {
+                    setHeader(h => ({ ...h, deliveryDate: selectedDate, deliveryDateError: "" }));
+                  }
+                }} 
+              />
+              {header.deliveryDateError && (
+                <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+                  ⚠️ {header.deliveryDateError}
+                </div>
+              )}
+            </Field>
               
               <Field label="GST No">
                 <input tabIndex={7} className="inv-input" value={header.supplierGst} readOnly style={{ background: "#f8fafc" }} />
