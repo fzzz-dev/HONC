@@ -16,6 +16,11 @@ const PurchaseOrderDetail = sequelize.define("PurchaseOrderDetail", {
     },
     onDelete: 'CASCADE'
   },
+  lineNumber: {
+  type: DataTypes.INTEGER,
+  allowNull: false,
+  defaultValue: 0
+  },
   indentDetailId: { type: DataTypes.INTEGER, allowNull: true },
   indentNo: { type: DataTypes.STRING, defaultValue: "" },
   itemId: { type: DataTypes.INTEGER, allowNull: true },

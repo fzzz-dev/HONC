@@ -241,7 +241,7 @@ export default function Sidebar() {
       const sidebar = document.querySelector('.inv-sidebar');
       if (!sidebar || !sidebar.contains(document.activeElement)) return;
       
-      if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+      if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') {
         return;
       }
 
@@ -307,7 +307,7 @@ export default function Sidebar() {
         className="inv-logo" 
         style={{ cursor: 'pointer', padding: '32px 0', border: 'none' }} 
         onClick={() => navigate('/')}
-        tabIndex={0}
+        tabIndex={-1}
         onKeyDown={(e) => { 
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();

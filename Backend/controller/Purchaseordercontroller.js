@@ -4,6 +4,7 @@ const PurchaseIndent = require("../model/purchaseIndent");
 const Supplier = require("../model/supplier");
 const PaymentTerm = require("../model/paymentTerm");
 const { Op } = require("sequelize");
+const sequelize = require("../config/database");
 const { updateIndentBalance } = require("../utils/procurementUtils");
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -131,7 +132,11 @@ exports.getAll = async (req, res) => {
 exports.getOne = async (req, res) => {
   try {
     const po = await PurchaseOrder.findByPk(req.params.id, {
-      include: ["details"]
+      include: [{
+        model: PurchaseOrderDetail,
+        as: 'details',
+        order: [['id', 'ASC']]  // ← ADD THIS - maintains item order
+      }]
     });
     if (!po) return res.status(404).json({ message: "PO not found" });
     res.json(po);
@@ -142,12 +147,14 @@ exports.getOne = async (req, res) => {
 
 // ─── POST /api/purchase-orders ───────────────────────────────────────────────
 exports.create = async (req, res) => {
+  const transaction = await sequelize.transaction();  // ← ADD THIS
+  
   try {
     const {
       poNo,
       poType,
       date,
-      deliveryDate,  // ← ADD THIS
+      deliveryDate,
       supplierId,
       supplierName,
       paymentTermsId,
@@ -158,16 +165,22 @@ exports.create = async (req, res) => {
       status,
       remarks,
       details = [],
-      level1Approved = "No",  
-      level2Approved = "No",  
-      level1ApprovedBy = null,  
-      level1ApprovedDate = null,  
-      level2ApprovedBy = null,  
-      level2ApprovedDate = null,  
+      level1Approved = "No",
+      level2Approved = "No",
+      level1ApprovedBy = null,
+      level1ApprovedDate = null,
+      level2ApprovedBy = null,
+      level2ApprovedDate = null,
     } = req.body;
 
-    if (!poNo) return res.status(400).json({ message: "poNo is required" });
-    if (!poType) return res.status(400).json({ message: "poType is required" });
+    if (!poNo) {
+      await transaction.rollback();
+      return res.status(400).json({ message: "poNo is required" });
+    }
+    if (!poType) {
+      await transaction.rollback();
+      return res.status(400).json({ message: "poType is required" });
+    }
 
     let finalSupplierName = supplierName;
     if (supplierId) {
@@ -175,6 +188,7 @@ exports.create = async (req, res) => {
       if (supplier) {
         finalSupplierName = supplier.supplierName;
       } else {
+        await transaction.rollback();
         return res.status(404).json({ message: "Supplier not found" });
       }
     }
@@ -183,13 +197,20 @@ exports.create = async (req, res) => {
     let paymentTermsName = "";
     if (ptId) {
       const pt = await PaymentTerm.findByPk(ptId);
-      if (!pt) return res.status(400).json({ message: "Invalid payment terms" });
+      if (!pt) {
+        await transaction.rollback();
+        return res.status(400).json({ message: "Invalid payment terms" });
+      }
       paymentTermsName = pt.name;
     } else {
       ptId = null;
     }
 
-    const computedDetails = details.map((d) => calcDetail(d, gstEnabled, gstType));
+    // ADD LINE NUMBERS TO PRESERVE ORDER
+    const computedDetails = details.map((d, idx) => ({
+      ...calcDetail(d, gstEnabled, gstType),
+      lineNumber: idx + 1  // ← ADD THIS
+    }));
     
     // Calculate summaries
     let grossAmount = 0, discAmount = 0, poAmount = 0, igstAmount = 0, cgstAmount = 0, sgstAmount = 0;
@@ -207,14 +228,14 @@ exports.create = async (req, res) => {
     });
     
     totalAmount = +totalAmount.toFixed(2);
-    const netAmount = Math.floor(totalAmount);
-    const roundOff = +(netAmount - totalAmount).toFixed(2);
+    const netAmount = Math.round(totalAmount);
+    const roundOff = +(totalAmount - netAmount).toFixed(2);
 
     const po = await PurchaseOrder.create({
       poNo,
       poType,
       date,
-      deliveryDate,  // ← ADD THIS
+      deliveryDate,
       supplierId: supplierId || null,
       supplierName: finalSupplierName,
       paymentTermsId: ptId,
@@ -241,8 +262,17 @@ exports.create = async (req, res) => {
       level1ApprovedDate,
       level2ApprovedBy,
       level2ApprovedDate,
-      details: computedDetails,
-    }, { include: ["details"] });
+    }, { transaction, include: ["details"] });
+
+    if (computedDetails && computedDetails.length > 0) {
+      const detailsToCreate = computedDetails.map(d => {
+        const { id, _id, _rowId, ...rest } = d;
+        return { ...rest, purchaseOrderId: po.id };
+      });
+      await PurchaseOrderDetail.bulkCreate(detailsToCreate, { transaction });
+    }
+
+    await transaction.commit();  // ← COMMIT
 
     // Sync Indent Balances
     const affectedIndentDetails = [...new Set(details.map(d => d.indentDetailId).filter(Boolean))];
@@ -250,8 +280,16 @@ exports.create = async (req, res) => {
       await updateIndentBalance(id);
     }
 
-    res.status(201).json(po);
+    const createdPo = await PurchaseOrder.findByPk(po.id, { 
+      include: [{
+        model: PurchaseOrderDetail,
+        as: 'details',
+        order: [['lineNumber', 'ASC'], ['id', 'ASC']]
+      }] 
+    });
+    res.status(201).json(createdPo);
   } catch (err) {
+    await transaction.rollback();  // ← ROLLBACK
     if (err.name === 'SequelizeUniqueConstraintError')
       return res.status(409).json({ message: "PO number already exists" });
     console.error("Create PO error:", err);
@@ -261,14 +299,19 @@ exports.create = async (req, res) => {
 
 // ─── PUT /api/purchase-orders/:id ────────────────────────────────────────────
 exports.update = async (req, res) => {
+  const transaction = await sequelize.transaction();  // ← ADD THIS
+  
   try {
     const po = await PurchaseOrder.findByPk(req.params.id);
-    if (!po) return res.status(404).json({ message: "PO not found" });
+    if (!po) {
+      await transaction.rollback();
+      return res.status(404).json({ message: "PO not found" });
+    }
 
     const {
       poNo,
       date,
-      deliveryDate,  // ← ADD THIS
+      deliveryDate,
       supplierId,
       supplierName,
       paymentTermsId,
@@ -288,8 +331,6 @@ exports.update = async (req, res) => {
       level2ApprovedDate,
     } = req.body;
 
-    console.log("Updating PO ID:", req.params.id, "with deliveryDate:", deliveryDate); // Debug log
-
     let finalSupplierName = supplierName;
     if (supplierId) {
       const supplier = await Supplier.findByPk(supplierId);
@@ -302,13 +343,20 @@ exports.update = async (req, res) => {
     let paymentTermsName = "";
     if (ptId) {
       const pt = await PaymentTerm.findByPk(ptId);
-      if (!pt) return res.status(400).json({ message: "Invalid payment terms" });
+      if (!pt) {
+        await transaction.rollback();
+        return res.status(400).json({ message: "Invalid payment terms" });
+      }
       paymentTermsName = pt.name;
     } else {
       ptId = null;
     }
     
-    const computedDetails = details.map((d) => calcDetail(d, gstEnabled, gstType));
+    // Pass index to preserve order
+    const computedDetails = details.map((d, idx) => ({
+      ...calcDetail(d, gstEnabled, gstType),
+      lineNumber: idx + 1  // ← ADD THIS - preserves order
+    }));
 
     let grossAmount = 0, discAmount = 0, poAmount = 0, igstAmount = 0, cgstAmount = 0, sgstAmount = 0;
     let totalAmount = 0;
@@ -328,68 +376,86 @@ exports.update = async (req, res) => {
     const netAmount = Math.round(totalAmount);
     const roundOff = +(totalAmount - netAmount).toFixed(2);
 
-    // Track affected indents before and after update
-    const oldDetails = await PurchaseOrderDetail.findAll({ where: { purchaseOrderId: po.id } });
+    // Track affected indents before update
+    const oldDetails = await PurchaseOrderDetail.findAll({ 
+      where: { purchaseOrderId: po.id },
+      transaction  // ← ADD TRANSACTION
+    });
     const oldIndentDetailIds = oldDetails.map(d => d.indentDetailId).filter(Boolean);
 
-    // Prepare update data object
-const updateData = {
-  poNo,
-  poType,
-  date,
-  deliveryDate,
-  supplierId: supplierId || null,
-  supplierName: finalSupplierName,
-  paymentTermsId: ptId,
-  paymentTermsName,
-  gstEnabled,
-  gstType,
-  createdBy,
-  createdOn,
-  status,
-  remarks,
-  grossAmount,
-  discAmount,
-  poAmount,
-  igstAmount,
-  cgstAmount,
-  sgstAmount,
-  netAmount,
-  totalAmount,
-  roundoff: roundOff,
-  totalItems: computedDetails.length
-};
+    const updateData = {
+      poNo,
+      poType,
+      date,
+      deliveryDate,
+      supplierId: supplierId || null,
+      supplierName: finalSupplierName,
+      paymentTermsId: ptId,
+      paymentTermsName,
+      gstEnabled,
+      gstType,
+      createdBy,
+      createdOn,
+      status,
+      remarks,
+      grossAmount,
+      discAmount,
+      poAmount,
+      igstAmount,
+      cgstAmount,
+      sgstAmount,
+      netAmount,
+      totalAmount,
+      roundoff: roundOff,
+      totalItems: computedDetails.length
+    };
 
-// Add approval fields if provided
-if (level1Approved !== undefined) updateData.level1Approved = level1Approved;
-if (level2Approved !== undefined) updateData.level2Approved = level2Approved;
-if (level1ApprovedBy !== undefined) updateData.level1ApprovedBy = level1ApprovedBy;
-if (level1ApprovedDate !== undefined) updateData.level1ApprovedDate = level1ApprovedDate;
-if (level2ApprovedBy !== undefined) updateData.level2ApprovedBy = level2ApprovedBy;
-if (level2ApprovedDate !== undefined) updateData.level2ApprovedDate = level2ApprovedDate;
+    if (level1Approved !== undefined) updateData.level1Approved = level1Approved;
+    if (level2Approved !== undefined) updateData.level2Approved = level2Approved;
+    if (level1ApprovedBy !== undefined) updateData.level1ApprovedBy = level1ApprovedBy;
+    if (level1ApprovedDate !== undefined) updateData.level1ApprovedDate = level1ApprovedDate;
+    if (level2ApprovedBy !== undefined) updateData.level2ApprovedBy = level2ApprovedBy;
+    if (level2ApprovedDate !== undefined) updateData.level2ApprovedDate = level2ApprovedDate;
 
-// Single update call
-await po.update(updateData);
+    // UPDATE WITH TRANSACTION
+    await po.update(updateData, { transaction });
     
-    await PurchaseOrderDetail.destroy({ where: { purchaseOrderId: po.id } });
+    // DELETE OLD DETAILS WITH TRANSACTION
+    await PurchaseOrderDetail.destroy({ 
+      where: { purchaseOrderId: po.id }, 
+      transaction 
+    });
+    
+    // CREATE NEW DETAILS WITH TRANSACTION
     if (computedDetails && computedDetails.length > 0) {
       const detailsToCreate = computedDetails.map(d => {
-        const { id, _id, ...rest } = d;
+        const { id, _id, _rowId, ...rest } = d;
         return { ...rest, purchaseOrderId: po.id };
       });
-      await PurchaseOrderDetail.bulkCreate(detailsToCreate);
+      await PurchaseOrderDetail.bulkCreate(detailsToCreate, { transaction });
     }
 
-
-     const newIndentDetailIds = computedDetails.map(d => d.indentDetailId).filter(Boolean);
+    const newIndentDetailIds = computedDetails.map(d => d.indentDetailId).filter(Boolean);
     const allAffected = [...new Set([...oldIndentDetailIds, ...newIndentDetailIds])];
+    
+    // COMMIT TRANSACTION
+    await transaction.commit();
+    
+    // Update indents AFTER commit (outside transaction to avoid deadlocks)
     for (const id of allAffected) {
       await updateIndentBalance(id);
     }
     
-    const updatedPo = await PurchaseOrder.findByPk(req.params.id, { include: ["details"] });
+    const updatedPo = await PurchaseOrder.findByPk(req.params.id, { 
+      include: [{
+        model: PurchaseOrderDetail,
+        as: 'details',
+        order: [['lineNumber', 'ASC'], ['id', 'ASC']]  // ← ORDER BY lineNumber
+      }] 
+    });
     res.json(updatedPo);
   } catch (err) {
+    await transaction.rollback();  // ← ROLLBACK ON ERROR
     console.error("Update PO error:", err);
     res.status(500).json({ message: err.message });
   }

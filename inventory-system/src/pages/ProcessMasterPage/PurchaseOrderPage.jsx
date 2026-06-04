@@ -192,10 +192,11 @@ const emptyHeader = () => ({
   status: "Open", 
   remarks: "",
   poType: "",
-  preparedBy: "System Administrator",
+  preparedBy: "",
   level1Approved: "NO",
   level2Approved: "NO"
 });
+
 
 const FormGrid = ({ children }) => (
   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>{children}</div>
@@ -840,6 +841,7 @@ export default function PurchaseOrderPage() {
   const [expandedGroups, setExpandedGroups] = useState({});
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [pendingSearchTerm, setPendingSearchTerm] = useState("");
+  const searchInputRef = useRef(null);
  
 
      // New state for approval workflow
@@ -853,6 +855,16 @@ export default function PurchaseOrderPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
+
+  const formatPoQty = (val) => {
+  if (val === undefined || val === null) return "";
+  return Number(val).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+};
+
+const formatNumber = (val) => {
+  if (val === undefined || val === null) return "";
+  return Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
   // Force form view when editId is set
 useEffect(() => {
@@ -1083,19 +1095,21 @@ useEffect(() => {
   };
 }, [showSaveConfirm]);
 
-// ========== 1. TAB NAVIGATION - Only between Cancel and Add buttons ==========
+// ========== TAB NAVIGATION + SEARCH FOCUS FOR PICK INDENT MODAL ==========
 useEffect(() => {
   if (!pendingModalOpen) return;
   
+  const searchInput = document.querySelector('#pending-search-input');
   const cancelBtn = document.getElementById('cancel-pick-btn');
   const addBtn = document.getElementById('add-items-btn');
   
-  if (!cancelBtn || !addBtn) return;
+  if (!searchInput || !cancelBtn || !addBtn) return;
   
   const handleTab = (e) => {
     if (e.key !== 'Tab') return;
     
     const current = document.activeElement;
+    const isSearch = current === searchInput;
     const isCancel = current === cancelBtn;
     const isAdd = current === addBtn;
     const isRow = current?.classList?.contains('indent-main-row') || 
@@ -1103,26 +1117,30 @@ useEffect(() => {
     
     e.preventDefault();
     
-    // Tab from Cancel -> Add, Add -> First Row, Row -> Cancel
+    // Tab forward (no shift)
     if (!e.shiftKey) {
-      if (isCancel) {
+      if (isSearch) {
+        cancelBtn.focus();
+      } else if (isCancel) {
         addBtn.focus();
       } else if (isAdd) {
         const firstRow = document.querySelector('#pick-indent-table .indent-main-row');
         if (firstRow) firstRow.focus();
-        else addBtn.focus();
+        else searchInput.focus();
       } else if (isRow) {
-        cancelBtn.focus();
+        searchInput.focus();
       } else {
-        cancelBtn.focus();
+        searchInput.focus();
       }
     } 
-    // Shift+Tab
+    // Shift+Tab (backward)
     else {
-      if (isCancel) {
+      if (isSearch) {
         const lastRow = getLastVisibleRow();
         if (lastRow) lastRow.focus();
-        else cancelBtn.focus();
+        else addBtn.focus();
+      } else if (isCancel) {
+        searchInput.focus();
       } else if (isAdd) {
         cancelBtn.focus();
       } else if (isRow) {
@@ -1149,7 +1167,29 @@ useEffect(() => {
   };
   
   document.addEventListener('keydown', handleTab);
-  cancelBtn.focus();
+  
+  // FORCE FOCUS ON SEARCH INPUT - Multiple attempts to ensure it works
+  const focusSearch = () => {
+    const input = document.querySelector('#pending-search-input');
+    if (input) {
+      input.focus();
+      return true;
+    }
+    return false;
+  };
+  
+  // Try immediately
+  if (!focusSearch()) {
+    // Try after 100ms
+    setTimeout(() => {
+      if (!focusSearch()) {
+        // Try after 200ms
+        setTimeout(() => {
+          focusSearch();
+        }, 100);
+      }
+    }, 100);
+  }
   
   return () => document.removeEventListener('keydown', handleTab);
 }, [pendingModalOpen]);
@@ -1326,7 +1366,7 @@ useEffect(() => {
   async function openNew() {
     setHeader({ 
       ...emptyHeader(), 
-      preparedBy: "System Administrator",
+      preparedBy: user?.name || "Admin" ,
       level1Approved: "No",
       level2Approved: "No"
     }); 
@@ -1343,17 +1383,13 @@ useEffect(() => {
 
 function openEdit(po) {
   console.log("=== openEdit START ===");
-  console.log("Received po:", po);
-  console.log("Received po.details:", po.details);
-  console.log("First detail itemId:", po.details?.[0]?.itemId);
-  console.log("openEdit called with parameter:", po);
   
   if (!po) {
     console.error("openEdit received undefined PO!");
     return;
   }
 
-  // Map the PO properties to what the function expects
+  // Map the PO properties
   const mappedPO = {
     id: po.id,
     poNo: po.poNo || po.ponumber,
@@ -1381,13 +1417,7 @@ function openEdit(po) {
     details: po.details || po.items || []
   };
   
-  console.log("Mapped PO:", mappedPO);
-  console.log("Delivery Date:", mappedPO.deliveryDate);
-  console.log("PO Type:", mappedPO.poType);
-  console.log("Supplier Name:", mappedPO.supplierName);
-  console.log("Details count:", mappedPO.details.length);
-  
-  // Find supplier by ID or name
+  // Find supplier
   let sId = mappedPO.supplierId;
   let supplier = null;
   
@@ -1397,7 +1427,6 @@ function openEdit(po) {
     );
     if (supplier) {
       sId = sid(supplier);
-      console.log("Found supplier by name:", supplier.supplierName, "ID:", sId);
     }
   } else if (sId) {
     supplier = suppliers.find(x => sid(x) === sId);
@@ -1444,7 +1473,7 @@ function openEdit(po) {
     refNo: mappedPO.refNo || "",
     deliveryDate: normalizeDate(mappedPO.deliveryDate),
     poType: mappedPO.poType || "",
-    preparedBy: mappedPO.preparedBy || "System Administrator",
+    preparedBy: mappedPO.preparedBy || user?.name || "Admin",
     remarks: mappedPO.remarks || "",
     status: mappedPO.status || "Open",
     level1Approved: mappedPO.level1Approved || "No",
@@ -1454,47 +1483,36 @@ function openEdit(po) {
   const gType = mappedPO.gstType || "local";
   const detailsList = safeDetails(mappedPO.details);
   
-  console.log("Details list to set:", detailsList);
-  console.log("Details list to set:", detailsList);
-if (detailsList.length > 0) {
-  console.log("First detail item GST values:", {
-    gstPct: detailsList[0].gstPct,
-    sgst: detailsList[0].sgst,
-    cgst: detailsList[0].cgst,
-    igst: detailsList[0].igst,
-    totGst: detailsList[0].totGst,
-    totalAmount: detailsList[0].totalAmount
+  // 🔴 FIX: Sort details by lineNumber or id to preserve order
+  const sortedDetails = [...detailsList].sort((a, b) => {
+    const aOrder = a.lineNumber || a.id || 0;
+    const bOrder = b.lineNumber || b.id || 0;
+    return aOrder - bOrder;
   });
-}
   
-  if (detailsList.length > 0) {
-  const mappedDetails = detailsList.map(d => {
-    const mapped = { 
-      ...d, 
-      _rowId: Math.random(), 
-      indentDetailId: sid(d.indentDetailId), 
-      itemId: d.itemId ? String(d.itemId) : "",
-      indentNo: d.indentNo || "",
-      itemName: d.itemName || d.itemDescription || "",
-      uom: d.uom || "",
-      poQty: d.poQty || d.qty || 0,
-      poRate: d.poRate || d.rate || 0,
-      gstPct: d.gstPct || d.gstPercent || 0,
-      discMode: d.discMode || "pct",
-      discPct: d.discPct || 0,
-      discPrice: d.discPrice || 0
-    };
-    console.log("Mapped detail item:", {
-      originalItemId: d.itemId,
-      mappedItemId: mapped.itemId,
-      itemName: mapped.itemName
+  if (sortedDetails.length > 0) {
+    const mappedDetails = sortedDetails.map((d, idx) => {
+      const mapped = { 
+        ...d, 
+        _rowId: `row_${Date.now()}_${idx}_${Math.random()}`,  // Stable unique ID
+        indentDetailId: sid(d.indentDetailId), 
+        itemId: d.itemId ? String(d.itemId) : "",
+        indentNo: d.indentNo || "",
+        itemName: d.itemName || d.itemDescription || "",
+        uom: d.uom || "",
+        poQty: d.poQty || d.qty || 0,
+        poRate: d.poRate || d.rate || 0,
+        gstPct: d.gstPct || d.gstPercent || 0,
+        discMode: d.discMode || "pct",
+        discPct: d.discPct || 0,
+        discPrice: d.discPrice || 0,
+        lineNumber: d.lineNumber || idx + 1  // Preserve line number
+      };
+      return mapped;
     });
-    return mapped;
-  });
-  
-  console.log("All mapped details:", mappedDetails);
-  setDetails(mappedDetails);
-} else {
+    
+    setDetails(mappedDetails);
+  } else {
     setDetails([emptyDetail()]);
   }
   
@@ -1503,10 +1521,8 @@ if (detailsList.length > 0) {
   setItemsFromPickIndent(true);
   setView("form");
   
-  // Clear approval mode
   setApprovalMode(false);
   setApprovalLevel(null);
-   console.log("=== openEdit END - details set ===");
 }
 // Handle editing from pending page - with higher priority
 useEffect(() => {
@@ -1787,23 +1803,22 @@ async function performSave() {
   setFormError(null);
   setSaving(true);
   
+  const cleanDetails = details.map(({ _rowId, ...rest }) => rest);
+  
   const payload = { 
     ...header, 
     deliveryDate: header.deliveryDate,
     gstEnabled, 
     gstType, 
-    details: details.map(({ _rowId, ...rest }) => rest),
+    details: cleanDetails,  // ← Use cleaned details
     level1Approved: header.level1Approved || "No",
     level2Approved: header.level2Approved || "No"
   };
-  
-  console.log("Saving PO with approval fields:", payload);
   
   try {
     let savedPO;
     if (editId) {
       await purchaseOrderApi.update(editId, payload);
-      // Fetch the updated PO to get complete data
       savedPO = await purchaseOrderApi.getOne(editId);
     } else {
       const created = await purchaseOrderApi.create(payload);
@@ -1812,11 +1827,9 @@ async function performSave() {
     
     await loadPos();
     
-    // If we're still in edit mode, reload the complete PO data
     if (editId || savedPO) {
       const poToLoad = savedPO || await purchaseOrderApi.getOne(editId);
       if (poToLoad) {
-        // Refresh the form with complete data
         openEdit(poToLoad);
       }
     }
@@ -2379,106 +2392,130 @@ async function performSave() {
                     <th style={{ width: 40 }}></th>
                   </tr>
                 </thead>
-                <tbody>
-                  {details.map((row, idx) => {
-                    const baseTabIndex = 10 + (idx * 4);
-                    const isLastRow = idx === details.length - 1;
-                    const hasItems = row.itemId || row.itemName;
-                    
-                    // Format numbers: PO Qty with 3 decimals, others with 2 decimals
-                    const formatPoQty = (val) => {
-                      if (val === undefined || val === null) return "";
-                      return Number(val).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-                    };
-                    
-                    const formatNumber = (val) => {
-                      if (val === undefined || val === null) return "";
-                      return Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    };
-                    
-                    return (
-                      <tr key={row._rowId}>
-                        <td style={{ textAlign: "center" }}>{idx + 1}</td>
-                        <td style={{ textAlign: "left" }}>
-                          <input tabIndex={-1} className="inv-input-cell" value={row.indentNo || ""} readOnly style={{ textAlign: "left" }} />
-                        </td>
-                        <td style={{ textAlign: "left" }}>
-                          <input tabIndex={-1} className="inv-input-cell" value={row.itemName || ""} readOnly style={{ textAlign: "left" }} />
-                        </td>
-                        <td style={{ textAlign: "center" }}>
-                          <input tabIndex={-1} className="inv-input-cell" value={row.uom || ""} readOnly style={{ textAlign: "center" }} />
-                        </td>
-                        <td style={{ textAlign: "left" }}>
-                          <input tabIndex={-1} className="inv-input-cell" value={formatPoQty(row.balQty)} readOnly style={{ textAlign: "left" }} />
-                        </td>
-                        <td style={{ textAlign: "left" }}>
+               <tbody>
+                {details.map((row, idx) => {
+                  const baseTabIndex = 10 + (idx * 4);
+                  const isLastRow = idx === details.length - 1;
+                  const hasItems = row.itemId || row.itemName;
+                  
+                  return (
+                    <tr key={row._rowId}>
+                      <td style={{ textAlign: "center" }}>{idx + 1}</td>
+                      <td style={{ textAlign: "left" }}>
+                        <input tabIndex={-1} className="inv-input-cell" value={row.indentNo || ""} readOnly style={{ textAlign: "left" }} placeholder="-" />
+                      </td>
+                      <td style={{ textAlign: "left" }}>
+                        <input tabIndex={-1} className="inv-input-cell" value={row.itemName || ""} readOnly style={{ textAlign: "left" }} placeholder="-" />
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        <input tabIndex={-1} className="inv-input-cell" value={row.uom || ""} readOnly style={{ textAlign: "center" }} placeholder="-" />
+                      </td>
+                      <td style={{ textAlign: "left" }}>
+                        <input tabIndex={-1} className="inv-input-cell" value={formatPoQty(row.balQty)} readOnly style={{ textAlign: "left" }} placeholder="0.000" />
+                      </td>
+                      
+                      {/* PO Qty - shows placeholder when empty */}
+                      <td style={{ textAlign: "left" }}>
+                        <input 
+                          tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex : -1} 
+                          className="inv-input-cell" 
+                          type="number" 
+                          step="0.001"
+                          value={row.poQty && row.poQty !== 0 ? row.poQty : ""} 
+                          onChange={e => updateDetail(idx, "poQty", e.target.value)} 
+                          style={{ textAlign: "left" }}
+                          placeholder="0.000"
+                        />
+                      </td>
+                      
+                      {/* Unit Price - shows placeholder when empty */}
+                      <td style={{ textAlign: "left" }}>
+                        <input 
+                          tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 1 : -1} 
+                          className="inv-input-cell" 
+                          type="number" 
+                          step="0.01"
+                          value={row.poRate && row.poRate !== 0 ? row.poRate : ""} 
+                          onChange={e => updateDetail(idx, "poRate", e.target.value)} 
+                          style={{ textAlign: "left" }}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      
+                      {/* Discount - shows placeholder when empty */}
+                      <td style={{ textAlign: "left" }}>
+                        <div style={{ display: "flex", alignItems: "center" }}>
                           <input 
-                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex : -1} 
-                            className="inv-input-cell" 
-                            type="number" 
-                            step="0.001"
-                            value={row.poQty} 
-                            onChange={e => updateDetail(idx, "poQty", e.target.value)} 
-                            style={{ textAlign: "left" }}
-                          />
-                        </td>
-                        <td style={{ textAlign: "left" }}>
-                          <input 
-                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 1 : -1} 
-                            className="inv-input-cell" 
-                            type="number" 
-                            step="0.01"
-                            value={row.poRate} 
-                            onChange={e => updateDetail(idx, "poRate", e.target.value)} 
-                            style={{ textAlign: "left" }}
-                          />
-                        </td>
-                        <td style={{ textAlign: "left" }}>
-                          <div style={{ display: "flex", alignItems: "center" }}>
-                            <input 
-                              tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 2 : -1} 
-                              className="inv-input-cell" 
-                              type="number" 
-                              step="0.01"
-                              value={row.discMode === 'pct' ? row.discPct : row.discPrice} 
-                              onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} 
-                              style={{ textAlign: "left" }}
-                            />
-                            <button type="button" onClick={() => toggleDiscMode(idx)} tabIndex={-1}>{row.discMode === 'pct' ? '%' : '₹'}</button>
-                          </div>
-                        </td>
-                        <td style={{ textAlign: "left" }}>
-                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.poAmount)} readOnly style={{ textAlign: "left" }} />
-                        </td>
-                        <td style={{ textAlign: "center" }}>
-                          <input 
-                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 3 : -1} 
+                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 2 : -1} 
                             className="inv-input-cell" 
                             type="number" 
                             step="0.01"
-                            value={row.gstPct} 
-                            onChange={e => updateDetail(idx, "gstPct", e.target.value)} 
-                            style={{ textAlign: "center" }}
+                            value={
+                              row.discMode === 'pct' 
+                                ? (row.discPct && row.discPct !== 0 ? row.discPct : "")
+                                : (row.discPrice && row.discPrice !== 0 ? row.discPrice : "")
+                            } 
+                            onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} 
+                            style={{ textAlign: "left" }}
+                            placeholder="0.00"
                           />
-                        </td>
-                        <td style={{ textAlign: "left" }}>
-                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totGst)} readOnly style={{ textAlign: "left" }} />
-                        </td>
-                        <td style={{ textAlign: "left" }}>
-                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totalAmount)} readOnly style={{ textAlign: "left" }} />
-                        </td>
-                        <td style={{ textAlign: "center" }}>
                           <button 
-                            onClick={() => removeRow(idx)} 
-                            tabIndex={isLastRow && (itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 4 : -1}
+                            type="button" 
+                            className="inv-btn-icon inv-btn-sm"
+                            onClick={() => toggleDiscMode(idx)} 
+                            tabIndex={-1}
+                            title={row.discMode === 'pct' ? 'Switch to price discount' : 'Switch to percentage discount'}
                           >
-                            ✕
+                            {row.discMode === 'pct' ? '%' : '₹'}
                           </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
+                        </div>
+                      </td>
+                      
+                      {/* PO Amount - readonly */}
+                      <td style={{ textAlign: "left" }}>
+                        <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.poAmount)} readOnly style={{ textAlign: "left" }} placeholder="0.00" />
+                      </td>
+                      
+                      {/* GST% - shows placeholder when empty */}
+                      <td style={{ textAlign: "center" }}>
+                        <input 
+                          tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 3 : -1} 
+                          className="inv-input-cell" 
+                          type="number" 
+                          step="0.01"
+                          value={row.gstPct && row.gstPct !== 0 ? row.gstPct : ""} 
+                          onChange={e => updateDetail(idx, "gstPct", e.target.value)} 
+                          style={{ textAlign: "center" }}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      
+                      {/* Total GST - readonly */}
+                      <td style={{ textAlign: "left" }}>
+                        <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totGst)} readOnly style={{ textAlign: "left" }} placeholder="0.00" />
+                      </td>
+                      
+                      {/* Total Amount - readonly */}
+                      <td style={{ textAlign: "left" }}>
+                        <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totalAmount)} readOnly style={{ textAlign: "left" }} placeholder="0.00" />
+                      </td>
+                      
+                      {/* Delete button */}
+                      <td style={{ textAlign: "center" }}>
+                        <button 
+                          className="inv-btn-icon inv-btn-danger"
+                          onClick={() => removeRow(idx)} 
+                          tabIndex={isLastRow && (itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 4 : -1}
+                          title="Remove item"
+                          aria-label="Remove item row"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
               </table>
             </div>
           </div>
@@ -2615,7 +2652,7 @@ async function performSave() {
       {/* Pick Indent Modal */}
       {pendingModalOpen && (
   <Modal 
-    id="pick-indent-modal"
+    id="pending-search-input"
     title="Pick Pending Indent Lines" 
     onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); setPendingSearchTerm(""); }} 
     full={true}
@@ -2697,6 +2734,8 @@ async function performSave() {
       }}>
         <input
           type="text"
+          id="pending-search-input"
+          ref={searchInputRef}
           className="inv-input"
           placeholder=" Search by Indent Number..."
           value={pendingSearchTerm}
