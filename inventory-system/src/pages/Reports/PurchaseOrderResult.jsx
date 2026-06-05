@@ -165,47 +165,53 @@ export default function PurchaseOrderReportPage() {
     }, 0);
   };
   
-  // Group data by PO Number and sort with new ones first
-  const groupedData = useMemo(() => {
-    const groups = {};
-    reportData.forEach(item => {
-      if (!groups[item.ponumber]) {
-        groups[item.ponumber] = {
-          poNo: item.ponumber,
-          poDate: item.podate,
-          supplier: item.supplier,
-          deliveryDate: item.deliverydate,
-          poType: item.potype,
-          totalQty: 0,
-          totalAmount: 0,
-          totalItems: 0,
-          items: []
-        };
-      }
-      groups[item.ponumber].items.push({
-        indentNo: item.indentNo,
-        itemName: item.itemName,
-        uom: item.uom,
-        poQty: item.poQty,
-        poRate: item.porate,
-        poAmount: item.poamt,
-        discPrice: item.discPrice,
-        totGst: item.totGst,
-        totalAmount: item.totalAmount
-      });
-      groups[item.ponumber].totalQty += Number(item.poQty) || 0;
-      groups[item.ponumber].totalAmount += Number(item.totalAmount) || 0;
-      groups[item.ponumber].totalItems += 1;
+
+const groupedData = useMemo(() => {
+  const groups = {};
+  reportData.forEach(item => {
+    console.log('Processing item:', item.ponumber, 'totalAmount:', item.totalAmount, 'itemTotalAmount:', item.itemTotalAmount, 'transportCharges:', item.transportCharges);
+    
+    if (!groups[item.ponumber]) {
+      groups[item.ponumber] = {
+        poNo: item.ponumber,
+        poDate: item.podate,
+        supplier: item.supplier,
+        deliveryDate: item.deliverydate,
+        poType: item.potype,
+        transportCharges: Number(item.transportCharges) || 0,
+        totalAmount: Number(item.totalAmount) || 0,  // PO total (includes transport)
+        totalQty: 0,
+        totalItems: 0,
+        items: []
+      };
+      console.log('Created new group for:', item.ponumber, 'totalAmount set to:', item.totalAmount);
+    }
+    
+    // ✅ FIX: Use itemTotalAmount for individual items, not totalAmount
+    groups[item.ponumber].items.push({
+      indentNo: item.indentNo,
+      itemName: item.itemName,
+      uom: item.uom,
+      poQty: item.poQty,
+      poRate: item.porate,
+      discPrice: item.discPrice,
+      totGst: item.totGst,
+      totalAmount: item.itemTotalAmount || item.totalAmount  // Use itemTotalAmount
     });
     
-    // Sort by PO date (newest first)
-    return Object.values(groups).sort((a, b) => {
-      if (!a.poDate && !b.poDate) return 0;
-      if (!a.poDate) return 1;
-      if (!b.poDate) return -1;
-      return new Date(b.poDate) - new Date(a.poDate);
-    });
-  }, [reportData]);
+    groups[item.ponumber].totalQty += Number(item.poQty) || 0;
+    groups[item.ponumber].totalItems += 1;
+  });
+  
+  console.log('Final groups:', groups);
+  
+  return Object.values(groups).sort((a, b) => {
+    if (!a.poDate && !b.poDate) return 0;
+    if (!a.poDate) return 1;
+    if (!b.poDate) return -1;
+    return new Date(b.poDate) - new Date(a.poDate);
+  });
+}, [reportData]);
 
   // Keyboard navigation
   useEffect(() => {

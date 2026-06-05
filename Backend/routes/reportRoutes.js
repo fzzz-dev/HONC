@@ -260,6 +260,8 @@ router.get('/purchase-order-report', async (req, res) => {
         po.supplierName AS supplier,
         po.deliveryDate AS deliverydate,
         po.poType AS potype,
+        po.transportCharges AS transportCharges,
+        po.totalAmount AS totalAmount,
         pod.indentNo,
         pod.itemName,
         pod.uom,
@@ -268,7 +270,7 @@ router.get('/purchase-order-report', async (req, res) => {
         pod.poRate AS porate,
         pod.discPrice,
         pod.totGst,
-        pod.totalAmount
+        pod.totalAmount AS itemTotalAmount
       FROM PurchaseOrders po 
       LEFT JOIN PurchaseOrderDetails pod ON po.id = pod.purchaseOrderId 
       WHERE 1=1
@@ -314,7 +316,7 @@ router.get('/purchase-order-report', async (req, res) => {
     console.error('Error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
-});
+}); 
 
 router.get('/purchase-order-report/export/csv', async (req, res) => {
   try {
@@ -327,6 +329,8 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
         po.supplierName AS 'Supplier',
         po.deliveryDate AS 'Delivery Date',
         po.poType AS 'PO Type',
+        po.transportCharges AS 'Transport Charges',
+        po.totalAmount AS 'PO Total Amount',
         pod.indentNo AS 'Indent No',
         pod.itemName AS 'Item Name',
         pod.uom AS 'UOM',
@@ -334,7 +338,7 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
         pod.poRate AS 'Rate',
         pod.discPrice AS 'Discount',
         pod.totGst AS 'GST',
-        pod.totalAmount AS 'Total Amount'
+        pod.totalAmount AS 'Item Total Amount'
       FROM PurchaseOrders po 
       LEFT JOIN PurchaseOrderDetails pod ON po.id = pod.purchaseOrderId 
       WHERE 1=1
@@ -371,7 +375,7 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
     
     const [results] = await sequelize.query(query, { replacements });
     
-    const headers = ['PO Number', 'PO Date', 'Supplier', 'Delivery Date', 'PO Type', 'Indent No', 'Item Name', 'UOM', 'PO Qty', 'Rate', 'Discount', 'GST', 'Total Amount'];
+    const headers = ['PO Number', 'PO Date', 'Supplier', 'Delivery Date', 'PO Type', 'Transport Charges', 'PO Total Amount', 'Indent No', 'Item Name', 'UOM', 'PO Qty', 'Rate', 'Discount', 'GST', 'Item Total Amount'];
     const csvRows = [headers.join(',')];
     
     const formatDate = (dateValue) => {
@@ -395,6 +399,8 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
         `"${(row['Supplier'] || '').toString().replace(/"/g, '""')}"`,
         `"${formatDate(row['Delivery Date'])}"`,
         `"${(row['PO Type'] || '').toString().replace(/"/g, '""')}"`,
+        row['Transport Charges'] || 0,
+        row['PO Total Amount'] || 0,
         `"${(row['Indent No'] || '').toString().replace(/"/g, '""')}"`,
         `"${(row['Item Name'] || '').toString().replace(/"/g, '""')}"`,
         `"${(row['UOM'] || '').toString().replace(/"/g, '""')}"`,
@@ -402,7 +408,7 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
         row['Rate'] || 0,
         row['Discount'] || 0,
         row['GST'] || 0,
-        row['Total Amount'] || 0
+        row['Item Total Amount'] || 0
       ];
       csvRows.push(values.join(','));
     }
@@ -928,7 +934,7 @@ router.get('/inventory/stock-flow/export/csv', async (req, res) => {
   }
 });
 
-// ============= LEVEL 2 PENDING APPROVAL =============
+//level 2 pending approval
 router.get('/po-level2-pending', async (req, res) => {
   try {
     const [results] = await sequelize.query(`
@@ -940,6 +946,8 @@ router.get('/po-level2-pending', async (req, res) => {
         po.supplierId,
         po.deliveryDate AS deliverydate,
         po.poType AS potype,
+        po.transportCharges AS transportCharges,
+        po.totalAmount AS totalAmount,
         po.level1Approved,
         po.level2Approved,
         po.level1ApprovedBy,
@@ -962,7 +970,7 @@ router.get('/po-level2-pending', async (req, res) => {
         pod.sgst,
         pod.cgst,
         pod.igst,
-        pod.totalAmount
+        pod.totalAmount AS itemTotalAmount
       FROM PurchaseOrders po 
       LEFT JOIN PurchaseOrderDetails pod ON po.id = pod.purchaseOrderId 
       WHERE po.level2Approved = 'No' 
@@ -981,6 +989,8 @@ router.get('/po-level2-pending', async (req, res) => {
           supplierId: row.supplierId,
           deliverydate: row.deliverydate,
           potype: row.potype,
+          transportCharges: Number(row.transportCharges) || 0,
+          totalAmount: Number(row.totalAmount) || 0,
           level1Approved: row.level1Approved,
           level2Approved: row.level2Approved,
           level1ApprovedBy: row.level1ApprovedBy,
@@ -990,12 +1000,10 @@ router.get('/po-level2-pending', async (req, res) => {
           status: row.status,
           createdBy: row.createdBy,
           createdOn: row.createdOn,
-          totalAmount: 0,
           items: []
         };
       }
       if (row.itemName) {
-        const itemTotal = Number(row.totalAmount) || 0;
         poSummary[row.id].items.push({
           indentNo: row.indentNo,
           itemId: row.itemId,
@@ -1010,9 +1018,8 @@ router.get('/po-level2-pending', async (req, res) => {
           sgst: row.sgst,
           cgst: row.cgst,
           igst: row.igst,
-          totalAmount: itemTotal
+          totalAmount: Number(row.itemTotalAmount) || 0
         });
-        poSummary[row.id].totalAmount += itemTotal;
       }
     });
     
@@ -1040,6 +1047,8 @@ router.get('/po-level1-pending', async (req, res) => {
         po.supplierId,
         po.deliveryDate AS deliverydate,
         po.poType AS potype,
+        po.transportCharges AS transportCharges,
+        po.totalAmount AS totalAmount,
         po.level1Approved,
         po.level2Approved,
         po.level1ApprovedBy,
@@ -1062,7 +1071,7 @@ router.get('/po-level1-pending', async (req, res) => {
         pod.sgst,
         pod.cgst,
         pod.igst,
-        pod.totalAmount
+        pod.totalAmount AS itemTotalAmount
       FROM PurchaseOrders po 
       LEFT JOIN PurchaseOrderDetails pod ON po.id = pod.purchaseOrderId 
       WHERE po.level2Approved = 'Yes' 
@@ -1082,6 +1091,8 @@ router.get('/po-level1-pending', async (req, res) => {
           supplierId: row.supplierId,
           deliverydate: row.deliverydate,
           potype: row.potype,
+          transportCharges: Number(row.transportCharges) || 0,
+          totalAmount: Number(row.totalAmount) || 0,
           level1Approved: row.level1Approved,
           level2Approved: row.level2Approved,
           level1ApprovedBy: row.level1ApprovedBy,
@@ -1091,12 +1102,10 @@ router.get('/po-level1-pending', async (req, res) => {
           status: row.status,
           createdBy: row.createdBy,
           createdOn: row.createdOn,
-          totalAmount: 0,
           items: []
         };
       }
       if (row.itemName) {
-        const itemTotal = Number(row.totalAmount) || 0;
         poSummary[row.id].items.push({
           indentNo: row.indentNo,
           itemId: row.itemId,
@@ -1111,9 +1120,8 @@ router.get('/po-level1-pending', async (req, res) => {
           sgst: row.sgst,
           cgst: row.cgst,
           igst: row.igst,
-          totalAmount: itemTotal
+          totalAmount: Number(row.itemTotalAmount) || 0
         });
-        poSummary[row.id].totalAmount += itemTotal;
       }
     });
     

@@ -170,7 +170,8 @@ const SupplierDetailsModal = ({ supplier, onClose }) => {
 const emptyDetail = () => ({
   _rowId: Math.random(), indentDetailId: "", indentNo: "", itemId: "", itemName: "", uom: "", balQty: 0,
   poQty: 0, poRate: 0, discMode: "pct", discPct: 0, discPrice: 0, poAmount: 0,
-  gstPct: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0
+  gstPct: 0, sgst: 0, cgst: 0, igst: 0, totGst: 0, totalAmount: 0,
+  transportCharges: 0
 });
 
 const emptyHeader = () => ({
@@ -212,20 +213,101 @@ const Field = ({ label, children, horizontal = true }) => (
 function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) {
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   
-  // Round the net value to whole number - THIS WILL BE THE EXACT AMOUNT FOR WORDS
-  const netValueRounded = Math.round(totals.totalAmount);
-  const roundOffAmount = netValueRounded - totals.totalAmount;
-  const netValueInWords = numberToWords(netValueRounded);
+  // Get transport charges from header
+  const transportAmount = Number(header.transportCharges) || 0;
+  
+  // Calculate totals for all items
+  const grossValue = detailRows.reduce((s, d) => s + (Number(d.poQty || 0) * Number(d.poRate || 0)), 0);
+  const discountAmount = grossValue - (Number(totals.poAmount) || 0);
+  const itemsTotal = Number(totals.poAmount) || 0;
+  
+  // Subtotal before GST = Items Total + Transport
+  const subtotalBeforeGst = itemsTotal + transportAmount;
+  
+  // Calculate GST on the Subtotal (items + transport)
+  let cgstAmount = 0, sgstAmount = 0, igstAmount = 0, totalGst = 0;
+  
+  if (gstEnabled) {
+    if (gstType === 'local') {
+      // CGST and SGST each at 9% (total 18%)
+      cgstAmount = subtotalBeforeGst * 0.09;
+      sgstAmount = subtotalBeforeGst * 0.09;
+      totalGst = cgstAmount + sgstAmount;
+    } else {
+      // IGST at 18%
+      igstAmount = subtotalBeforeGst * 0.18;
+      totalGst = igstAmount;
+    }
+  }
+  
+  // Grand Total = Subtotal before GST + Total GST
+  const finalTotal = subtotalBeforeGst + totalGst;
+  const netValueRounded = Math.round(finalTotal);
+  const roundOffAmount = netValueRounded - finalTotal;
   
   const ITEMS_PER_PAGE = 15;
   const totalPages = Math.ceil(detailRows.length / ITEMS_PER_PAGE);
   
-  // Calculate totals for all items
-  const grossValue = detailRows.reduce((s, d) => s + (Number(d.poQty || 0) * Number(d.poRate || 0)), 0);
-  const discountAmount = grossValue - totals.poAmount;
-  const igstAmount = detailRows.reduce((s, d) => s + (d.igst || 0), 0);
-  const cgstAmount = detailRows.reduce((s, d) => s + (d.cgst || 0), 0);
-  const sgstAmount = detailRows.reduce((s, d) => s + (d.sgst || 0), 0);
+  // Safe number formatter
+  const fmt = (num) => {
+    const safeNum = Number(num);
+    return isNaN(safeNum) ? "0.00" : safeNum.toFixed(2);
+  };
+  
+  const numberToWords = (num) => {
+    if (num === 0 || num === null || num === undefined) return "Zero Only";
+    
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    
+    const convertHundreds = (n) => {
+      if (n === 0) return '';
+      if (n < 20) return ones[n];
+      const ten = Math.floor(n / 10);
+      const one = n % 10;
+      return tens[ten] + (one ? ' ' + ones[one] : '');
+    };
+    
+    const convertThousands = (n) => {
+      if (n === 0) return '';
+      if (n < 100) return convertHundreds(n);
+      const hundred = Math.floor(n / 100);
+      const remainder = n % 100;
+      return ones[hundred] + ' Hundred' + (remainder ? ' ' + convertHundreds(remainder) : '');
+    };
+    
+    let result = [];
+    let remaining = num;
+    
+    if (remaining >= 10000000) {
+      const crores = Math.floor(remaining / 10000000);
+      result.push(convertHundreds(crores) + ' Crore');
+      remaining %= 10000000;
+    }
+    
+    if (remaining >= 100000) {
+      const lakhs = Math.floor(remaining / 100000);
+      result.push(convertHundreds(lakhs) + ' Lakh');
+      remaining %= 100000;
+    }
+    
+    if (remaining >= 1000) {
+      const thousands = Math.floor(remaining / 1000);
+      result.push(convertThousands(thousands) + ' Thousand');
+      remaining %= 1000;
+    }
+    
+    if (remaining > 0) {
+      if (remaining < 100) {
+        result.push(convertHundreds(remaining));
+      } else {
+        result.push(convertThousands(remaining));
+      }
+    }
+    
+    const words = result.join(' ').trim();
+    return words ? `${words} only` : 'Zero Only';
+  };
   
   // Build all pages
   let allPagesHtml = '';
@@ -325,19 +407,27 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
               </tr>
             </thead>
             <tbody>
-              ${pageItems.map((d, i) => `
-              <tr>
-                <td class="text-left" style="border-left: none;">${startSerial + i + 1}</td>
-                <td class="text-left" style="font-size: 8.5px;">${esc(d.indentNo || "Direct")}</td>
-                <td class="text-left" style="font-size: 8.5px;">${esc(d.itemName)}</td>
-                <td class="text-right">${d.discMode === 'pct' ? Number(d.discPct || 0).toFixed(2) : ''}</td>
-                <td class="text-right">${Number(d.gstPct || 0).toFixed(2)}</td>
-                <td class="text-center">${esc(d.uom)}</td>
-                <td class="text-right">${Number(d.poQty || 0).toFixed(3)}</td>
-                <td class="text-right">${Number(d.poRate || 0).toFixed(2)}</td>
-                <td class="text-right" style="border-right: none;">${Number((d.poQty || 0) * (d.poRate || 0)).toFixed(2)}</td>
-              </tr>
-              `).join("")}
+              ${pageItems.map((d, i) => {
+                const discValue = d.discMode === 'pct' ? (Number(d.discPct) || 0).toFixed(2) : '';
+                const gstValue = (Number(d.gstPct) || 0).toFixed(2);
+                const qtyValue = (Number(d.poQty) || 0).toFixed(3);
+                const rateValue = (Number(d.poRate) || 0).toFixed(2);
+                const lineValue = ((Number(d.poQty) || 0) * (Number(d.poRate) || 0)).toFixed(2);
+                
+                return `
+                <tr>
+                  <td class="text-left" style="border-left: none;">${startSerial + i + 1}</td>
+                  <td class="text-left" style="font-size: 8.5px;">${esc(d.indentNo || "Direct")}</td>
+                  <td class="text-left" style="font-size: 8.5px;">${esc(d.itemName)}</td>
+                  <td class="text-right">${discValue}</td>
+                  <td class="text-right">${gstValue}</td>
+                  <td class="text-center">${esc(d.uom)}</td>
+                  <td class="text-right">${qtyValue}</td>
+                  <td class="text-right">${rateValue}</td>
+                  <td class="text-right" style="border-right: none;">${lineValue}</td>
+                </tr>
+                `;
+              }).join("")}
             </tbody>
           </table>
 
@@ -355,23 +445,51 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
                   <tr>
                     <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
                       <span class="bold" style="font-size: 8px;">Value in Words</span> 
-                      <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(Math.round(totals.totalAmount))} Only</span>
+                      <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(netValueRounded)} Only</span>
                     </td>
                   </tr>
                 </table>
               </td>
               <td style="width: 30%; padding: 0; border: none; vertical-align: top;">
                 <table class="summary-table" style="width: 100%;">
-                  <tr><td class="bold text-left">Gross Value</td><td class="text-right">${fmt(grossValue)}</td></tr>
-                  <tr><td class="bold text-left">Discount</td><td class="text-right">${fmt(discountAmount)}</td></tr>
-                  <tr><td class="bold text-left">Basic Value</td><td class="text-right">${fmt(totals.poAmount)}</td></tr>
-                  <tr><td class="text-left">IGST</td><td class="text-right">${fmt(igstAmount)}</td></tr>
-                  <tr><td class="text-left">CGST</td><td class="text-right">${fmt(cgstAmount)}</td></tr>
-                  <tr><td class="text-left">SGST</td><td class="text-right">${fmt(sgstAmount)}</td></tr>
-                  <tr><td class="text-left">Other Charges</td><td class="text-right">0.00</td></tr>
+                  <tr>
+                    <td class="bold text-left">Gross Value</td>
+                    <td class="text-right">${fmt(grossValue)}</td>
+                  </tr>
+                  <tr>
+                    <td class="bold text-left">Discount</td>
+                    <td class="text-right">${fmt(discountAmount)}</td>
+                  </tr>
+                  <tr>
+                    <td class="text-left">Transport & Other Charges</td>
+                    <td class="text-right">${fmt(transportAmount)}</td>
+                  </tr>
+                  <tr>
+                    <td class="bold text-left">Subtotal before GST</td>
+                    <td class="text-right">${fmt(subtotalBeforeGst)}</td>
+                  </tr>
+                  ${gstType === 'local' ? `
+                  <tr>
+                    <td class="text-left">CGST @ 9%</td>
+                    <td class="text-right">${fmt(cgstAmount)}</td>
+                  </tr>
+                  <tr>
+                    <td class="text-left">SGST @ 9%</td>
+                    <td class="text-right">${fmt(sgstAmount)}</td>
+                  </tr>
+                  ` : `
+                  <tr>
+                    <td class="text-left">IGST @ 18%</td>
+                    <td class="text-right">${fmt(igstAmount)}</td>
+                  </tr>
+                  `}
+                  <tr>
+                    <td class="bold text-left">Total Tax</td>
+                    <td class="text-right">${fmt(totalGst)}</td>
+                  </tr>
                   <tr>
                     <td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off</td>
-                    <td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">${roundOffAmount.toFixed(2)}</td>
+                    <td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">${fmt(roundOffAmount)}</td>
                   </tr>
                   <tr>
                     <td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value</td>
@@ -468,273 +586,364 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
   }
 }
 
-
 const downloadAsPDF = async ({ header, details: detailRows, totals, gstEnabled, gstType, company, supplier }) => {
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   
-  const ITEMS_PER_PAGE = 15;
-  const totalPages = Math.ceil(detailRows.length / ITEMS_PER_PAGE);
-
+  const ROWS_PER_PAGE = 15;
+  
+  // Function to pad rows to always have exactly ROWS_PER_PAGE rows per page
+  const getPaddedRowsForPage = (rows, startIndex) => {
+    const pageRows = rows.slice(startIndex, startIndex + ROWS_PER_PAGE);
+    const paddedRows = [...pageRows];
+    const emptyRowsNeeded = ROWS_PER_PAGE - pageRows.length;
+    
+    for (let i = 0; i < emptyRowsNeeded; i++) {
+      paddedRows.push({
+        isEmpty: true,
+        indentNo: "",
+        itemName: "",
+        discPct: "",
+        gstPct: "",
+        uom: "",
+        poQty: "",
+        poRate: "",
+        lineTotal: ""
+      });
+    }
+    return paddedRows;
+  };
+  
   const numberToWords = (num) => {
-  if (num === 0 || num === null || num === undefined) return "Zero Only";
-  
-  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  
-  const convertHundreds = (n) => {
-    if (n === 0) return '';
-    if (n < 20) return ones[n];
-    const ten = Math.floor(n / 10);
-    const one = n % 10;
-    return tens[ten] + (one ? ' ' + ones[one] : '');
+    if (num === 0 || num === null || num === undefined) return "Zero Only";
+    
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    
+    const convertHundreds = (n) => {
+      if (n === 0) return '';
+      if (n < 20) return ones[n];
+      const ten = Math.floor(n / 10);
+      const one = n % 10;
+      return tens[ten] + (one ? ' ' + ones[one] : '');
+    };
+    
+    const convertThousands = (n) => {
+      if (n === 0) return '';
+      if (n < 100) return convertHundreds(n);
+      const hundred = Math.floor(n / 100);
+      const remainder = n % 100;
+      return ones[hundred] + ' Hundred' + (remainder ? ' ' + convertHundreds(remainder) : '');
+    };
+    
+    let result = [];
+    let remaining = num;
+    
+    if (remaining >= 10000000) {
+      const crores = Math.floor(remaining / 10000000);
+      result.push(convertHundreds(crores) + ' Crore');
+      remaining %= 10000000;
+    }
+    
+    if (remaining >= 100000) {
+      const lakhs = Math.floor(remaining / 100000);
+      result.push(convertHundreds(lakhs) + ' Lakh');
+      remaining %= 100000;
+    }
+    
+    if (remaining >= 1000) {
+      const thousands = Math.floor(remaining / 1000);
+      result.push(convertThousands(thousands) + ' Thousand');
+      remaining %= 1000;
+    }
+    
+    if (remaining > 0) {
+      if (remaining < 100) {
+        result.push(convertHundreds(remaining));
+      } else {
+        result.push(convertThousands(remaining));
+      }
+    }
+    
+    const words = result.join(' ').trim();
+    return words ? `${words} only` : 'Zero Only';
   };
-  
-  const convertThousands = (n) => {
-    if (n === 0) return '';
-    if (n < 100) return convertHundreds(n);
-    const hundred = Math.floor(n / 100);
-    const remainder = n % 100;
-    return ones[hundred] + ' Hundred' + (remainder ? ' ' + convertHundreds(remainder) : '');
+
+  // Safe number formatter
+  const fmt = (num) => {
+    const safeNum = Number(num);
+    return isNaN(safeNum) ? "0.00" : safeNum.toFixed(2);
   };
+
+  const grossValue = detailRows.reduce((s, d) => s + (Number(d.poQty || 0) * Number(d.poRate || 0)), 0);
+  const discountAmount = grossValue - (Number(totals.poAmount) || 0);
+  const itemsTotal = Number(totals.poAmount) || 0;
   
-  let result = [];
-  let remaining = num;
+  // Get transport charges from header
+  const transportAmount = Number(header.transportCharges) || 0;
   
-  // Crores (10000000)
-  if (remaining >= 10000000) {
-    const crores = Math.floor(remaining / 10000000);
-    result.push(convertHundreds(crores) + ' Crore');
-    remaining %= 10000000;
-  }
+  // Subtotal before GST = Items Total + Transport
+  const subtotalBeforeGst = itemsTotal + transportAmount;
   
-  // Lakhs (100000)
-  if (remaining >= 100000) {
-    const lakhs = Math.floor(remaining / 100000);
-    result.push(convertHundreds(lakhs) + ' Lakh');
-    remaining %= 100000;
-  }
+  // Calculate GST on the Subtotal (items + transport)
+  let cgstAmount = 0, sgstAmount = 0, igstAmount = 0, totalGst = 0;
   
-  // Thousands (1000)
-  if (remaining >= 1000) {
-    const thousands = Math.floor(remaining / 1000);
-    result.push(convertThousands(thousands) + ' Thousand');
-    remaining %= 1000;
-  }
-  
-  // Remaining hundreds and below
-  if (remaining > 0) {
-    if (remaining < 100) {
-      result.push(convertHundreds(remaining));
+  if (gstEnabled) {
+    if (gstType === 'local') {
+      // CGST and SGST each at 9% (total 18%)
+      cgstAmount = subtotalBeforeGst * 0.09;
+      sgstAmount = subtotalBeforeGst * 0.09;
+      totalGst = cgstAmount + sgstAmount;
     } else {
-      result.push(convertThousands(remaining));
+      // IGST at 18%
+      igstAmount = subtotalBeforeGst * 0.18;
+      totalGst = igstAmount;
     }
   }
   
-  const words = result.join(' ').trim();
-  return words ? `${words} only` : 'Zero Only';
-};
+  // Grand Total = Subtotal before GST + Total GST
+  const finalTotal = subtotalBeforeGst + totalGst;
+  const netValueRounded = Math.round(finalTotal);
+  const roundOffAmount = netValueRounded - finalTotal;
 
-// Helper functions
-const fmt = (num) => (num || 0).toFixed(2);
-
-// Then calculate totals
-const grossValue = detailRows.reduce((s, d) => s + (Number(d.poQty || 0) * Number(d.poRate || 0)), 0);
-const discountAmount = grossValue - totals.poAmount;
-const igstAmount = detailRows.reduce((s, d) => s + (d.igst || 0), 0);
-const cgstAmount = detailRows.reduce((s, d) => s + (d.cgst || 0), 0);
-const sgstAmount = detailRows.reduce((s, d) => s + (d.sgst || 0), 0);
-
-// Then use them
-const netValueRounded2 = Math.round(totals.totalAmount);
-const roundOffAmount = netValueRounded2 - totals.totalAmount;
-const netValueInWords = numberToWords(netValueRounded2);
-const fmtRound = (num) => (num || 0).toFixed(0);
-
-  // Build all pages
+  const totalPages = Math.ceil(detailRows.length / ROWS_PER_PAGE);
+  
   let allPagesHtml = '';
   
   for (let page = 1; page <= totalPages; page++) {
-    const startIndex = (page - 1) * ITEMS_PER_PAGE;
-    const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, detailRows.length);
-    const pageItems = detailRows.slice(startIndex, endIndex);
+    const startIndex = (page - 1) * ROWS_PER_PAGE;
+    const pageItems = getPaddedRowsForPage(detailRows, startIndex);
     const isLastPage = page === totalPages;
-    const startSerial = (page - 1) * ITEMS_PER_PAGE;
+    const startSerial = (page - 1) * ROWS_PER_PAGE;
     
     allPagesHtml += `
       <div ${page < totalPages ? 'style="page-break-after: always;"' : ''}>
-        <table style="border: none; margin-bottom: 2px;">
-          <tr>
-            <td class="no-border text-center bold" style="font-size: 15px; width: 80%; vertical-align: middle;">Purchase Order</td>
-            <td class="no-border text-right bold" style="width: 20%; vertical-align: middle; font-size: 9px;">Page ${page} of ${totalPages}</td>
-          </tr>
-        </table>
-        
-        <div class="container">
-          <table class="grid-table">
+        <div class="page-content">
+          <table style="border: none; margin-bottom: 2px; width: 100%;">
             <tr>
-              <td colspan="2" style="width: 66.66%; border-bottom: 1px solid #000; padding: 0;">
-                <table style="width: 100%; height: 100%; border: none;">
-                  <tr>
-                    <td style="width: 30%; border: none; text-align: center; vertical-align: middle; padding: 10px;">
-                      ${company?.logo ? `<img src="${company.logo}" style="height: 55px; max-width: 100%; object-fit: contain;" />` : ''}
-                    </td>
-                    <td class="text-center" style="width: 70%; border: none; vertical-align: middle; padding: 10px 10px 10px 0;">
-                      <div class="bold" style="font-size: 14px;">${esc(company?.companyName || "TEST COMPANY")}</div>
-                      <div style="font-size: 8.5px; margin-top: 4px;">${esc(company?.address || "Company Address")}</div>
-                      <div style="font-size: 8.5px;">Tel: ${esc(company?.phone || "")}, E-Mail: ${esc(company?.email || "")}</div>
-                      <div style="font-size: 8.5px;">GSTIN: ${esc(company?.gstin || "")}</div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-              <td style="width: 33.33%; padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
-                <table style="height: 100%; border: none;">
-                  <tr>
-                    <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-left: none; width: 50%; font-size: 9px;">PO Number</td>
-                    <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-right: none; width: 50%; font-size: 9px;">PO Date</td>
-                  </tr>
-                  <tr>
-                    <td class="text-center bold" style="border-left: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(header.poNo)}</td>
-                    <td class="text-center bold" style="border-right: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(new Date(header.date).toLocaleDateString("en-GB"))}</td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-            <tr>
-              <td colspan="2" style="border-bottom: 1px solid #000; padding: 5px;">
-                <div><span class="bold">Party:</span> <span class="bold" style="margin-left: 10px; font-size: 11px;">${esc(header.supplierName)}</span></div>
-                <div style="margin-top: 4px;">${esc(header.supplierAddress)}</div>
-                <div style="margin-top: 4px;">GST: ${esc(header.supplierGst)}</div>
-              </td>
-              <td style="padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
-                <table style="height: 100%; border: none;">
-                  <tr><td style="border-top: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Reference:</span> ${esc(header.refNo || "")}</td></tr>
-                  <tr><td style="border-bottom: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Delivery Date:</span> <span style="margin-left: 10px;" class="bold">${esc(header.deliveryDate ? new Date(header.deliveryDate).toLocaleDateString("en-GB") : "")}</span></td></tr>
-                </table>
-              </td>
-            </tr>
-            <tr>
-              <td style="width: 33.33%; border-bottom: none;">
-                <div class="bold">Place of Delivery</div>
-                <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
-                <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
-                <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
-              </td>
-              <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
-                <div class="bold">Transported</div>
-                <div style="margin-top: 4px;"></div>
-              </td>
-              <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
-                <div class="bold">Invoice to be Sent to</div>
-                <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
-                <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
-                <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
-              </td>
+              <td class="no-border text-center bold" style="font-size: 15px; width: 80%; vertical-align: middle;">Purchase Order</td>
+              <td class="no-border text-right bold" style="width: 20%; vertical-align: middle; font-size: 9px;">Page ${page} of ${totalPages}</td>
             </tr>
           </table>
-
-          <table class="items-table">
-            <thead>
+          
+          <div class="container">
+            <table class="grid-table" style="width: 100%;">
               <tr>
-                <th style="width: 4%; border-left: none;">S.No</th>
-                <th style="width: 12%;">Indent No</th>
-                <th style="width: 24%;">Item Description</th>
-                <th style="width: 9%;">Discount%</th>
-                <th style="width: 6%;">Tax%</th>
-                <th style="width: 7%;">Uom</th>
-                <th style="width: 10%;">Quantity</th>
-                <th style="width: 13%;">Unit Price</th>
-                <th style="width: 15%; border-right: none;">Value</th>
+                <td colspan="2" style="width: 66.66%; border-bottom: 1px solid #000; padding: 0;">
+                  <table style="width: 100%; height: 100%; border: none;">
+                    <tr>
+                      <td style="width: 30%; border: none; text-align: center; vertical-align: middle; padding: 10px;">
+                        ${company?.logo ? `<img src="${company.logo}" style="height: 55px; max-width: 100%; object-fit: contain;" />` : ''}
+                      </td>
+                      <td class="text-center" style="width: 70%; border: none; vertical-align: middle; padding: 10px 10px 10px 0;">
+                        <div class="bold" style="font-size: 14px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+                        <div style="font-size: 8.5px; margin-top: 4px;">${esc(company?.address || "Company Address")}</div>
+                        <div style="font-size: 8.5px;">Tel: ${esc(company?.phone || "")}, E-Mail: ${esc(company?.email || "")}</div>
+                        <div style="font-size: 8.5px;">GSTIN: ${esc(company?.gstin || "")}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+                <td style="width: 33.33%; padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
+                  <table style="height: 100%; border: none; width: 100%;">
+                    <tr>
+                      <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-left: none; width: 50%; font-size: 9px;">PO Number</td>
+                      <td class="text-center bold" style="background: #e5e7eb; border-top: none; border-right: none; width: 50%; font-size: 9px;">PO Date</td>
+                    </tr>
+                    <tr>
+                      <td class="text-center bold" style="border-left: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(header.poNo)}</td>
+                      <td class="text-center bold" style="border-right: none; border-bottom: none; font-size: 11px; vertical-align: middle; height: 35px;">${esc(new Date(header.date).toLocaleDateString("en-GB"))}</td>
+                    </tr>
+                  </table>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              ${pageItems.map((d, i) => `
               <tr>
-                <td class="text-left" style="border-left: none;">${startSerial + i + 1}</td>
-                <td class="text-left" style="font-size: 8.5px;">${esc(d.indentNo || "Direct")}</td>
-                <td class="text-left" style="font-size: 8.5px;">${esc(d.itemName)}</td>
-                <td class="text-right">${d.discMode === 'pct' ? Number(d.discPct || 0).toFixed(2) : ''}</td>
-                <td class="text-right">${Number(d.gstPct || 0).toFixed(2)}</td>
-                <td class="text-center">${esc(d.uom)}</td>
-                <td class="text-right">${Number(d.poQty || 0).toFixed(3)}</td>
-                <td class="text-right">${Number(d.poRate || 0).toFixed(2)}</td>
-                <td class="text-right" style="border-right: none;">${Number((d.poQty || 0) * (d.poRate || 0)).toFixed(2)}</td>
+                <td colspan="2" style="border-bottom: 1px solid #000; padding: 5px;">
+                  <div><span class="bold">Party:</span> <span class="bold" style="margin-left: 10px; font-size: 11px;">${esc(header.supplierName)}</span></div>
+                  <div style="margin-top: 4px;">${esc(header.supplierAddress)}</div>
+                  <div style="margin-top: 4px;">GST: ${esc(header.supplierGst)}</div>
+                </td>
+                <td style="padding: 0; border-bottom: 1px solid #000; border-left: 1px solid #000;">
+                  <table style="height: 100%; border: none; width: 100%;">
+                    <tr><td style="border-top: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Reference:</span> ${esc(header.refNo || "")}NonNull</td>
+                    <tr><td style="border-bottom: none; border-left: none; border-right: none; padding: 5px;"><span class="bold">Delivery Date:</span> <span style="margin-left: 10px;" class="bold">${esc(header.deliveryDate ? new Date(header.deliveryDate).toLocaleDateString("en-GB") : "")}</span>NonNull</td>
+                  </table>
+                </td>
               </tr>
-              `).join("")}
-            <\/tbody>
-          <\/table>
+              <tr>
+                <td style="width: 33.33%; border-bottom: none;">
+                  <div class="bold">Place of Delivery</div>
+                  <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+                  <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
+                  <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
+                </td>
+                <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
+                  <div class="bold">Transported</div>
+                  <div style="margin-top: 4px;"></div>
+                </td>
+                <td style="width: 33.33%; border-bottom: none; border-left: 1px solid #000;">
+                  <div class="bold">Invoice to be Sent to</div>
+                  <div class="bold" style="margin-top: 4px; font-size: 10px;">${esc(company?.companyName || "TEST COMPANY")}</div>
+                  <div style="margin-top: 2px;">${esc(company?.address || "")}</div>
+                  <div style="margin-top: 10px; font-size: 8px;">GST: ${esc(company?.gstin || "")}</div>
+                </td>
+              </tr>
+            </table>
 
-          ${isLastPage ? `
-          <table style="border: none; width: 100%;">
-            <tr>
-              <td style="width: 70%; padding: 0; border: none; border-right: 1px solid #000; vertical-align: top;">
-                <table style="border: none; width: 100%; height: 100%;">
-                  <tr>
-                    <td style="border: none; border-bottom: 1px solid #000; height: 100px; vertical-align: top; padding: 5px;">
-                      <div class="bold" style="font-size: 8.5px; margin-bottom: 4px;">Remarks<\/div>
-                      <div style="font-size: 9px;">${esc(header.remarks || "")}<\/div>
-                    <\/td>
-                  <\/tr>
-                  <tr>
-                    <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
-                      <span class="bold" style="font-size: 8px;">Value in Words<\/span> 
-                      <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(Math.round(totals.totalAmount))}<\/span>
-                    <\/td>
-                  <\/tr>
-                <\/table>
-              <\/td>
-              <td style="width: 30%; padding: 0; border: none; vertical-align: top;">
-                <table class="summary-table" style="width: 100%;">
-                  <tr><td class="bold text-left">Gross Value<\/td><td class="text-right">${fmt(grossValue)}<\/td><\/tr>
-                  <tr><td class="bold text-left">Discount<\/td><td class="text-right">${fmt(discountAmount)}<\/td><\/tr>
-                  <tr><td class="bold text-left">Basic Value<\/td><td class="text-right">${fmt(totals.poAmount)}<\/td><\/tr>
-                  <tr><td class="text-left">IGST<\/td><td class="text-right">${fmt(igstAmount)}<\/td><\/tr>
-                  <tr><td class="text-left">CGST<\/td><td class="text-right">${fmt(cgstAmount)}<\/td><\/tr>
-                  <tr><td class="text-left">SGST<\/td><td class="text-right">${fmt(sgstAmount)}<\/td><\/tr>
-                  <tr><td class="text-left">Other Charges<\/td><td class="text-right">0.00<\/td><\/tr>
-                    <td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off</td>
-                    <td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">${fmt(roundOffAmount)}</td>
-                     <tr>
-                    <td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value</td>
-                    <td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(netValueRounded2)}</td>
-                  </tr>
-                  </tr>
-                <\/table>
-              <\/td>
-            <\/tr>
-          <\/table>
+            <table class="items-table" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th style="width: 4%; border-left: none;">S.No</th>
+                  <th style="width: 12%;">Indent No</th>
+                  <th style="width: 24%;">Item Description</th>
+                  <th style="width: 9%;">Discount%</th>
+                  <th style="width: 6%;">Tax%</th>
+                  <th style="width: 7%;">Uom</th>
+                  <th style="width: 10%;">Quantity</th>
+                  <th style="width: 13%;">Unit Price</th>
+                  <th style="width: 15%; border-right: none;">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${pageItems.map((d, i) => {
+                  if (d.isEmpty) {
+                    return `
+                      <tr>
+                        <td class="text-left" style="border-left: none;">&nbsp;</td>
+                        <td class="text-left" style="font-size: 8.5px;">&nbsp;</td>
+                        <td class="text-left" style="font-size: 8.5px;">&nbsp;</td>
+                        <td class="text-right">&nbsp;</td>
+                        <td class="text-right">&nbsp;</td>
+                        <td class="text-center">&nbsp;</td>
+                        <td class="text-right">&nbsp;</td>
+                        <td class="text-right">&nbsp;</td>
+                        <td class="text-right" style="border-right: none;">&nbsp;</td>
+                      </tr>
+                    `;
+                  }
+                  const discValue = d.discMode === 'pct' ? (Number(d.discPct) || 0).toFixed(2) : '';
+                  const gstValue = (Number(d.gstPct) || 0).toFixed(2);
+                  const qtyValue = (Number(d.poQty) || 0).toFixed(3);
+                  const rateValue = (Number(d.poRate) || 0).toFixed(2);
+                  const lineValue = ((Number(d.poQty) || 0) * (Number(d.poRate) || 0)).toFixed(2);
+                  
+                  return `
+                    <tr>
+                      <td class="text-left" style="border-left: none;">${startSerial + i + 1}</td>
+                      <td class="text-left" style="font-size: 8.5px;">${esc(d.indentNo || "Direct")}</td>
+                      <td class="text-left" style="font-size: 8.5px;">${esc(d.itemName)}</td>
+                      <td class="text-right">${discValue}</td>
+                      <td class="text-right">${gstValue}</td>
+                      <td class="text-center">${esc(d.uom)}</td>
+                      <td class="text-right">${qtyValue}</td>
+                      <td class="text-right">${rateValue}</td>
+                      <td class="text-right" style="border-right: none;">${lineValue}</td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
 
-          <table style="border: none; width: 100%; margin-top: -1px;">
-            <tr class="signature-row">
-              <td style="width: 20%; border-left: none; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">
-                <div>Prepared By<\/div>
-                <div style="margin-top: 20px; font-weight: normal; font-size: 10px;">${esc(header.preparedBy || "")}<\/div>
-              <\/td>
-              <td style="width: 20%; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">Verified By<\/td>
-              <td style="width: 30%; padding: 5px 10px 10px 10px;">
-                <table style="border: none; width: 100%; margin-bottom: 8px;">
-                  <tr>
-                    <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 15%; font-size: 9px;">Name:<\/td>
-                    <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 35%;"><\/td>
-                    <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 20%; font-size: 9px;">Mobile:<\/td>
-                    <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 30%;"><\/td>
-                  <\/tr>
-                  <tr>
-                    <td style="border: none; padding: 2px; font-weight: bold; text-align: right; font-size: 9px;">Sign:<\/td>
-                    <td colspan="3" style="border: none; padding: 2px; border-bottom: 1px dotted #000;"><\/td>
-                  <\/tr>
-                <\/table>
-                <div style="text-align: right; font-weight: bold; font-size: 9px; padding-right: 5px;">Received By<\/div>
-              <\/td>
-              <td style="width: 30%; border-right: none; text-align: center; position: relative; padding-bottom: 10px;">
-                <div class="bold" style="font-size: 9px; position: absolute; top: 5px; left: 0; right: 0;">For ${esc(company?.companyName || "TEST COMPANY")}<\/div>
-                <div style="font-weight: bold; font-size: 9px; font-style: italic;">Authorised Signatory<\/div>
-              <\/td>
-            <\/tr>
-          <\/table>
-          ` : ''}
-        <\/div>
-      <\/div>
+            ${isLastPage ? `
+            <table style="border: none; width: 100%;">
+              <tr>
+                <td style="width: 70%; padding: 0; border: none; border-right: 1px solid #000; vertical-align: top;">
+                  <table style="border: none; width: 100%; height: 100%;">
+                    <tr>
+                      <td style="border: none; border-bottom: 1px solid #000; height: 100px; vertical-align: top; padding: 5px;">
+                        <div class="bold" style="font-size: 8.5px; margin-bottom: 4px;">Remarks</div>
+                        <div style="font-size: 9px;">${esc(header.remarks || "")}</div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="border: none; height: 40px; vertical-align: middle; padding: 5px;">
+                        <span class="bold" style="font-size: 8px;">Value in Words</span> 
+                        <span style="font-size: 9px; margin-left: 4px;">Rupees ${numberToWords(netValueRounded)}</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+                <td style="width: 30%; padding: 0; border: none; vertical-align: top;">
+                  <table class="summary-table" style="width: 100%;">
+                    <tr>
+                      <td class="bold text-left">Gross Value</td>
+                      <td class="text-right">${fmt(grossValue)}</td>
+                    </tr>
+                    <tr>
+                      <td class="bold text-left">Discount</td>
+                      <td class="text-right">${fmt(discountAmount)}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-left">Transport & Other Charges</td>
+                      <td class="text-right">${fmt(transportAmount)}</td>
+                    </tr>
+                    <tr>
+                      <td class="bold text-left">Subtotal before GST</td>
+                      <td class="text-right">${fmt(subtotalBeforeGst)}</td>
+                    </tr>
+                    ${gstType === 'local' ? `
+                    <tr>
+                      <td class="text-left">CGST @ 9%</td>
+                      <td class="text-right">${fmt(cgstAmount)}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-left">SGST @ 9%</td>
+                      <td class="text-right">${fmt(sgstAmount)}</td>
+                    </tr>
+                    ` : `
+                    <tr>
+                      <td class="text-left">IGST @ 18%</td>
+                      <td class="text-right">${fmt(igstAmount)}</td>
+                    </tr>
+                    `}
+                    <tr>
+                      <td class="bold text-left">Total Tax</td>
+                      <td class="text-right">${fmt(totalGst)}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-left" style="border-bottom: 1px solid #000; padding-bottom: 6px;">Round off</td>
+                      <td class="text-right" style="border-bottom: 1px solid #000; padding-bottom: 6px;">${fmt(roundOffAmount)}</td>
+                    </tr>
+                    <tr>
+                      <td class="bold text-left" style="font-size: 11px; padding-top: 6px;">Net Value</td>
+                      <td class="bold text-right" style="font-size: 11px; padding-top: 6px;">${fmt(netValueRounded)}</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <table style="border: none; width: 100%; margin-top: -1px;">
+              <tr class="signature-row">
+                <td style="width: 20%; border-left: none; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">
+                  <div>Prepared By</div>
+                  <div style="margin-top: 20px; font-weight: normal; font-size: 10px;">${esc(header.preparedBy || "")}</div>
+                </td>
+                <td style="width: 20%; text-align: center; font-weight: bold; font-size: 9px; padding-bottom: 10px;">Verified By</td>
+                <td style="width: 30%; padding: 5px 10px 10px 10px;">
+                  <table style="border: none; width: 100%; margin-bottom: 8px;">
+                    <tr>
+                      <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 15%; font-size: 9px;">Name:</td>
+                      <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 35%;"></td>
+                      <td style="border: none; padding: 2px; font-weight: bold; text-align: right; width: 20%; font-size: 9px;">Mobile:</td>
+                      <td style="border: none; padding: 2px; border-bottom: 1px dotted #000; width: 30%;"></td>
+                    </tr>
+                    <tr>
+                      <td style="border: none; padding: 2px; font-weight: bold; text-align: right; font-size: 9px;">Sign:</td>
+                      <td colspan="3" style="border: none; padding: 2px; border-bottom: 1px dotted #000;"></td>
+                    </tr>
+                  </table>
+                  <div style="text-align: right; font-weight: bold; font-size: 9px; padding-right: 5px;">Received By</div>
+                </td>
+                <td style="width: 30%; border-right: none; text-align: center; position: relative; padding-bottom: 10px;">
+                  <div class="bold" style="font-size: 9px; position: absolute; top: 5px; left: 0; right: 0;">For ${esc(company?.companyName || "TEST COMPANY")}</div>
+                  <div style="font-weight: bold; font-size: 9px; font-style: italic;">Authorised Signatory</div>
+                </td>
+              <tr>
+            </table>
+            ` : ''}
+          </div>
+        </div>
+      </div>
     `;
   }
   
@@ -757,7 +966,6 @@ const fmtRound = (num) => (num || 0).toFixed(0);
     .container { border: 1px solid #000; margin-top: 2px; }
     .header-info td { border-bottom: none; border-top: none; }
     
-    /* Main grid layouts */
     .grid-table { border: none; }
     .grid-table td { border-top: none; border-left: none; }
     .grid-table td:last-child { border-right: none; }
@@ -774,38 +982,32 @@ const fmtRound = (num) => (num || 0).toFixed(0);
     .signature-row td { height: 60px; vertical-align: bottom; border-top: 1px solid #000; border-bottom: none; }
 
     .container { 
-    border: 1px solid #000; 
-    margin-top: 2px;
-    width: 98%;
-    margin-left: 1%;
-  }
-  <\/style>
-<\/head>
+      border: 1px solid #000; 
+      margin-top: 2px;
+      width: 98%;
+      margin-left: 1%;
+    }
+  </style>
+</head>
 <body>
   ${allPagesHtml}
-<\/body>
-<\/html>`;
+</body>
+</html>`;
 
-    // Create a temporary div to hold the HTML content
-    const element = document.createElement('div');
-    element.innerHTML = html;
-    document.body.appendChild(element);
+  const element = document.createElement('div');
+  element.innerHTML = html;
+  document.body.appendChild(element);
 
-    // PDF options
-   const opt = {
-  margin: [0.3, 0.35, 0.3, 0.25],  // left margin 0.25, right margin 0.35
-  filename: `PO_${header.poNo || 'document'}.pdf`,
-  image: { type: 'jpeg', quality: 0.98 },
-  html2canvas: { scale: 2, useCORS: true, logging: false ,},
-  jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-};
+  const opt = {
+    margin: [0.3, 0.1, 0.3, 0.25],
+    filename: `PO_${header.poNo || 'document'}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+  };
 
-    // Generate and download PDF
-    await html2pdf().set(opt).from(element).save();
-
-    // Clean up
-    document.body.removeChild(element);
-
+  await html2pdf().set(opt).from(element).save();
+  document.body.removeChild(element);
 };
 
 export default function PurchaseOrderPage() {
@@ -1414,10 +1616,12 @@ function openEdit(po) {
     level1ApprovedDate: po.level1ApprovedDate,
     level2ApprovedBy: po.level2ApprovedBy,
     level2ApprovedDate: po.level2ApprovedDate,
-    details: po.details || po.items || []
+    details: po.details || po.items || [],
+    transportCharges: parseFloat(po.transportCharges) || 0,
+    totalAmountFromDB: parseFloat(po.totalAmount) || 0  // ✅ Use the backend total directly
   };
   
-  // Find supplier
+  // Find supplier (keep your existing supplier logic here)
   let sId = mappedPO.supplierId;
   let supplier = null;
   
@@ -1477,13 +1681,15 @@ function openEdit(po) {
     remarks: mappedPO.remarks || "",
     status: mappedPO.status || "Open",
     level1Approved: mappedPO.level1Approved || "No",
-    level2Approved: mappedPO.level2Approved || "No"
+    level2Approved: mappedPO.level2Approved || "No",
+    transportCharges: mappedPO.transportCharges,
+    totalAmountFromDB: mappedPO.totalAmountFromDB  // ✅ Use backend total
   });
 
   const gType = mappedPO.gstType || "local";
   const detailsList = safeDetails(mappedPO.details);
   
-  // 🔴 FIX: Sort details by lineNumber or id to preserve order
+  // Sort details by lineNumber or id to preserve order
   const sortedDetails = [...detailsList].sort((a, b) => {
     const aOrder = a.lineNumber || a.id || 0;
     const bOrder = b.lineNumber || b.id || 0;
@@ -1494,7 +1700,7 @@ function openEdit(po) {
     const mappedDetails = sortedDetails.map((d, idx) => {
       const mapped = { 
         ...d, 
-        _rowId: `row_${Date.now()}_${idx}_${Math.random()}`,  // Stable unique ID
+        _rowId: `row_${Date.now()}_${idx}_${Math.random()}`,
         indentDetailId: sid(d.indentDetailId), 
         itemId: d.itemId ? String(d.itemId) : "",
         indentNo: d.indentNo || "",
@@ -1506,7 +1712,7 @@ function openEdit(po) {
         discMode: d.discMode || "pct",
         discPct: d.discPct || 0,
         discPrice: d.discPrice || 0,
-        lineNumber: d.lineNumber || idx + 1  // Preserve line number
+        lineNumber: d.lineNumber || idx + 1
       };
       return mapped;
     });
@@ -1559,16 +1765,9 @@ useEffect(() => {
 }, [location.state?.po, params.id]);
 
 const calcRow = (row, gType = gstType) => {
-  console.log("calcRow input GST values:", {
-    gstPct: row.gstPct,
-    sgst: row.sgst,
-    cgst: row.cgst,
-    igst: row.igst,
-    totGst: row.totGst
-  });
-  
   const qty = Number(row.poQty || 0); 
   const rate = Number(row.poRate || 0);
+  // Remove: const transportCharges = Number(row.transportCharges || 0);
   let disc = 0;
   if (row.discMode === 'pct') {
     disc = (qty * rate) * (Number(row.discPct || 0) / 100);
@@ -1577,25 +1776,21 @@ const calcRow = (row, gType = gstType) => {
   }
   const amt = (qty * rate) - disc;
   
-  // Check if we already have GST values from the database
   const hasExistingGST = row.sgst !== undefined && row.sgst !== null && row.sgst !== 0;
   
   let sgstVal = 0, cgstVal = 0, igstVal = 0, totGstVal = 0, totalAmtVal = 0;
   
   if (hasExistingGST) {
-    // Use existing GST values from database
     sgstVal = Number(row.sgst) || 0;
     cgstVal = Number(row.cgst) || 0;
     igstVal = Number(row.igst) || 0;
     totGstVal = Number(row.totGst) || 0;
     totalAmtVal = Number(row.totalAmount) || 0;
-    console.log("Using existing GST values:", { sgstVal, cgstVal, igstVal, totGstVal });
   } else {
-    // Calculate GST if no existing values
     const gPct = Number(row.gstPct || 0);
     const tax = gstEnabled ? (amt * gPct / 100) : 0;
     totGstVal = tax;
-    totalAmtVal = amt + tax;
+    totalAmtVal = amt + tax;  // Remove + transportCharges
     
     if (gType === 'local') {
       sgstVal = tax / 2;
@@ -1603,7 +1798,6 @@ const calcRow = (row, gType = gstType) => {
     } else {
       igstVal = tax;
     }
-    console.log("Calculated GST values:", { sgstVal, cgstVal, igstVal, totGstVal });
   }
   
   const result = {
@@ -1616,14 +1810,8 @@ const calcRow = (row, gType = gstType) => {
     igst: igstVal,
     totGst: totGstVal,
     totalAmount: totalAmtVal
+    // Remove: transportCharges: transportCharges
   };
-  
-  console.log("calcRow result GST values:", {
-    sgst: result.sgst,
-    cgst: result.cgst,
-    igst: result.igst,
-    totGst: result.totGst
-  });
   
   return result;
 };
@@ -1645,30 +1833,31 @@ const calcRow = (row, gType = gstType) => {
     });
   }
 
-  const addRow = () => { 
-    const newRow = {
-      _rowId: Math.random(),
-      indentDetailId: "",
-      indentNo: "",
-      itemId: "",
-      itemName: "",
-      uom: "",
-      balQty: 0,
-      poQty: 0,
-      poRate: 0,
-      discMode: "pct",
-      discPct: 0,
-      discPrice: 0,
-      poAmount: 0,
-      gstPct: 0,
-      sgst: 0,
-      cgst: 0,
-      igst: 0,
-      totGst: 0,
-      totalAmount: 0
-    };
-    setDetails(p => [...p, newRow]);
+const addRow = () => { 
+  const newRow = {
+    _rowId: Math.random(),
+    indentDetailId: "",
+    indentNo: "",
+    itemId: "",
+    itemName: "",
+    uom: "",
+    balQty: 0,
+    poQty: 0,
+    poRate: 0,
+    discMode: "pct",
+    discPct: 0,
+    discPrice: 0,
+    poAmount: 0,
+    gstPct: 0,
+    sgst: 0,
+    cgst: 0,
+    igst: 0,
+    totGst: 0,
+    totalAmount: 0
+    // Remove: transportCharges: 0
   };
+  setDetails(p => [...p, newRow]);
+};
 
   function removeRow(idx) { 
     setDetails(p => p.filter((_, i) => i !== idx)); 
@@ -1805,15 +1994,32 @@ async function performSave() {
   
   const cleanDetails = details.map(({ _rowId, ...rest }) => rest);
   
+  const transportAmountValue = Number(header.transportCharges) || 0;
+  console.log("Transport amount being saved:", transportAmountValue);
+  console.log("Totals before save:", totals);
+  console.log("totals.totalAmount:", totals.totalAmount);
+  
+  // Use the already calculated totals which include transport in subtotal before GST
   const payload = { 
     ...header, 
     deliveryDate: header.deliveryDate,
     gstEnabled, 
     gstType, 
-    details: cleanDetails,  // ← Use cleaned details
+    details: cleanDetails,
     level1Approved: header.level1Approved || "No",
-    level2Approved: header.level2Approved || "No"
+    level2Approved: header.level2Approved || "No",
+    transportCharges: transportAmountValue,
+    cgst: totals.cgst,
+    sgst: totals.sgst,
+    igst: totals.igst,
+    totGst: totals.totGst,
+    totalAmount: totals.totalAmount
   };
+  
+  console.log("Payload totalAmount:", payload.totalAmount);
+  console.log("Payload transportCharges:", payload.transportCharges);
+  
+  // ... rest of save code
   
   try {
     let savedPO;
@@ -1847,21 +2053,57 @@ async function performSave() {
   }
 }
 
+const totals = details.reduce((acc, r) => ({
+  grossAmount: (acc.grossAmount || 0) + Number(r.grossAmount || 0),
+  discPrice: (acc.discPrice || 0) + Number(r.rowDisc || 0),
+  poAmount: (acc.poAmount || 0) + Number(r.poAmount || 0),
+  totGst: (acc.totGst || 0) + Number(r.totGst || 0),
+  totalAmount: (acc.totalAmount || 0) + Number(r.totalAmount || 0),
+  sgst: (acc.sgst || 0) + Number(r.sgst || 0),
+  cgst: (acc.cgst || 0) + Number(r.cgst || 0),
+  igst: (acc.igst || 0) + Number(r.igst || 0),
+  poQty: (acc.poQty || 0) + Number(r.poQty || 0)
+}), { grossAmount: 0, discPrice: 0, poAmount: 0, totGst: 0, totalAmount: 0, sgst: 0, cgst: 0, igst: 0, poQty: 0 });
 
+// ========== ADD TRANSPORT AND RECALCULATE GST ==========
+const transportAmount = Number(header.transportCharges || 0);
+const transportGstPct = 18;
 
-   const totals = details.reduce((acc, r) => ({
-    grossAmount: (acc.grossAmount || 0) + Number(r.grossAmount || 0),
-    discPrice: (acc.discPrice || 0) + Number(r.rowDisc || 0),
-    poAmount: (acc.poAmount || 0) + Number(r.poAmount || 0),
-    totGst: (acc.totGst || 0) + Number(r.totGst || 0),
-    totalAmount: (acc.totalAmount || 0) + Number(r.totalAmount || 0),
-    sgst: (acc.sgst || 0) + Number(r.sgst || 0),
-    cgst: (acc.cgst || 0) + Number(r.cgst || 0),
-    igst: (acc.igst || 0) + Number(r.igst || 0),
-    poQty: (acc.poQty || 0) + Number(r.poQty || 0)
-  }), { grossAmount: 0, discPrice: 0, poAmount: 0, totGst: 0, totalAmount: 0, sgst: 0, cgst: 0, igst: 0, poQty: 0 });
+if (gstEnabled && transportAmount > 0) {
+  // Items total after discount
+  const itemsTotal = totals.poAmount;
+  
+  // Subtotal before GST = Items Total + Transport
+  const subtotalBeforeGst = itemsTotal + transportAmount;
+  
+  // Calculate GST on the Subtotal (items + transport)
+  let newCgst = 0, newSgst = 0, newIgst = 0, newTotGst = 0;
+  
+  if (gstType === 'local') {
+    // CGST and SGST each at 9% (total 18%)
+    newCgst = subtotalBeforeGst * 0.09;
+    newSgst = subtotalBeforeGst * 0.09;
+    newTotGst = newCgst + newSgst;
+  } else {
+    // IGST at 18%
+    newIgst = subtotalBeforeGst * 0.18;
+    newTotGst = newIgst;
+  }
+  
+  // Update totals with recalculated values
+  totals.cgst = newCgst;
+  totals.sgst = newSgst;
+  totals.igst = newIgst;
+  totals.totGst = newTotGst;
+  totals.totalAmount = subtotalBeforeGst + newTotGst;
+} else {
+  // No transport, keep existing values
+  totals.totalAmount = totals.poAmount + totals.totGst;
+}
 
-  const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
+// Grand total
+const grandTotal = totals.totalAmount;
+const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
   function addPendingLinesToDetails() {
     const selected = [];
@@ -1915,12 +2157,12 @@ async function performSave() {
   }
 
    // Filter POs for list view
-  const filteredPos = (pos || []).filter(po => {
-    if (searchTerm && !po?.poNo?.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    return true;
-  });
+const filteredPosForDisplay = (pos || []).filter(po => {
+  if (searchTerm && !po?.poNo?.toLowerCase().includes(searchTerm.toLowerCase())) {
+    return false;
+  }
+  return true;
+});
 
   // 5. Conditional returns at the end
   if (view === "list") {
@@ -1937,28 +2179,29 @@ async function performSave() {
     }
     
     const exportToExcel = () => {
-      let headers = ["PO No", "Date", "Supplier", "Status", "Total Amount"];
-      if (approvalMode) {
-        headers = ["PO No", "Date", "Supplier", "Status", "Level 1 Approved", "Level 2 Approved", "Total Amount"];
-      }
-      
-      const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
-      const rows = filteredPos.map(po => {
-        const totalAmt = safeDetails(po.details).reduce((s, d) => s + (d.totalAmount || 0), 0);
-        if (approvalMode) {
-          return [po.poNo, po.date, po.supplierName, po.status, po.level1Approved || "No", po.level2Approved || "No", totalAmt].map(escapeCsv).join(",");
-        }
-        return [po.poNo, po.date, po.supplierName, po.status, totalAmt].map(escapeCsv).join(",");
-      });
-      const csvContent = [headers.join(","), ...rows].join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = approvalMode ? `purchase_orders_${approvalLevel === 1 ? 'level1_pending' : 'level2_pending'}.csv` : "purchase_orders.csv";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    };
+  let headers = ["PO No", "Date", "Supplier", "Status", "Total Amount"];
+  if (approvalMode) {
+    headers = ["PO No", "Date", "Supplier", "Status", "Level 1 Approved", "Level 2 Approved", "Total Amount"];
+  }
+  
+  const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+  const rows = filteredPosForDisplay.map(po => {
+  const totalAmt = Number(po.totalAmount) || 0;
+    
+    if (approvalMode) {
+      return [po.poNo, po.date, po.supplierName, po.status, po.level1Approved || "No", po.level2Approved || "No", totalAmt].map(escapeCsv).join(",");
+    }
+    return [po.poNo, po.date, po.supplierName, po.status, totalAmt].map(escapeCsv).join(",");
+  });
+  const csvContent = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = approvalMode ? `purchase_orders_${approvalLevel === 1 ? 'level1_pending' : 'level2_pending'}.csv` : "purchase_orders.csv";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
     
     const toggleAllPOSelection = () => {
       if (selectedApprovalPOs.size === filteredPos.length) {
@@ -1978,218 +2221,220 @@ async function performSave() {
       }
       setSelectedApprovalPOs(newSelected);
     };
+
+    
     
     return (
-      <div className="inv-page">
-        <div className="inv-page-header">
-          <div>
-            <h1 className="inv-page-title">
-              {approvalMode ? (
-                approvalLevel === 1 ? "PO Level 1 Pending Approval" : "PO Level 2 Pending Approval"
-              ) : "Purchase Orders"}
-            </h1>
-            <p className="inv-page-sub">
-              {approvalMode ? "Review and approve pending purchase orders" : "Manage purchase orders"}
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {approvalMode && (
-              <button 
-                className="inv-btn-primary" 
-                onClick={handleBulkApprove} 
-                disabled={bulkApproving || selectedApprovalPOs.size === 0}
-              >
-                {bulkApproving ? "Approving..." : `✓ Approve Selected (${selectedApprovalPOs.size})`}
-              </button>
-            )}
-            <button className="inv-btn-secondary" onClick={exportToExcel}>📊 Export to Excel</button>
-            {!approvalMode && (
-              <button className="inv-btn-primary" onClick={openNew}>+ New Purchase Order</button>
-            )}
-            {approvalMode && (
-              <button className="inv-btn-secondary" onClick={() => navigate("/purchase-order")}>← Back to All POs</button>
-            )}
-          </div>
-        </div>
-
-        {listError && <div className="inv-error-banner" style={{ marginBottom: 16 }}>{listError}</div>}
-        
-        {approvalMode && selectedApprovalPOs.size > 0 && (
-          <div className="inv-card" style={{ marginBottom: 16, background: "#eef2ff", border: "1px solid #3b6ef8" }}>
-            <div className="inv-card-body" style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "14px", fontWeight: 500 }}>
-                ✓ {selectedApprovalPOs.size} PO(s) selected for approval
-              </span>
-              <button 
-                className="inv-btn-primary inv-btn-sm" 
-                onClick={handleBulkApprove}
-                disabled={bulkApproving}
-              >
-                {bulkApproving ? "Processing..." : `Approve Selected (${selectedApprovalPOs.size})`}
-              </button>
-            </div>
-          </div>
+  <div className="inv-page">
+    <div className="inv-page-header">
+      <div>
+        <h1 className="inv-page-title">
+          {approvalMode ? (
+            approvalLevel === 1 ? "PO Level 1 Pending Approval" : "PO Level 2 Pending Approval"
+          ) : "Purchase Orders"}
+        </h1>
+        <p className="inv-page-sub">
+          {approvalMode ? "Review and approve pending purchase orders" : "Manage purchase orders"}
+        </p>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        {approvalMode && (
+          <button 
+            className="inv-btn-primary" 
+            onClick={handleBulkApprove} 
+            disabled={bulkApproving || selectedApprovalPOs.size === 0}
+          >
+            {bulkApproving ? "Approving..." : `✓ Approve Selected (${selectedApprovalPOs.size})`}
+          </button>
         )}
-
-        <div className="inv-card" style={{ marginBottom: 16 }}>
-          <div className="inv-card-body">
-            <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
-              <label className="inv-label"> Search PO No</label>
-              <input
-                className="inv-input"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Type to search PO Number..."
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="inv-card">
-          {loadingList ? (
-            <div style={{ textAlign: "center", padding: 40 }}>Loading...</div>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table className="inv-table">
-                <thead>
-                  <tr>
-                    {approvalMode && <th style={{ width: 40 }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedApprovalPOs.size === filteredPos.length && filteredPos.length > 0}
-                        onChange={toggleAllPOSelection}
-                        style={{ cursor: "pointer" }}
-                      />
-                    </th>}
-                    <th>#</th>
-                    <th>PO No</th>
-                    <th>Date</th>
-                    <th>Supplier</th>
-                    <th>Status</th>
-                    {approvalMode && (
-                      <>
-                        <th>Level 1</th>
-                        <th>Level 2</th>
-                      </>
-                    )}
-                    <th>Total Amount</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPos.length === 0 ? (
-                    <tr>
-                      <td colSpan={approvalMode ? 9 : 7} style={{ textAlign: "center", padding: 40 }}>
-                        {approvalMode ? "No pending POs found for approval" : "No purchase orders found"}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredPos.map((po, i) => (
-                      <tr 
-                        key={po.id || po._id} 
-                        style={{ 
-                          backgroundColor: approvalMode && selectedApprovalPOs.has(sid(po)) ? "#eef2ff" : "transparent",
-                          transition: "background-color 0.2s"
-                        }}
-                      >
-                        {approvalMode && (
-                          <td style={{ textAlign: "center" }}>
-                            <input
-                              type="checkbox"
-                              checked={selectedApprovalPOs.has(sid(po))}
-                              onChange={() => togglePOSelection(sid(po))}
-                              style={{ cursor: "pointer" }}
-                            />
-                          </td>
-                        )}
-                        <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
-                        <td style={{ fontWeight: 600, color: "var(--accent)" }}>{po.poNo}</td>
-                        <td>{po.date}</td>
-                        <td>{po.supplierName}</td>
-                        <td>
-                          <span className={`inv-badge ${po.status === 'Open' ? 'inv-badge-yes' : 'inv-badge-no'}`}>
-                            {po.status}
-                          </span>
-                        </td>
-                        {approvalMode && (
-                          <>
-                            <td>
-                              <span className={`inv-badge ${po.level1Approved === 'Yes' ? 'inv-badge-yes' : 'inv-badge-warning'}`}>
-                                {po.level1Approved === 'Yes' ? '✓ Approved' : '⏳ Pending'}
-                              </span>
-                            </td>
-                            <td>
-                              <span className={`inv-badge ${po.level2Approved === 'Yes' ? 'inv-badge-yes' : 'inv-badge-warning'}`}>
-                                {po.level2Approved === 'Yes' ? '✓ Approved' : '⏳ Pending'}
-                              </span>
-                            </td>
-                          </>
-                        )}
-                        <td>
-                          ₹{fmt(
-                            (safeDetails(po.details) || []).reduce((s, d) => {
-                              const amount = Number(d.totalAmount) || Number(d.poAmount) || 0;
-                              return s + amount;
-                            }, 0)
-                          )}
-                        </td>
-                        <td>
-                          <div className="inv-actions">
-                            <button 
-                              className="inv-btn-icon" 
-                              onClick={() => openEdit(po)}
-                              title="View/Edit PO"
-                            >
-                              <EditIcon />
-                            </button>
-                            {!approvalMode && (
-                              <button 
-                                className="inv-btn-icon inv-btn-danger" 
-                                onClick={() => handleDelete(po.id || po._id)}
-                                title="Delete PO"
-                              >
-                                <DeleteIcon />
-                              </button>
-                            )}
-                            {approvalMode && (
-                              <button 
-                                className="inv-btn-icon" 
-                                onClick={() => {
-                                  openEdit(po);
-                                  // Show a message that this is for viewing only in approval mode
-                                  setTimeout(() => {
-                                    const approvalInfo = document.createElement('div');
-                                    approvalInfo.className = 'inv-toast-info';
-                                    approvalInfo.textContent = `⚠️ This PO is pending Level ${approvalLevel} approval. You can view details but cannot modify until approved.`;
-                                    approvalInfo.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #f59e0b; color: #fff; padding: 12px 20px; border-radius: 8px; z-index: 10000; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
-                                    document.body.appendChild(approvalInfo);
-                                    setTimeout(() => approvalInfo.remove(), 3000);
-                                  }, 500);
-                                }}
-                                title="View PO Details"
-                              >
-                                <ViewIcon />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-        
-        {approvalMode && filteredPos.length > 0 && (
-          <div className="inv-card" style={{ marginTop: 16, background: "#f8fafc" }}>
-            <div className="inv-card-body" style={{ fontSize: "12px", color: "#64748b", textAlign: "center" }}>
-              💡 Tip: Select one or more POs using the checkboxes, then click "Approve Selected" to approve them in bulk
-            </div>
-          </div>
+        <button className="inv-btn-secondary" onClick={exportToExcel}>📊 Export to Excel</button>
+        {!approvalMode && (
+          <button className="inv-btn-primary" onClick={openNew}>+ New Purchase Order</button>
+        )}
+        {approvalMode && (
+          <button className="inv-btn-secondary" onClick={() => navigate("/purchase-order")}>← Back to All POs</button>
         )}
       </div>
+    </div>
+
+    {listError && <div className="inv-error-banner" style={{ marginBottom: 16 }}>{listError}</div>}
+    
+    {approvalMode && selectedApprovalPOs.size > 0 && (
+      <div className="inv-card" style={{ marginBottom: 16, background: "#eef2ff", border: "1px solid #3b6ef8" }}>
+        <div className="inv-card-body" style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: "14px", fontWeight: 500 }}>
+            ✓ {selectedApprovalPOs.size} PO(s) selected for approval
+          </span>
+          <button 
+            className="inv-btn-primary inv-btn-sm" 
+            onClick={handleBulkApprove}
+            disabled={bulkApproving}
+          >
+            {bulkApproving ? "Processing..." : `Approve Selected (${selectedApprovalPOs.size})`}
+          </button>
+        </div>
+      </div>
+    )}
+
+    <div className="inv-card" style={{ marginBottom: 16 }}>
+      <div className="inv-card-body">
+        <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
+          <label className="inv-label"> Search PO No</label>
+          <input
+            className="inv-input"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Type to search PO Number..."
+          />
+        </div>
+      </div>
+    </div>
+
+    <div className="inv-card">
+      {loadingList ? (
+        <div style={{ textAlign: "center", padding: 40 }}>Loading...</div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="inv-table">
+            <thead>
+              <tr>
+                {approvalMode && <th style={{ width: 40 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedApprovalPOs.size === filteredPosForDisplay.length && filteredPosForDisplay.length > 0}
+                    onChange={toggleAllPOSelection}
+                    style={{ cursor: "pointer" }}
+                  />
+                </th>}
+                <th>#</th>
+                <th>PO No</th>
+                <th>Date</th>
+                <th>Supplier</th>
+                <th>Status</th>
+                {approvalMode && (
+                  <>
+                    <th>Level 1</th>
+                    <th>Level 2</th>
+                  </>
+                )}
+                <th>Total Amount</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPosForDisplay.length === 0 ? (
+                <tr>
+                  <td colSpan={approvalMode ? 9 : 7} style={{ textAlign: "center", padding: 40 }}>
+                    {approvalMode ? "No pending POs found for approval" : "No purchase orders found"}
+                  </td>
+                </tr>
+              ) : (
+                filteredPosForDisplay.map((po, i) => {
+                  // FIXED: Use the saved totalAmount directly
+                  // This already includes items + transport + GST
+                  const grandTotal = Number(po.totalAmount) || 0;
+                  
+                  return (
+                    <tr 
+                      key={po.id || po._id} 
+                      style={{ 
+                        backgroundColor: approvalMode && selectedApprovalPOs.has(sid(po)) ? "#eef2ff" : "transparent",
+                        transition: "background-color 0.2s"
+                      }}
+                    >
+                      {approvalMode && (
+                        <td style={{ textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedApprovalPOs.has(sid(po))}
+                            onChange={() => togglePOSelection(sid(po))}
+                            style={{ cursor: "pointer" }}
+                          />
+                        </td>
+                      )}
+                      <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
+                      <td style={{ fontWeight: 600, color: "var(--accent)" }}>{po.poNo}</td>
+                      <td>{po.date}</td>
+                      <td>{po.supplierName}</td>
+                      <td>
+                        <span className={`inv-badge ${po.status === 'Open' ? 'inv-badge-yes' : 'inv-badge-no'}`}>
+                          {po.status}
+                        </span>
+                      </td>
+                      {approvalMode && (
+                        <>
+                          <td>
+                            <span className={`inv-badge ${po.level1Approved === 'Yes' ? 'inv-badge-yes' : 'inv-badge-warning'}`}>
+                              {po.level1Approved === 'Yes' ? '✓ Approved' : '⏳ Pending'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`inv-badge ${po.level2Approved === 'Yes' ? 'inv-badge-yes' : 'inv-badge-warning'}`}>
+                              {po.level2Approved === 'Yes' ? '✓ Approved' : '⏳ Pending'}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      <td>
+                        ₹{fmt(grandTotal)}
+                      </td>
+                      <td>
+                        <div className="inv-actions">
+                          <button 
+                            className="inv-btn-icon" 
+                            onClick={() => openEdit(po)}
+                            title="View/Edit PO"
+                          >
+                            <EditIcon />
+                          </button>
+                          {!approvalMode && (
+                            <button 
+                              className="inv-btn-icon inv-btn-danger" 
+                              onClick={() => handleDelete(po.id || po._id)}
+                              title="Delete PO"
+                            >
+                              <DeleteIcon />
+                            </button>
+                          )}
+                          {approvalMode && (
+                            <button 
+                              className="inv-btn-icon" 
+                              onClick={() => {
+                                openEdit(po);
+                                setTimeout(() => {
+                                  const approvalInfo = document.createElement('div');
+                                  approvalInfo.className = 'inv-toast-info';
+                                  approvalInfo.textContent = `⚠️ This PO is pending Level ${approvalLevel} approval. You can view details but cannot modify until approved.`;
+                                  approvalInfo.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #f59e0b; color: #fff; padding: 12px 20px; border-radius: 8px; z-index: 10000; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
+                                  document.body.appendChild(approvalInfo);
+                                  setTimeout(() => approvalInfo.remove(), 3000);
+                                }, 500);
+                              }}
+                              title="View PO Details"
+                            >
+                              <ViewIcon />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+    
+    {approvalMode && filteredPosForDisplay.length > 0 && (
+      <div className="inv-card" style={{ marginTop: 16, background: "#f8fafc" }}>
+        <div className="inv-card-body" style={{ fontSize: "12px", color: "#64748b", textAlign: "center" }}>
+          💡 Tip: Select one or more POs using the checkboxes, then click "Approve Selected" to approve them in bulk
+        </div>
+      </div>
+    )}
+  </div>
     );
   }
 
@@ -2381,212 +2626,227 @@ async function performSave() {
                     <th style={{ width: 140, textAlign: "left" }}>Indent No</th>
                     <th style={{ minWidth: 200, textAlign: "left" }}>Item Description</th>
                     <th style={{ width: 80, textAlign: "center" }}>UOM</th>
-                    <th style={{ width: 80, textAlign: "left" }}>Bal</th>
-                    <th style={{ width: 100, textAlign: "left" }}>PO Qty</th>
-                    <th style={{ width: 100, textAlign: "left" }}>Unit Price</th>
-                    <th style={{ width: 100, textAlign: "left" }}>Disc</th>
-                    <th style={{ width: 110, textAlign: "left" }}>PO Amt</th>
+                    <th style={{ width: 80, textAlign: "right" }}>Bal</th>
+                    <th style={{ width: 100, textAlign: "right" }}>PO Qty</th>
+                    <th style={{ width: 100, textAlign: "right" }}>Unit Price</th>
+                    <th style={{ width: 100, textAlign: "right" }}>Disc</th>
+                    <th style={{ width: 110, textAlign: "right" }}>PO Amt</th>
                     <th style={{ width: 70, textAlign: "center" }}>GST%</th>
-                    <th style={{ width: 90, textAlign: "left" }}>IGST</th>
-                    <th style={{ width: 120, textAlign: "left" }}>Total</th>
+                    <th style={{ width: 90, textAlign: "right" }}>IGST</th>
+                    <th style={{ width: 120, textAlign: "right" }}>Total</th>
                     <th style={{ width: 40 }}></th>
                   </tr>
                 </thead>
-               <tbody>
-                {details.map((row, idx) => {
-                  const baseTabIndex = 10 + (idx * 4);
-                  const isLastRow = idx === details.length - 1;
-                  const hasItems = row.itemId || row.itemName;
-                  
-                  return (
-                    <tr key={row._rowId}>
-                      <td style={{ textAlign: "center" }}>{idx + 1}</td>
-                      <td style={{ textAlign: "left" }}>
-                        <input tabIndex={-1} className="inv-input-cell" value={row.indentNo || ""} readOnly style={{ textAlign: "left" }} placeholder="-" />
-                      </td>
-                      <td style={{ textAlign: "left" }}>
-                        <input tabIndex={-1} className="inv-input-cell" value={row.itemName || ""} readOnly style={{ textAlign: "left" }} placeholder="-" />
-                      </td>
-                      <td style={{ textAlign: "center" }}>
-                        <input tabIndex={-1} className="inv-input-cell" value={row.uom || ""} readOnly style={{ textAlign: "center" }} placeholder="-" />
-                      </td>
-                      <td style={{ textAlign: "left" }}>
-                        <input tabIndex={-1} className="inv-input-cell" value={formatPoQty(row.balQty)} readOnly style={{ textAlign: "left" }} placeholder="0.000" />
-                      </td>
-                      
-                      {/* PO Qty - shows placeholder when empty */}
-                      <td style={{ textAlign: "left" }}>
-                        <input 
-                          tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex : -1} 
-                          className="inv-input-cell" 
-                          type="number" 
-                          step="0.001"
-                          value={row.poQty && row.poQty !== 0 ? row.poQty : ""} 
-                          onChange={e => updateDetail(idx, "poQty", e.target.value)} 
-                          style={{ textAlign: "left" }}
-                          placeholder="0.000"
-                        />
-                      </td>
-                      
-                      {/* Unit Price - shows placeholder when empty */}
-                      <td style={{ textAlign: "left" }}>
-                        <input 
-                          tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 1 : -1} 
-                          className="inv-input-cell" 
-                          type="number" 
-                          step="0.01"
-                          value={row.poRate && row.poRate !== 0 ? row.poRate : ""} 
-                          onChange={e => updateDetail(idx, "poRate", e.target.value)} 
-                          style={{ textAlign: "left" }}
-                          placeholder="0.00"
-                        />
-                      </td>
-                      
-                      {/* Discount - shows placeholder when empty */}
-                      <td style={{ textAlign: "left" }}>
-                        <div style={{ display: "flex", alignItems: "center" }}>
+                <tbody>
+                  {details.map((row, idx) => {
+                    const baseTabIndex = 10 + (idx * 4);
+                    const isLastRow = idx === details.length - 1;
+                    const hasItems = row.itemId || row.itemName;
+                    
+                    return (
+                      <tr key={row._rowId}>
+                        <td style={{ textAlign: "center" }}>{idx + 1}</td>
+                        <td style={{ textAlign: "left" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={row.indentNo || ""} readOnly style={{ textAlign: "left" }} placeholder="-" />
+                        </td>
+                        <td style={{ textAlign: "left" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={row.itemName || ""} readOnly style={{ textAlign: "left" }} placeholder="-" />
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={row.uom || ""} readOnly style={{ textAlign: "center" }} placeholder="-" />
+                        </td>
+                        
+                        {/* Bal - right aligned */}
+                        <td style={{ textAlign: "right" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={formatPoQty(row.balQty)} readOnly style={{ textAlign: "right" }} placeholder="0.000" />
+                        </td>
+                        
+                        {/* PO Qty - right aligned */}
+                        <td style={{ textAlign: "right" }}>
                           <input 
-                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 2 : -1} 
+                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex : -1} 
+                            className="inv-input-cell" 
+                            type="number" 
+                            step="0.001"
+                            value={row.poQty && row.poQty !== 0 ? row.poQty : ""} 
+                            onChange={e => updateDetail(idx, "poQty", e.target.value)} 
+                            style={{ textAlign: "right" }}
+                            placeholder="0.000"
+                          />
+                        </td>
+                        
+                        {/* Unit Price - right aligned */}
+                        <td style={{ textAlign: "right" }}>
+                          <input 
+                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 1 : -1} 
                             className="inv-input-cell" 
                             type="number" 
                             step="0.01"
-                            value={
-                              row.discMode === 'pct' 
-                                ? (row.discPct && row.discPct !== 0 ? row.discPct : "")
-                                : (row.discPrice && row.discPrice !== 0 ? row.discPrice : "")
-                            } 
-                            onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} 
-                            style={{ textAlign: "left" }}
+                            value={row.poRate && row.poRate !== 0 ? row.poRate : ""} 
+                            onChange={e => updateDetail(idx, "poRate", e.target.value)} 
+                            style={{ textAlign: "right" }}
                             placeholder="0.00"
                           />
+                        </td>
+                        
+                        {/* Discount - right aligned */}
+                        <td style={{ textAlign: "right" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+                            <input 
+                              tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 2 : -1} 
+                              className="inv-input-cell" 
+                              type="number" 
+                              step="0.01"
+                              value={
+                                row.discMode === 'pct' 
+                                  ? (row.discPct && row.discPct !== 0 ? row.discPct : "")
+                                  : (row.discPrice && row.discPrice !== 0 ? row.discPrice : "")
+                              } 
+                              onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} 
+                              style={{ textAlign: "right", width: "calc(100% - 30px)" }}
+                              placeholder="0.00"
+                            />
+                            <button 
+                              type="button" 
+                              className="inv-btn-icon inv-btn-sm"
+                              onClick={() => toggleDiscMode(idx)} 
+                              tabIndex={-1}
+                              title={row.discMode === 'pct' ? 'Switch to price discount' : 'Switch to percentage discount'}
+                              style={{ marginLeft: "4px" }}
+                            >
+                              {row.discMode === 'pct' ? '%' : '₹'}
+                            </button>
+                          </div>
+                        </td>
+                        
+                        {/* PO Amt - right aligned */}
+                        <td style={{ textAlign: "right" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.poAmount)} readOnly style={{ textAlign: "right" }} placeholder="0.00" />
+                        </td>
+                        
+                        {/* GST% - center aligned */}
+                        <td style={{ textAlign: "center" }}>
+                          <input 
+                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 3 : -1} 
+                            className="inv-input-cell" 
+                            type="number" 
+                            step="0.01"
+                            value={row.gstPct && row.gstPct !== 0 ? row.gstPct : ""} 
+                            onChange={e => updateDetail(idx, "gstPct", e.target.value)} 
+                            style={{ textAlign: "center" }}
+                            placeholder="0.00"
+                          />
+                        </td>
+                        
+                        {/* IGST (Total GST) - right aligned */}
+                        <td style={{ textAlign: "right" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totGst)} readOnly style={{ textAlign: "right" }} placeholder="0.00" />
+                        </td>
+
+                        {/* Total Amount - right aligned */}
+                        <td style={{ textAlign: "right" }}>
+                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totalAmount)} readOnly style={{ textAlign: "right" }} placeholder="0.00" />
+                        </td>
+                        
+                        {/* Delete button */}
+                        <td style={{ textAlign: "center" }}>
                           <button 
-                            type="button" 
-                            className="inv-btn-icon inv-btn-sm"
-                            onClick={() => toggleDiscMode(idx)} 
-                            tabIndex={-1}
-                            title={row.discMode === 'pct' ? 'Switch to price discount' : 'Switch to percentage discount'}
+                            className="inv-btn-icon inv-btn-danger"
+                            onClick={() => removeRow(idx)} 
+                            tabIndex={isLastRow && (itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 4 : -1}
+                            title="Remove item"
+                            aria-label="Remove item row"
                           >
-                            {row.discMode === 'pct' ? '%' : '₹'}
+                            ✕
                           </button>
-                        </div>
-                      </td>
-                      
-                      {/* PO Amount - readonly */}
-                      <td style={{ textAlign: "left" }}>
-                        <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.poAmount)} readOnly style={{ textAlign: "left" }} placeholder="0.00" />
-                      </td>
-                      
-                      {/* GST% - shows placeholder when empty */}
-                      <td style={{ textAlign: "center" }}>
-                        <input 
-                          tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 3 : -1} 
-                          className="inv-input-cell" 
-                          type="number" 
-                          step="0.01"
-                          value={row.gstPct && row.gstPct !== 0 ? row.gstPct : ""} 
-                          onChange={e => updateDetail(idx, "gstPct", e.target.value)} 
-                          style={{ textAlign: "center" }}
-                          placeholder="0.00"
-                        />
-                      </td>
-                      
-                      {/* Total GST - readonly */}
-                      <td style={{ textAlign: "left" }}>
-                        <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totGst)} readOnly style={{ textAlign: "left" }} placeholder="0.00" />
-                      </td>
-                      
-                      {/* Total Amount - readonly */}
-                      <td style={{ textAlign: "left" }}>
-                        <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totalAmount)} readOnly style={{ textAlign: "left" }} placeholder="0.00" />
-                      </td>
-                      
-                      {/* Delete button */}
-                      <td style={{ textAlign: "center" }}>
-                        <button 
-                          className="inv-btn-icon inv-btn-danger"
-                          onClick={() => removeRow(idx)} 
-                          tabIndex={isLastRow && (itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 4 : -1}
-                          title="Remove item"
-                          aria-label="Remove item row"
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
               </table>
             </div>
           </div>
-        </div>
+        </div>  
 
-        <div className="inv-card">
-          <div className="inv-card-body" style={{ display: "grid", gridTemplateColumns: "1fr 3fr" }}>
-            <div style={{ marginTop: 0, paddingTop: 10, borderTop: "0px solid #f1f5f9" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 0, width: '100%' }}>
-                <div className="inv-field-v" style={{ display: "grid", gridTemplateColumns: "1fr 3fr", gap: 2 }}>
-                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
-                  <input 
-                    className="inv-input" 
-                    value={header.preparedBy || ""} 
-                    onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
-                    placeholder="System Administrator"
-                  />
-                </div>
-                <div className="inv-field-v" style={{ marginTop: 10 }}>
-                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Remarks & Special Instructions</label>
-                  <textarea
-                    rows={4}
-                    className="inv-input"
-                    style={{ fontSize: "13px", padding: "12px" }}
-                    value={header.remarks || ""}
-                    onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))}
-                    placeholder="Enter any specific terms, instructions or internal notes..."
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, padding: "10px 20px", width: '100%' }}>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>PO Qty</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>{fmtQty(totals.poQty)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>PO Amount</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.grossAmount)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total Discount</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>−₹{fmt(totals.discPrice)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Amount after Disc</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>CGST</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.cgst)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>SGST</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.sgst)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>IGST</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.igst)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total GST</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.totGst)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total Amount</div>
-                <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.totalAmount)}</div>
-              </div>
-            </div>
-          </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 20, padding: "10px 20px", width: '100%' }}>
+  <div>
+    <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>PO Qty</div>
+    <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>{fmtQty(totals.poQty)}</div>
+  </div>
+  <div>
+    <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>PO Amount</div>
+    <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.grossAmount)}</div>
+  </div>
+  <div>
+    <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total Discount</div>
+    <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>−₹{fmt(totals.discPrice)}</div>
+  </div>
+  <div>
+    <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Amount after Disc</div>
+    <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.poAmount)}</div>
+  </div>
+  
+  {/* These NOW include transport GST automatically */}
+  <div>
+    <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>CGST</div>
+    <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.cgst)}</div>
+  </div>
+  <div>
+    <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>SGST</div>
+    <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.sgst)}</div>
+  </div>
+  <div>
+    <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>IGST</div>
+    <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.igst)}</div>
+  </div>
+  <div>
+    <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total GST</div>
+    <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700 }}>₹{fmt(totals.totGst)}</div>
+  </div>
+  
+  {/* Transport Charges Input */}
+  <div>
+    <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Transport</div>
+    <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <span>₹</span>
+      <input 
+        type="text"
+        value={header.transportCharges || 0}
+        onChange={(e) => {
+          const val = e.target.value;
+          if (val === "") {
+            setHeader(h => ({ ...h, transportCharges: 0 }));
+          } else {
+            const num = parseFloat(val);
+            if (!isNaN(num)) {
+              setHeader(h => ({ ...h, transportCharges: num }));
+            }
+          }
+        }}
+        style={{
+          width: "80px",
+          textAlign: "center",
+          fontSize: "20px",
+          fontWeight: 500,
+          padding: "0",
+          margin: "0",
+          border: "none",
+          backgroundColor: "transparent",
+          outline: "none",
+          display: "inline-block"
+        }}
+      />
+    </div>
+  </div>
+  
+  {/* Grand Total */}
+  <div>
+    <div style={{ fontSize: 11, textAlign: 'center', color: "#64748b", textTransform: "uppercase" }}>Total Amount</div>
+    <div style={{ fontSize: 18, textAlign: 'center', fontWeight: 700, color: "#1e293b" }}>
+      ₹{fmt(grandTotal)}
+    </div>
+  </div>
         </div>
 
         {/* Approval Buttons Section */}
@@ -2862,100 +3122,127 @@ async function performSave() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {group.items.map((item, itemIndex) => {
-                                    // Define formatting functions INSIDE the map
-                                    const formatQty3 = (val) => {
-                                      if (val === undefined || val === null) return "0.000";
-                                      return Number(val).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-                                    };
-                                    
-                                    const formatAmount2 = (val) => {
-                                      if (val === undefined || val === null) return "0.00";
-                                      return Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                                    };
-                                    
-                                    const poQtyValue = item.balQty || 0;
-                                    const poAmount = poQtyValue * (item.rate || 0);
-                                    const igstAmount = poAmount * ((item.gstPct || 0) / 100);
-                                    const totalAmount = poAmount + igstAmount;
+                                  {details.map((row, idx) => {
+                                    const baseTabIndex = 10 + (idx * 4);
+                                    const isLastRow = idx === details.length - 1;
+                                    const hasItems = row.itemId || row.itemName;
                                     
                                     return (
-                                      <tr 
-                                        key={item.rowId}
-                                        className="indent-item-row"
-                                        data-row-id={item.rowId}
-                                        data-row-type="item"
-                                        data-parent-id={group.indentNo}
-                                        style={{ 
-                                          cursor: "pointer",
-                                          borderBottom: itemIndex === group.items.length - 1 ? "none" : "1px solid #e2e8f0",
-                                          backgroundColor: pendingSelected.has(item.rowId) ? "#eef2ff" : "#ffffff"
-                                        }}
-                                        tabIndex={0}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          const newSelected = new Set(pendingSelected);
-                                          if (newSelected.has(item.rowId)) {
-                                            newSelected.delete(item.rowId);
-                                          } else {
-                                            newSelected.add(item.rowId);
-                                          }
-                                          setPendingSelected(newSelected);
-                                        }}
-                                      >
-                                        <td style={{ paddingLeft: 28, color: "#64748b" }}>↳</td>
-                                        <td style={{ fontSize: 13, textAlign: "left" }}>{item.itemName}</td>
-                                        <td style={{ textAlign: "center", fontSize: 13 }}>{item.uom}</td>
-                                        {/* Bal - 3 decimals */}
-                                        <td style={{ textAlign: "right", fontSize: 13 }}>{formatQty3(item.balQty)}</td>
-                                        {/* PO Qty input - 3 decimals */}
-                                        <td style={{ textAlign: "right", fontSize: 13 }}>
+                                      <tr key={row._rowId}>
+                                        <td style={{ textAlign: "center" }}>{idx + 1}</td>
+                                        <td style={{ textAlign: "left" }}>
+                                          <input tabIndex={-1} className="inv-input-cell" value={row.indentNo || ""} readOnly style={{ textAlign: "left" }} placeholder="-" />
+                                        </td>
+                                        <td style={{ textAlign: "left" }}>
+                                          <input tabIndex={-1} className="inv-input-cell" value={row.itemName || ""} readOnly style={{ textAlign: "left" }} placeholder="-" />
+                                        </td>
+                                        <td style={{ textAlign: "center" }}>
+                                          <input tabIndex={-1} className="inv-input-cell" value={row.uom || ""} readOnly style={{ textAlign: "center" }} placeholder="-" />
+                                        </td>
+                                        
+                                        {/* Bal - value right aligned */}
+                                        <td style={{ textAlign: "right" }}>
+                                          <input tabIndex={-1} className="inv-input-cell" value={formatPoQty(row.balQty)} readOnly style={{ textAlign: "right" }} placeholder="0.000" />
+                                        </td>
+                                        
+                                        {/* PO Qty - value right aligned */}
+                                        <td style={{ textAlign: "right" }}>
                                           <input 
+                                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex : -1} 
+                                            className="inv-input-cell" 
                                             type="number" 
                                             step="0.001"
-                                            value={poQtyValue}
-                                            style={{ width: 80, padding: "4px 8px", textAlign: "right", borderRadius: 4, border: "1px solid #e2e8f0" }}
-                                            onChange={(e) => { 
-                                              e.stopPropagation();
-                                              const newValue = parseFloat(e.target.value).toFixed(3);
-                                              // Update logic here
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                            tabIndex={-1}
-                                          />  
+                                            value={row.poQty && row.poQty !== 0 ? row.poQty : ""} 
+                                            onChange={e => updateDetail(idx, "poQty", e.target.value)} 
+                                            style={{ textAlign: "right" }}
+                                            placeholder="0.000"
+                                          />
                                         </td>
-                                        {/* Unit Price - 2 decimals */}
-                                        <td style={{ textAlign: "right", fontSize: 13 }}>
+                                        
+                                        {/* Unit Price - value right aligned */}
+                                        <td style={{ textAlign: "right" }}>
                                           <input 
+                                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 1 : -1} 
+                                            className="inv-input-cell" 
                                             type="number" 
                                             step="0.01"
-                                            value={item.rate}
-                                            style={{ width: 80, padding: "4px 8px", textAlign: "right", borderRadius: 4, border: "1px solid #e2e8f0" }}
-                                            onChange={(e) => { 
-                                              e.stopPropagation();
-                                              // Update rate logic here
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                            tabIndex={-1}
+                                            value={row.poRate && row.poRate !== 0 ? row.poRate : ""} 
+                                            onChange={e => updateDetail(idx, "poRate", e.target.value)} 
+                                            style={{ textAlign: "right" }}
+                                            placeholder="0.00"
                                           />
                                         </td>
-                                        <td style={{ textAlign: "center", fontSize: 13 }}>0.00</td>
-                                        {/* PO Amt - 2 decimals */}
-                                        <td style={{ textAlign: "right", fontSize: 13 }}>{formatAmount2(poAmount)}</td>
-                                        {/* GST% - 2 decimals */}
-                                        <td style={{ textAlign: "center", fontSize: 13 }}>{formatAmount2(item.gstPct || 0)}</td>
-                                        {/* IGST - 2 decimals */}
-                                        <td style={{ textAlign: "right", fontSize: 13 }}>{formatAmount2(igstAmount)}</td>
-                                        {/* Total - 2 decimals */}
-                                        <td style={{ textAlign: "right", fontSize: 13, fontWeight: 600 }}>{formatAmount2(totalAmount)}</td>
+                                        
+                                        {/* Discount - value right aligned */}
+                                        <td style={{ textAlign: "right" }}>
+                                          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+                                            <input 
+                                              tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 2 : -1} 
+                                              className="inv-input-cell" 
+                                              type="number" 
+                                              step="0.01"
+                                              value={
+                                                row.discMode === 'pct' 
+                                                  ? (row.discPct && row.discPct !== 0 ? row.discPct : "")
+                                                  : (row.discPrice && row.discPrice !== 0 ? row.discPrice : "")
+                                              } 
+                                              onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} 
+                                              style={{ textAlign: "right", width: "calc(100% - 30px)" }}
+                                              placeholder="0.00"
+                                            />
+                                            <button 
+                                              type="button" 
+                                              className="inv-btn-icon inv-btn-sm"
+                                              onClick={() => toggleDiscMode(idx)} 
+                                              tabIndex={-1}
+                                              title={row.discMode === 'pct' ? 'Switch to price discount' : 'Switch to percentage discount'}
+                                              style={{ marginLeft: "4px" }}
+                                            >
+                                              {row.discMode === 'pct' ? '%' : '₹'}
+                                            </button>
+                                          </div>
+                                        </td>
+                                        
+                                        {/* PO Amt - value right aligned */}
+                                        <td style={{ textAlign: "right" }}>
+                                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.poAmount)} readOnly style={{ textAlign: "right" }} placeholder="0.00" />
+                                        </td>
+                                        
+                                        {/* GST% - value center aligned */}
                                         <td style={{ textAlign: "center" }}>
                                           <input 
-                                            type="checkbox"
-                                            checked={pendingSelected.has(item.rowId)}
-                                            onChange={() => {}}
-                                            onClick={(e) => e.stopPropagation()}
-                                            tabIndex={-1}
+                                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 3 : -1} 
+                                            className="inv-input-cell" 
+                                            type="number" 
+                                            step="0.01"
+                                            value={row.gstPct && row.gstPct !== 0 ? row.gstPct : ""} 
+                                            onChange={e => updateDetail(idx, "gstPct", e.target.value)} 
+                                            style={{ textAlign: "center" }}
+                                            placeholder="0.00"
                                           />
+                                        </td>
+                                        
+                                        {/* IGST (TotGst) - value right aligned */}
+                                        <td style={{ textAlign: "right" }}>
+                                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totGst)} readOnly style={{ textAlign: "right" }} placeholder="0.00" />
+                                        </td>
+
+                                        {/* Total Amount - value right aligned */}
+                                        <td style={{ textAlign: "right" }}>
+                                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totalAmount)} readOnly style={{ textAlign: "right" }} placeholder="0.00" />
+                                        </td> 
+                                        
+                                        {/* Delete button */}
+                                        <td style={{ textAlign: "center" }}>
+                                          <button 
+                                            className="inv-btn-icon inv-btn-danger"
+                                            onClick={() => removeRow(idx)} 
+                                            tabIndex={isLastRow && (itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 4 : -1}
+                                            title="Remove item"
+                                            aria-label="Remove item row"
+                                          >
+                                            ✕
+                                          </button>
                                         </td>
                                       </tr>
                                     );

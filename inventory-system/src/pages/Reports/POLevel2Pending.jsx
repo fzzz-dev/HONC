@@ -34,7 +34,7 @@ export default function POLevel2Pending() {
   const tableBodyRef = useRef(null);
 
   // Fetch data
-const fetchData = async () => {
+  const fetchData = async () => {
   setLoading(true);
   setError(null);
   try {
@@ -82,17 +82,20 @@ const fetchData = async () => {
           supplierId: po.supplierId,
           deliveryDate: po.deliveryDate,
           poType: po.poType,
+          transportCharges: Number(po.transportCharges) || 0,
           level2Approved: po.level2Approved,
           level2ApprovedBy: po.level2ApprovedBy,
           level2ApprovedDate: po.level2ApprovedDate,
           totalQty: totalQty,
-          totalAmount: itemsTotal,
+          totalAmount: Number(po.totalAmount) || 0,
           totalItems: po.details?.length || 0,
           items: items,
           gstType: po.gstType || "local"
         };
       });
-      setReportData(Object.values(grouped));
+      // ✅ Sort approved list - newest first
+      const sortedApproved = Object.values(grouped).sort((a, b) => new Date(b.poDate) - new Date(a.poDate));
+      setReportData(sortedApproved);
     } else {
       response = await purchaseOrderApi.getLevel2Pending();
       const data = response?.data || response || [];
@@ -105,15 +108,16 @@ const fetchData = async () => {
         supplierId: po.supplierId,
         deliveryDate: po.deliverydate,
         poType: po.potype,
+        transportCharges: Number(po.transportCharges) || 0,
         level2Approved: po.level2Approved,
         level2ApprovedBy: po.level2ApprovedBy,
         level2ApprovedDate: po.level2ApprovedDate,
         totalQty: po.items?.reduce((sum, item) => sum + (Number(item.poQty) || 0), 0) || 0,
-        totalAmount: po.items?.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0) || 0,
+        totalAmount: Number(po.totalAmount) || 0,
         totalItems: po.items?.length || 0,
         items: (po.items || []).map(item => ({
           indentNo: item.indentNo,
-          itemId: item.itemId,        // ← ADD THIS - CRITICAL
+          itemId: item.itemId,
           itemName: item.itemName,
           uom: item.uom,
           poQty: item.poQty,
@@ -129,7 +133,9 @@ const fetchData = async () => {
         })),
         gstType: po.gstType || "local"
       }));
-      setReportData(grouped);
+      // ✅ Sort pending list - newest first
+      const sortedPending = grouped.sort((a, b) => new Date(b.poDate) - new Date(a.poDate));
+      setReportData(sortedPending);
     }
   } catch (err) {
     console.error(err);
@@ -198,81 +204,76 @@ const fetchData = async () => {
       setSelectedPOs(new Set(filteredData.map(p => p.id)));
     }
   };
-const handlePOClick = (po) => {
-  const mappedPO = {
-    id: po.id,
-    poNo: po.poNo,
-    ponumber: po.poNo,
-    date: po.poDate,
-    podate: po.poDate,
-    supplierName: po.supplier,
-    supplier: po.supplier,
-    supplierId: po.supplierId,
-    deliveryDate: po.deliveryDate,
-    poType: po.poType,
-    status: "Open",
-    level1Approved: "No",
-    level2Approved: po.level2Approved,
-    level2ApprovedBy: po.level2ApprovedBy,
-    level2ApprovedDate: po.level2ApprovedDate,
-    gstType: po.gstType || "local",
-    gstEnabled: true,
-    details: (po.items || []).map(item => ({
-      indentNo: item.indentNo || "",
-      itemId: item.itemId || "",      // ← ADD THIS - CRITICAL
-      itemName: item.itemName || "",
-      uom: item.uom || "",
-      poQty: Number(item.poQty) || 0,
-      poRate: Number(item.poRate) || 0,
-      poAmount: Number(item.poAmount) || 0,
-      discPrice: Number(item.discPrice) || 0,
-      discPct: Number(item.discPct) || 0,
-      discMode: item.discMode || "pct",
-      gstPct: Number(item.gstPct) || 0,
-      sgst: Number(item.sgst) || 0,
-      cgst: Number(item.cgst) || 0,
-      igst: Number(item.igst) || 0,
-      totGst: Number(item.totGst) || 0,
-      totalAmount: Number(item.totalAmount) || 0
-    }))
-  };
-  
-  navigate("/purchase-order", { 
-    state: { 
-      po: mappedPO,
-      editMode: true 
-    } 
-  });
-};
 
-const filteredData = useMemo(() => {
-  if (!searchTerm.trim()) return reportData;
-  
-  const term = searchTerm.toLowerCase();
-  return reportData.filter(po => {
-    // Check PO Number
-    const matchPoNo = (po.poNo || "").toLowerCase().includes(term);
+  const handlePOClick = (po) => {
+    const mappedPO = {
+      id: po.id,
+      poNo: po.poNo,
+      ponumber: po.poNo,
+      date: po.poDate,
+      podate: po.poDate,
+      supplierName: po.supplier,
+      supplier: po.supplier,
+      supplierId: po.supplierId,
+      deliveryDate: po.deliveryDate,
+      poType: po.poType,
+      status: "Open",
+      level1Approved: "No",
+      level2Approved: po.level2Approved,
+      level2ApprovedBy: po.level2ApprovedBy,
+      level2ApprovedDate: po.level2ApprovedDate,
+      gstType: po.gstType || "local",
+      gstEnabled: true,
+      transportCharges: po.transportCharges || 0,
+      details: (po.items || []).map(item => ({
+        indentNo: item.indentNo || "",
+        itemId: item.itemId || "",
+        itemName: item.itemName || "",
+        uom: item.uom || "",
+        poQty: Number(item.poQty) || 0,
+        poRate: Number(item.poRate) || 0,
+        poAmount: Number(item.poAmount) || 0,
+        discPrice: Number(item.discPrice) || 0,
+        discPct: Number(item.discPct) || 0,
+        discMode: item.discMode || "pct",
+        gstPct: Number(item.gstPct) || 0,
+        sgst: Number(item.sgst) || 0,
+        cgst: Number(item.cgst) || 0,
+        igst: Number(item.igst) || 0,
+        totGst: Number(item.totGst) || 0,
+        totalAmount: Number(item.totalAmount) || 0
+      }))
+    };
     
-    // Check Supplier Name
-    const matchSupplier = (po.supplier || po.supplierName || "").toLowerCase().includes(term);
+    navigate("/purchase-order", { 
+      state: { 
+        po: mappedPO,
+        editMode: true 
+      } 
+    });
+  };
+
+  const filteredData = useMemo(() => {
+    if (!searchTerm.trim()) return reportData;
     
-    // Check Items (Indent No and Item Name only)
-    const matchItems = (po.items || []).some(item => 
-      (item.indentNo || "").toLowerCase().includes(term) ||
-      (item.itemName || "").toLowerCase().includes(term)
-    );
-    
-    // Only return true if matches PO Number, Supplier, or Items
-    return matchPoNo || matchSupplier || matchItems;
-  });
-}, [reportData, searchTerm]);
+    const term = searchTerm.toLowerCase();
+    return reportData.filter(po => {
+      const matchPoNo = (po.poNo || "").toLowerCase().includes(term);
+      const matchSupplier = (po.supplier || "").toLowerCase().includes(term);
+      const matchItems = (po.items || []).some(item => 
+        (item.indentNo || "").toLowerCase().includes(term) ||
+        (item.itemName || "").toLowerCase().includes(term)
+      );
+      return matchPoNo || matchSupplier || matchItems;
+    });
+  }, [reportData, searchTerm]);
 
   return (
     <div className="inv-page">
       <div className="inv-page-header">
         <div>
-          <h1>PO Level 2 {showApproved ? "Approved" : "Pending"} (First Approval)</h1>
-          <p>{showApproved ? "View approved POs" : "First level approval before Level 1"}</p>
+          <h1>PO Level 2 {showApproved ? "Approved" : "Pending"} (Second Approval)</h1>
+          <p>{showApproved ? "View approved POs" : "Second level approval after Level 1"}</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="inv-btn-secondary" onClick={() => navigate("/purchase-order")}>← Back</button>
@@ -375,6 +376,7 @@ const filteredData = useMemo(() => {
                   <th>Supplier</th>
                   <th>Delivery Date</th>
                   <th>PO Type</th>
+                  <th style={{ textAlign: "right" }}>Transport</th>
                   <th style={{ textAlign: "right" }}>Total Items</th>
                   <th style={{ textAlign: "right" }}>Total Qty</th>
                   <th style={{ textAlign: "right" }}>Total Amount</th>
@@ -441,6 +443,7 @@ const filteredData = useMemo(() => {
                         <td>{po.supplier || "—"}</td>
                         <td>{po.deliveryDate || "—"}</td>
                         <td>{po.poType || "—"}</td>
+                        <td style={{ textAlign: "right", fontWeight: 500, color: "#f59e0b" }}>₹{fmt(po.transportCharges)}</td>
                         <td style={{ textAlign: "right" }}>{po.totalItems}</td>
                         <td style={{ textAlign: "right", fontWeight: 500 }}>{fmtQty(po.totalQty)}</td>
                         <td style={{ textAlign: "right", fontWeight: 500, color: "#10b981" }}>₹{fmt(po.totalAmount)}</td>
@@ -448,7 +451,7 @@ const filteredData = useMemo(() => {
                       
                       {isExpanded && (
                         <tr style={{ backgroundColor: "#fafafa" }}>
-                          <td colSpan={showApproved ? 10 : 11} style={{ padding: 0 }}>
+                          <td colSpan={showApproved ? 11 : 12} style={{ padding: 0 }}>
                             <table className="inv-table" style={{ margin: 0, width: "100%", borderCollapse: "collapse", backgroundColor: "#fafafa" }}>
                               <thead>
                                 <tr style={{ backgroundColor: "#e2e8f0", borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #cbd5e1" }}>
@@ -507,6 +510,12 @@ const filteredData = useMemo(() => {
               <div>
                 <div style={{ fontSize: 11, color: "#64748b" }}>Total POs</div>
                 <div style={{ fontSize: 20, fontWeight: 700 }}>{filteredData.length}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>Total Transport</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: "#f59e0b" }}>
+                  ₹{fmt(filteredData.reduce((sum, g) => sum + (g.transportCharges || 0), 0))}
+                </div>
               </div>
               <div>
                 <div style={{ fontSize: 11, color: "#64748b" }}>Total Items</div>

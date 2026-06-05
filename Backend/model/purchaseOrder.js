@@ -88,6 +88,7 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
   totalItems: { type: DataTypes.INTEGER, defaultValue: 0 },
   roundoff: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
   poType: { type: DataTypes.STRING, defaultValue: "" },
+  transportCharges: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
 
   // Add these approval fields
     level1Approved: {

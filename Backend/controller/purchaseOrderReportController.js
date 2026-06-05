@@ -34,10 +34,17 @@ const createPurchaseOrder = async (req, res) => {
       totalItems,
       createdBy,
       level1Approved,
-      level2Approved
+      level2Approved,
+      transportCharges = 0  // ✅ ADDED - destructure transportCharges
     } = req.body;
 
     console.log("Creating PO with deliveryDate:", deliveryDate);
+    console.log("Transport Charges received:", transportCharges);
+
+    // Calculate final total with transport charges
+    const finalTotalAmount = (Number(totalAmount) || 0) + (Number(transportCharges) || 0);
+    const finalNetAmount = Math.round(finalTotalAmount);
+    const finalRoundoff = +(finalTotalAmount - finalNetAmount).toFixed(2);
 
     const purchaseOrder = await PurchaseOrder.create({
       poNo,
@@ -61,20 +68,22 @@ const createPurchaseOrder = async (req, res) => {
       igstAmount,
       cgstAmount,
       sgstAmount,
-      netAmount,
-      totalAmount,
-      roundoff,
+      netAmount: finalNetAmount,  // ✅ Updated with transport
+      totalAmount: finalTotalAmount,  // ✅ Updated with transport
+      roundoff: finalRoundoff,  // ✅ Updated with transport
       totalItems,
       createdBy: createdBy || "Admin",
       status: "Open",
       level1Approved: level1Approved || "No",
-      level2Approved: level2Approved || "No"
+      level2Approved: level2Approved || "No",
+      transportCharges: transportCharges || 0  // ✅ ADDED - save transportCharges
     });
 
     // Create order details
     if (details && details.length > 0) {
-      const orderDetails = details.map(item => ({
+      const orderDetails = details.map((item, index) => ({
         purchaseOrderId: purchaseOrder.id,
+        lineNumber: index + 1,  // ✅ ADDED - preserve item order
         indentDetailId: item.indentDetailId,
         indentNo: item.indentNo,
         itemId: item.itemId,
@@ -99,9 +108,18 @@ const createPurchaseOrder = async (req, res) => {
       await PurchaseOrderDetail.bulkCreate(orderDetails);
     }
 
+    // Fetch the created PO with details
+    const createdPO = await PurchaseOrder.findByPk(purchaseOrder.id, {
+      include: [{
+        model: PurchaseOrderDetail,
+        as: 'details',
+        order: [['lineNumber', 'ASC']]
+      }]
+    });
+
     res.json({
       success: true,
-      data: purchaseOrder,
+      data: createdPO,
       message: "Purchase Order created successfully"
     });
   } catch (error) {
@@ -147,10 +165,17 @@ const updatePurchaseOrder = async (req, res) => {
       level1ApprovedDate,
       level2Approved,
       level2ApprovedBy,
-      level2ApprovedDate
+      level2ApprovedDate,
+      transportCharges = 0  // ✅ ADDED - destructure transportCharges
     } = req.body;
 
     console.log("Updating PO ID:", id, "with deliveryDate:", deliveryDate);
+    console.log("Transport Charges received:", transportCharges);
+
+    // Calculate final total with transport charges
+    const finalTotalAmount = (Number(totalAmount) || 0) + (Number(transportCharges) || 0);
+    const finalNetAmount = Math.round(finalTotalAmount);
+    const finalRoundoff = +(finalTotalAmount - finalNetAmount).toFixed(2);
 
     // Build update object
     const updateData = {
@@ -175,11 +200,12 @@ const updatePurchaseOrder = async (req, res) => {
       igstAmount,
       cgstAmount,
       sgstAmount,
-      netAmount,
-      totalAmount,
-      roundoff,
+      netAmount: finalNetAmount,  // ✅ Updated with transport
+      totalAmount: finalTotalAmount,  // ✅ Updated with transport
+      roundoff: finalRoundoff,  // ✅ Updated with transport
       totalItems,
-      status
+      status,
+      transportCharges: transportCharges || 0  // ✅ ADDED - save transportCharges
     };
 
     // Add approval fields if they exist
@@ -197,8 +223,9 @@ const updatePurchaseOrder = async (req, res) => {
     if (details && details.length > 0) {
       await PurchaseOrderDetail.destroy({ where: { purchaseOrderId: id } });
       
-      const orderDetails = details.map(item => ({
-        purchaseOrderId: id,
+      const orderDetails = details.map((item, index) => ({
+        purchaseOrderId: parseInt(id),
+        lineNumber: index + 1,  // ✅ ADDED - preserve item order
         indentDetailId: item.indentDetailId,
         indentNo: item.indentNo,
         itemId: item.itemId,
@@ -230,7 +257,12 @@ const updatePurchaseOrder = async (req, res) => {
                    'poAmount', 'igstAmount', 'cgstAmount', 'sgstAmount', 'netAmount', 'totalAmount',
                    'roundoff', 'totalItems', 'createdBy', 'status', 'level1Approved', 'level1ApprovedBy',
                    'level1ApprovedDate', 'level2Approved', 'level2ApprovedBy', 'level2ApprovedDate',
-                   'createdAt', 'updatedAt']
+                   'transportCharges', 'createdAt', 'updatedAt'],
+      include: [{
+        model: PurchaseOrderDetail,
+        as: 'details',
+        order: [['lineNumber', 'ASC']]
+      }]
     });
     
     res.json({
@@ -244,7 +276,7 @@ const updatePurchaseOrder = async (req, res) => {
   }
 };
 
-// Get all Purchase Orders - Using the view structure
+// Get all Purchase Orders
 const getAllPurchaseOrders = async (req, res) => {
   try {
     const query = `
@@ -254,6 +286,8 @@ const getAllPurchaseOrders = async (req, res) => {
         s.supplierName AS supplier,
         po.deliveryDate AS deliverydate,
         po.poType AS potype,
+        po.transportCharges AS transportCharges,
+        po.totalAmount AS totalAmount,
         pi.indentNo AS indentNo,
         i.itemName AS itemName,
         u.name AS uom,
@@ -261,7 +295,7 @@ const getAllPurchaseOrders = async (req, res) => {
         pod.poRate AS porate,
         pod.discPrice AS discPrice,
         pod.totGst AS totGst,
-        pod.totalAmount AS totalAmount,
+        pod.totalAmount AS itemTotalAmount,
         po.level1Approved AS level1Approved,
         po.level1ApprovedBy AS level1ApprovedBy,
         po.level1ApprovedDate AS level1ApprovedDate,
@@ -339,7 +373,9 @@ const getPurchaseOrderById = async (req, res) => {
         po.status,
         po.createdBy,
         po.createdAt,
-        po.updatedAt
+        po.updatedAt,
+        po.transportCharges AS transportCharges,
+        pod.lineNumber
       FROM purchaseorders po
       LEFT JOIN purchaseorderdetails pod ON po.id = pod.purchaseOrderId
       LEFT JOIN suppliers s ON po.supplierId = s.id
@@ -347,7 +383,7 @@ const getPurchaseOrderById = async (req, res) => {
       LEFT JOIN items i ON pod.itemId = i.id
       LEFT JOIN uoms u ON pod.uom = u.name
       WHERE po.id = ?
-      ORDER BY pod.id
+      ORDER BY pod.lineNumber ASC, pod.id ASC
     `;
     
     const [results] = await sequelize.query(query, {
@@ -393,6 +429,7 @@ const getPurchaseOrderById = async (req, res) => {
       level2Approved: results[0].level2Approved,
       level2ApprovedBy: results[0].level2ApprovedBy,
       level2ApprovedDate: results[0].level2ApprovedDate,
+      transportCharges: results[0].transportCharges || 0,
       createdBy: results[0].createdBy,
       createdAt: results[0].createdAt,
       updatedAt: results[0].updatedAt,
@@ -404,7 +441,8 @@ const getPurchaseOrderById = async (req, res) => {
         poRate: row.porate,
         discPrice: row.discPrice,
         totGst: row.totGst,
-        totalAmount: row.totalAmount
+        totalAmount: row.totalAmount,
+        lineNumber: row.lineNumber
       }))
     };
     
@@ -489,4 +527,4 @@ module.exports = {
   deletePurchaseOrder,
   getNextPONumber,
   getPurchaseOrderResultView
-};
+};  

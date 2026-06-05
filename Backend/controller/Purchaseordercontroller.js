@@ -171,6 +171,7 @@ exports.create = async (req, res) => {
       level1ApprovedDate = null,
       level2ApprovedBy = null,
       level2ApprovedDate = null,
+      transportCharges = 0,
     } = req.body;
 
     if (!poNo) {
@@ -226,10 +227,11 @@ exports.create = async (req, res) => {
       sgstAmount += Number(d.sgst || 0);
       totalAmount += Number(d.totalAmount || 0);
     });
-    
-    totalAmount = +totalAmount.toFixed(2);
-    const netAmount = Math.round(totalAmount);
-    const roundOff = +(totalAmount - netAmount).toFixed(2);
+
+// Use the frontend calculated totalAmount directly
+const finalTotalAmount = Number(req.body.totalAmount) || (totalAmount + (transportCharges || 0));
+const netAmount = Math.round(finalTotalAmount);
+const roundOff = +(finalTotalAmount - netAmount).toFixed(2);
 
     const po = await PurchaseOrder.create({
       poNo,
@@ -253,7 +255,7 @@ exports.create = async (req, res) => {
       cgstAmount,
       sgstAmount,
       netAmount,
-      totalAmount,
+     totalAmount: finalTotalAmount,
       roundoff: roundOff,
       totalItems: computedDetails.length,
       level1Approved,
@@ -262,6 +264,7 @@ exports.create = async (req, res) => {
       level1ApprovedDate,
       level2ApprovedBy,
       level2ApprovedDate,
+       transportCharges: transportCharges || 0,
     }, { transaction, include: ["details"] });
 
     if (computedDetails && computedDetails.length > 0) {
@@ -329,6 +332,7 @@ exports.update = async (req, res) => {
       level1ApprovedDate,
       level2ApprovedBy,
       level2ApprovedDate,
+      transportCharges = 0,
     } = req.body;
 
     let finalSupplierName = supplierName;
@@ -359,63 +363,64 @@ exports.update = async (req, res) => {
     }));
 
     let grossAmount = 0, discAmount = 0, poAmount = 0, igstAmount = 0, cgstAmount = 0, sgstAmount = 0;
-    let totalAmount = 0;
-    computedDetails.forEach(d => {
-      const qty = Number(d.poQty || 0);
-      const rate = Number(d.poRate || 0);
-      grossAmount += qty * rate;
-      discAmount += Number(d.discPrice || 0);
-      poAmount += Number(d.poAmount || 0);
-      igstAmount += Number(d.igst || 0);
-      cgstAmount += Number(d.cgst || 0);
-      sgstAmount += Number(d.sgst || 0);
-      totalAmount += Number(d.totalAmount || 0);
-    });
-    
-    totalAmount = +totalAmount.toFixed(2);
-    const netAmount = Math.round(totalAmount);
-    const roundOff = +(totalAmount - netAmount).toFixed(2);
+let totalAmount = 0;
+computedDetails.forEach(d => {
+  const qty = Number(d.poQty || 0);
+  const rate = Number(d.poRate || 0);
+  grossAmount += qty * rate;
+  discAmount += Number(d.discPrice || 0);
+  poAmount += Number(d.poAmount || 0);
+  igstAmount += Number(d.igst || 0);
+  cgstAmount += Number(d.cgst || 0);
+  sgstAmount += Number(d.sgst || 0);
+  totalAmount += Number(d.totalAmount || 0);
+});
 
-    // Track affected indents before update
-    const oldDetails = await PurchaseOrderDetail.findAll({ 
-      where: { purchaseOrderId: po.id },
-      transaction  // ← ADD TRANSACTION
-    });
-    const oldIndentDetailIds = oldDetails.map(d => d.indentDetailId).filter(Boolean);
+// Use the frontend calculated totalAmount directly
+const finalTotalAmount = Number(req.body.totalAmount) || (totalAmount + (transportCharges || 0));
+const netAmount = Math.round(finalTotalAmount);
+const roundOff = +(finalTotalAmount - netAmount).toFixed(2);
 
-    const updateData = {
-      poNo,
-      poType,
-      date,
-      deliveryDate,
-      supplierId: supplierId || null,
-      supplierName: finalSupplierName,
-      paymentTermsId: ptId,
-      paymentTermsName,
-      gstEnabled,
-      gstType,
-      createdBy,
-      createdOn,
-      status,
-      remarks,
-      grossAmount,
-      discAmount,
-      poAmount,
-      igstAmount,
-      cgstAmount,
-      sgstAmount,
-      netAmount,
-      totalAmount,
-      roundoff: roundOff,
-      totalItems: computedDetails.length
-    };
-
+const updateData = {
+  poNo,
+  poType,
+  date,
+  deliveryDate,
+  supplierId: supplierId || null,
+  supplierName: finalSupplierName,
+  paymentTermsId: ptId,
+  paymentTermsName,
+  gstEnabled,
+  gstType,
+  createdBy,
+  createdOn,
+  status,
+  remarks,
+  grossAmount,
+  discAmount,
+  poAmount,
+  igstAmount,
+  cgstAmount,
+  sgstAmount,
+  netAmount,
+  totalAmount: finalTotalAmount,
+  roundoff: roundOff,
+  totalItems: computedDetails.length,
+  transportCharges: transportCharges || 0,
+};
     if (level1Approved !== undefined) updateData.level1Approved = level1Approved;
     if (level2Approved !== undefined) updateData.level2Approved = level2Approved;
     if (level1ApprovedBy !== undefined) updateData.level1ApprovedBy = level1ApprovedBy;
     if (level1ApprovedDate !== undefined) updateData.level1ApprovedDate = level1ApprovedDate;
     if (level2ApprovedBy !== undefined) updateData.level2ApprovedBy = level2ApprovedBy;
     if (level2ApprovedDate !== undefined) updateData.level2ApprovedDate = level2ApprovedDate;
+
+    // Track affected indents before update
+    const oldDetails = await PurchaseOrderDetail.findAll({ 
+      where: { purchaseOrderId: po.id },
+      transaction   
+    });
+    const oldIndentDetailIds = oldDetails.map(d => d.indentDetailId).filter(Boolean);
 
     // UPDATE WITH TRANSACTION
     await po.update(updateData, { transaction });

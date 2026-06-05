@@ -35,115 +35,118 @@ export default function POLevel1Pending() {
 
   // Fetch data
   const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      let response;
-      if (showApproved) {
-        response = await purchaseOrderApi.getAll();
-        const data = response?.data || response || [];
-        const filtered = data.filter(po => po.level1Approved === "Yes");
+  setLoading(true);
+  setError(null);
+  try {
+    let response;
+    if (showApproved) {
+      response = await purchaseOrderApi.getAll();
+      const data = response?.data || response || [];
+      const filtered = data.filter(po => po.level1Approved === "Yes");
+      
+      const grouped = {};
+      filtered.forEach(po => {
+        let totalQty = 0;
+        const items = [];
         
-        const grouped = {};
-        filtered.forEach(po => {
-          let itemsTotal = 0;
-          let totalQty = 0;
-          const items = [];
-          
-          if (po.details && Array.isArray(po.details)) {
-            po.details.forEach(item => {
-              const itemTotal = Number(item.totalAmount) || 0;
-              itemsTotal += itemTotal;
-              totalQty += Number(item.poQty) || 0;
-              items.push({
-                indentNo: item.indentNo,
-                itemId: item.itemId,
-                itemName: item.itemName,
-                uom: item.uom,
-                poQty: item.poQty,
-                poRate: item.poRate,
-                poAmount: item.poAmount,
-                discPrice: item.discPrice,
-                totGst: item.totGst,
-                gstPct: item.gstPct,
-                sgst: item.sgst,
-                cgst: item.cgst,
-                igst: item.igst,
-                totalAmount: itemTotal
-              });
+        if (po.details && Array.isArray(po.details)) {
+          po.details.forEach(item => {
+            totalQty += Number(item.poQty) || 0;
+            items.push({
+              indentNo: item.indentNo,
+              itemId: item.itemId,
+              itemName: item.itemName,
+              uom: item.uom,
+              poQty: item.poQty,
+              poRate: item.poRate,
+              poAmount: item.poAmount,
+              discPrice: item.discPrice,
+              totGst: item.totGst,
+              gstPct: item.gstPct,
+              sgst: item.sgst,
+              cgst: item.cgst,
+              igst: item.igst,
+              totalAmount: Number(item.totalAmount) || 0
             });
-          }
-          
-          grouped[po.id] = {
-            id: po.id,
-            poNo: po.poNo,
-            poDate: po.date,
-            supplier: po.supplierName,
-            supplierId: po.supplierId,
-            deliveryDate: po.deliveryDate,
-            poType: po.poType,
-            level1Approved: po.level1Approved,
-            level1ApprovedBy: po.level1ApprovedBy,
-            level1ApprovedDate: po.level1ApprovedDate,
-            level2Approved: po.level2Approved,
-            level2ApprovedBy: po.level2ApprovedBy,
-            level2ApprovedDate: po.level2ApprovedDate,
-            totalQty: totalQty,
-            totalAmount: itemsTotal,
-            totalItems: po.details?.length || 0,
-            items: items,
-            gstType: po.gstType || "local"
-          };
-        });
-        setReportData(Object.values(grouped));
-      }  else {
-  response = await purchaseOrderApi.getLevel1Pending();
-  const data = response?.data || response || [];
-  
-  const grouped = data.map(po => ({
-    id: po.id,
-    poNo: po.ponumber,
-    poDate: po.podate,
-    supplier: po.supplier,
-    supplierId: po.supplierId,
-    deliveryDate: po.deliverydate,
-    poType: po.potype,
-    level1Approved: po.level1Approved,
-    level1ApprovedBy: po.level1ApprovedBy,
-    level1ApprovedDate: po.level1ApprovedDate,
-    level2Approved: po.level2Approved,
-    level2ApprovedBy: po.level2ApprovedBy,
-    level2ApprovedDate: po.level2ApprovedDate,
-    totalQty: po.items?.reduce((sum, item) => sum + (Number(item.poQty) || 0), 0) || 0,
-    totalAmount: po.items?.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0) || 0,
-    totalItems: po.items?.length || 0,
-    items: (po.items || []).map(item => ({
-      indentNo: item.indentNo,
-      itemId: item.itemId,        // ← MAKE SURE THIS LINE EXISTS
-      itemName: item.itemName,
-      uom: item.uom,
-      poQty: item.poQty,
-      poRate: item.poRate,
-      poAmount: item.poAmount,
-      discPrice: item.discPrice,
-      totGst: item.totGst,
-      gstPct: item.gstPct,
-      sgst: item.sgst,
-      cgst: item.cgst,
-      igst: item.igst,
-      totalAmount: item.totalAmount
-    })),
-    gstType: po.gstType || "local"
-  }));
-  setReportData(grouped);
-}
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
+          });
+        }
+        
+        grouped[po.id] = {
+          id: po.id,
+          poNo: po.poNo,
+          poDate: po.date,
+          supplier: po.supplierName,
+          supplierId: po.supplierId,
+          deliveryDate: po.deliveryDate,
+          poType: po.poType,
+          transportCharges: Number(po.transportCharges) || 0,
+          totalAmount: Number(po.totalAmount) || 0,
+          level1Approved: po.level1Approved,
+          level1ApprovedBy: po.level1ApprovedBy,
+          level1ApprovedDate: po.level1ApprovedDate,
+          level2Approved: po.level2Approved,
+          level2ApprovedBy: po.level2ApprovedBy,
+          level2ApprovedDate: po.level2ApprovedDate,
+          totalQty: totalQty,
+          totalItems: po.details?.length || 0,
+          items: items,
+          gstType: po.gstType || "local"
+        };
+      });
+      // ✅ Sort approved list - newest first
+      const sortedData = Object.values(grouped).sort((a, b) => new Date(b.poDate) - new Date(a.poDate));
+      setReportData(sortedData);
+    } else {
+      response = await purchaseOrderApi.getLevel1Pending();
+      const data = response?.data || response || [];
+      
+      const grouped = data.map(po => ({
+        id: po.id,
+        poNo: po.ponumber,
+        poDate: po.podate,
+        supplier: po.supplier,
+        supplierId: po.supplierId,
+        deliveryDate: po.deliverydate,
+        poType: po.potype,
+        transportCharges: Number(po.transportCharges) || 0,
+        totalAmount: Number(po.totalAmount) || 0,
+        level1Approved: po.level1Approved,
+        level1ApprovedBy: po.level1ApprovedBy,
+        level1ApprovedDate: po.level1ApprovedDate,
+        level2Approved: po.level2Approved,
+        level2ApprovedBy: po.level2ApprovedBy,
+        level2ApprovedDate: po.level2ApprovedDate,
+        totalQty: po.items?.reduce((sum, item) => sum + (Number(item.poQty) || 0), 0) || 0,
+        totalItems: po.items?.length || 0,
+        items: (po.items || []).map(item => ({
+          indentNo: item.indentNo,
+          itemId: item.itemId,
+          itemName: item.itemName,
+          uom: item.uom,
+          poQty: item.poQty,
+          poRate: item.poRate,
+          poAmount: item.poAmount,
+          discPrice: item.discPrice,
+          totGst: item.totGst,
+          gstPct: item.gstPct,
+          sgst: item.sgst,
+          cgst: item.cgst,
+          igst: item.igst,
+          totalAmount: Number(item.totalAmount) || 0
+        })),
+        gstType: po.gstType || "local"
+      }));
+      // ✅ Sort pending list - newest first
+      const sortedData = grouped.sort((a, b) => new Date(b.poDate) - new Date(a.poDate));
+      setReportData(sortedData);
     }
-  };
+  } catch (err) {
+    console.error(err);
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchData();
@@ -218,6 +221,7 @@ export default function POLevel1Pending() {
       deliveryDate: po.deliveryDate,
       poType: po.poType,
       status: "Open",
+      transportCharges: po.transportCharges || 0,
       level1Approved: po.level1Approved,
       level2Approved: po.level2Approved,
       level1ApprovedBy: po.level1ApprovedBy,
@@ -254,26 +258,19 @@ export default function POLevel1Pending() {
   };
 
   const filteredData = useMemo(() => {
-  if (!searchTerm.trim()) return reportData;
-  
-  const term = searchTerm.toLowerCase();
-  return reportData.filter(po => {
-    // Check PO Number
-    const matchPoNo = (po.poNo || "").toLowerCase().includes(term);
+    if (!searchTerm.trim()) return reportData;
     
-    // Check Supplier Name
-    const matchSupplier = (po.supplier || po.supplierName || "").toLowerCase().includes(term);
-    
-    // Check Items (Indent No and Item Name only)
-    const matchItems = (po.items || []).some(item => 
-      (item.indentNo || "").toLowerCase().includes(term) ||
-      (item.itemName || "").toLowerCase().includes(term)
-    );
-    
-    // Only return true if matches PO Number, Supplier, or Items
-    return matchPoNo || matchSupplier || matchItems;
-  });
-}, [reportData, searchTerm]);
+    const term = searchTerm.toLowerCase();
+    return reportData.filter(po => {
+      const matchPoNo = (po.poNo || "").toLowerCase().includes(term);
+      const matchSupplier = (po.supplier || "").toLowerCase().includes(term);
+      const matchItems = (po.items || []).some(item => 
+        (item.indentNo || "").toLowerCase().includes(term) ||
+        (item.itemName || "").toLowerCase().includes(term)
+      );
+      return matchPoNo || matchSupplier || matchItems;
+    });
+  }, [reportData, searchTerm]);
 
   return (
     <div className="inv-page">
@@ -384,6 +381,7 @@ export default function POLevel1Pending() {
                   <th>Delivery Date</th>
                   <th>PO Type</th>
                   <th>Level 2 Status</th>
+                  <th style={{ textAlign: "right" }}>Transport</th>
                   <th style={{ textAlign: "right" }}>Total Items</th>
                   <th style={{ textAlign: "right" }}>Total Qty</th>
                   <th style={{ textAlign: "right" }}>Total Amount</th>
@@ -409,7 +407,7 @@ export default function POLevel1Pending() {
                         {!showApproved && (
                           <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
                             <input type="checkbox" checked={selectedPOs.has(po.id)} onChange={() => toggleSelect(po.id)} />
-                          </td>
+                           </td>
                         )}
                         <td style={{ textAlign: "center" }}>
                           <button
@@ -462,14 +460,15 @@ export default function POLevel1Pending() {
                             {po.level2Approved === "Yes" ? "✓ Approved" : "⏳ Pending"}
                           </span>
                         </td>
+                        <td style={{ textAlign: "right", fontWeight: 500, color: "#f59e0b" }}>₹{fmt(po.transportCharges)}</td>
                         <td style={{ textAlign: "right" }}>{po.totalItems}</td>
                         <td style={{ textAlign: "right", fontWeight: 500 }}>{fmtQty(po.totalQty)}</td>
                         <td style={{ textAlign: "right", fontWeight: 500, color: "#10b981" }}>₹{fmt(po.totalAmount)}</td>
-                       </tr>
+                      </tr>
                       
                       {isExpanded && (
                         <tr style={{ backgroundColor: "#fafafa" }}>
-                          <td colSpan={showApproved ? 11 : 12} style={{ padding: 0 }}>
+                          <td colSpan={showApproved ? 12 : 13} style={{ padding: 0 }}>
                             <table className="inv-table" style={{ margin: 0, width: "100%", borderCollapse: "collapse", backgroundColor: "#fafafa" }}>
                               <thead>
                                 <tr style={{ backgroundColor: "#e2e8f0", borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #cbd5e1" }}>
@@ -482,7 +481,7 @@ export default function POLevel1Pending() {
                                   <th style={{ width: "10%", padding: "8px 12px", textAlign: "right" }}>Discount</th>
                                   <th style={{ width: "10%", padding: "8px 12px", textAlign: "right" }}>GST</th>
                                   <th style={{ width: "12%", padding: "8px 12px", textAlign: "right" }}>Total Amount</th>
-                                 </tr>
+                                </tr>
                               </thead>
                               <tbody>
                                 {po.items && po.items.map((item, idx) => (
@@ -496,7 +495,7 @@ export default function POLevel1Pending() {
                                     <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top", color: "#ef4444" }}>₹{fmt(item.discPrice)}</td>
                                     <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top" }}>₹{fmt(item.totGst)}</td>
                                     <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top", fontWeight: 600, color: "#10b981" }}>₹{fmt(item.totalAmount)}</td>
-                                   </tr>
+                                  </tr>
                                 ))}
                               </tbody>
                               <tfoot>
@@ -505,11 +504,11 @@ export default function POLevel1Pending() {
                                   <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmtQty(po.totalQty)}</td>
                                   <td colSpan={3}></td>
                                   <td style={{ padding: "10px 12px", textAlign: "right", color: "#10b981" }}>₹{fmt(po.totalAmount)}</td>
-                                 </tr>
+                                </tr>
                               </tfoot>
                             </table>
-                           </td>
-                         </tr>
+                          </td>
+                        </tr>
                       )}
                     </React.Fragment>
                   );
@@ -528,6 +527,12 @@ export default function POLevel1Pending() {
               <div>
                 <div style={{ fontSize: 11, color: "#64748b" }}>Total POs</div>
                 <div style={{ fontSize: 20, fontWeight: 700 }}>{filteredData.length}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>Total Transport</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: "#f59e0b" }}>
+                  ₹{fmt(filteredData.reduce((sum, g) => sum + (g.transportCharges || 0), 0))}
+                </div>
               </div>
               <div>
                 <div style={{ fontSize: 11, color: "#64748b" }}>Total Items</div>
