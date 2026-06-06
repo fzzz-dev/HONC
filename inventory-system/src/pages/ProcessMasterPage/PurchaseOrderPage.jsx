@@ -2911,378 +2911,322 @@ const filteredPosForDisplay = (pos || []).filter(po => {
 
       {/* Pick Indent Modal */}
       {pendingModalOpen && (
-  <Modal 
-    id="pending-search-input"
-    title="Pick Pending Indent Lines" 
-    onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); setPendingSearchTerm(""); }} 
-    full={true}
-    hideDefaultButtons={true}
-  >
-    <style>
-      {`
-        #pick-indent-modal .inv-modal-header button,
-        #pick-indent-modal .inv-modal-header .inv-btn-ghost,
-        #pick-indent-modal .inv-modal-header .inv-save-btn,
-        #pick-indent-modal .inv-modal-header .inv-btn-secondary,
-        #pick-indent-modal .inv-modal-header .inv-btn-primary,
-        #pick-indent-modal .inv-modal-header [class*="btn"],
-        #pick-indent-modal .inv-modal-header > *:not(h2):not(h3):not(.inv-modal-title),
-        #pick-indent-modal .inv-modal-footer {
-          display: none !important;
-        }
-
-        #cancel-pick-btn, #add-items-btn {
-          display: inline-flex !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-        }
-        
-        .indent-main-row:focus, .indent-item-row:focus {
-          outline: 2px solid #3b6ef8;
-          outline-offset: -2px;
-          background-color: #eff6ff;
-        }
-        
-        .indent-item-row[style*="background-color: #eef2ff"] {
-          background-color: #eef2ff !important;
-        }
-        
-        .pending-search-input:focus {
-          outline: none;
-          border-color: #3b6ef8;
-          box-shadow: 0 0 0 2px rgba(59, 110, 248, 0.1);
-        }
-        
-        /* Fixed elements */
-        .modal-fixed-search {
-          position: sticky;
-          top: 0;
-          background: white;
-          z-index: 10;
-          border-bottom: 1px solid #e2e8f0;
-          padding: 12px 16px;
-        }
-        
-        .modal-fixed-footer {
-          position: sticky;
-          bottom: 0;
-          background: white;
-          z-index: 10;
-          border-top: 1px solid #e2e8f0;
-          padding: 12px 16px;
-        }
-        
-        .modal-scrollable-content {
-          overflow-y: auto;
-          flex: 1;
-          padding: 0 16px;
-          max-height: calc(85vh - 80px);
-        }
-      `}
-    </style>
-    
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", maxHeight: "85vh" }}>
-      {/* FIXED SEARCH BAR */}
-      <div style={{ 
-        position: "sticky", 
-        top: 0, 
-        background: "white", 
-        zIndex: 10, 
-        borderBottom: "1px solid #e2e8f0", 
-        padding: "12px 16px",
-        margin: "-16px -16px 0 -16px"
-      }}>
-        <input
-          type="text"
+        <Modal 
           id="pending-search-input"
-          ref={searchInputRef}
-          className="inv-input"
-          placeholder=" Search by Indent Number..."
-          value={pendingSearchTerm}
-          onChange={(e) => setPendingSearchTerm(e.target.value)}
-          style={{ 
-            width: "100%", 
-            maxWidth: "220px",
-            borderRadius: 6,
-            border: "1px solid #e2e8f0",
-            padding: "10px 14px",
-            fontSize: 14
-          }}
-        />
-        {pendingSearchTerm && (
-          <div style={{ marginTop: 8, fontSize: 13, color: "#64748b" }}>
-            Found {Object.values(pendingIndentGroups).filter(group => 
-              group.indentNo.toLowerCase().includes(pendingSearchTerm.toLowerCase())
-            ).length} matching indent(s)
-          </div>
-        )}
-      </div>
-      
-      {/* SCROLLABLE CONTENT - Only the table scrolls */}
-      <div className="modal-scrollable-content">
-        <div className="inv-table-wrap">
-          <table className="inv-table" id="pick-indent-table">
-            <thead>
-              <tr>
-                <th style={{ width: 30 }}></th>
-                <th>Indent No</th>
-                <th>Date</th>
-                <th>Department</th>
-                <th style={{ width: 100, textAlign: "right" }}>Total Qty</th>
-                <th style={{ width: 40, textAlign: "center" }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.values(pendingIndentGroups)
-                .filter(group => pendingSearchTerm === "" || group.indentNo.toLowerCase().includes(pendingSearchTerm.toLowerCase()))
-                .length === 0 ? (
-                <tr key="no-data">
-                  <td colSpan={6} style={{ padding: 60, textAlign: "center", color: "var(--text-secondary)" }}>
-                    {pendingSearchTerm ? "No matching indents found" : "No pending indents available"}
-                  </td>
-                </tr>
-              ) : (
-                Object.values(pendingIndentGroups)
-                  .filter(group => pendingSearchTerm === "" || group.indentNo.toLowerCase().includes(pendingSearchTerm.toLowerCase()))
-                  .map((group) => {
-                    const isExpanded = expandedGroups[group.indentNo];
-                    const allGroupItemsSelected = group.items.every(item => pendingSelected.has(item.rowId));
-                    const someGroupItemsSelected = group.items.some(item => pendingSelected.has(item.rowId));
-                    const totalQty = group.items.reduce((sum, item) => sum + item.balQty, 0);
-                    
-                    return (
-                      <React.Fragment key={group.indentNo}>
-                        <tr 
-                          key={group.indentNo}
-                          className="indent-main-row"
-                          data-row-id={group.indentNo}
-                          data-row-type="main"
-                          role="row"
-                          aria-expanded={isExpanded}
-                          style={{ 
-                            cursor: "pointer",
-                            backgroundColor: "#ffffff",
-                            borderBottom: "1px solid #e2e8f0"
-                          }}
-                          tabIndex={0}
-                          onClick={() => {
-                            setExpandedGroups(prev => ({ ...prev, [group.indentNo]: !prev[group.indentNo] }));
-                          }}
-                        >
-                          <td style={{ textAlign: "center", color: "#64748b" }}>
-                            {isExpanded ? "▼" : "▶"}
-                           </td>
-                          <td style={{ fontWeight: 600, color: "#3b6ef8" }}>{group.indentNo}</td>
-                          <td style={{ color: "#475569" }}>{group.indentDate}</td>
-                          <td style={{ color: "#475569" }}>{group.departmentName || "—"}</td>
-                          <td style={{ textAlign: "right", fontWeight: 500, color: "#475569" }}>{fmtQty(totalQty)}</td>
-                          <td style={{ textAlign: "center" }}>
-                            <input 
-                              type="checkbox"
-                              checked={allGroupItemsSelected}
-                              ref={(el) => {
-                                if (el) el.indeterminate = !allGroupItemsSelected && someGroupItemsSelected;
-                              }}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                const newSelected = new Set(pendingSelected);
-                                group.items.forEach(item => {
-                                  if (e.target.checked) {
-                                    newSelected.add(item.rowId);
-                                  } else {
-                                    newSelected.delete(item.rowId);
-                                  }
-                                });
-                                setPendingSelected(newSelected);
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              tabIndex={-1}
-                            />
-                          </td>
-                        </tr>
-                        
-                        {isExpanded && (
-                          <tr className="indent-sub-row" data-parent-id={group.indentNo}>
-                            <td colSpan={6} style={{ padding: 0, backgroundColor: "#f8fafc" }}>
-                              <table className="inv-table" style={{ margin: 0, width: "100%", borderCollapse: "collapse" }}>
-                                <thead>
-                                  <tr style={{ backgroundColor: "#f1f5f9", borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0" }}>
-                                    <th style={{ width: 30, padding: "10px 8px" }}></th>
-                                    <th style={{ padding: "10px 12px", textAlign: "left" }}>Item Description</th>
-                                    <th style={{ width: 70, padding: "10px 12px", textAlign: "center" }}>UOM</th>
-                                    <th style={{ width: 80, padding: "10px 12px", textAlign: "right" }}>Bal</th>
-                                    <th style={{ width: 90, padding: "10px 12px", textAlign: "right" }}>PO Qty</th>
-                                    <th style={{ width: 90, padding: "10px 12px", textAlign: "right" }}>Unit Price</th>
-                                    <th style={{ width: 80, padding: "10px 12px", textAlign: "center" }}>Disc%</th>
-                                    <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>PO Amt</th>
-                                    <th style={{ width: 70, padding: "10px 12px", textAlign: "center" }}>GST%</th>
-                                    <th style={{ width: 80, padding: "10px 12px", textAlign: "right" }}>IGST</th>
-                                    <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>Total</th>
-                                    <th style={{ width: 40, padding: "10px 8px", textAlign: "center" }}></th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {details.map((row, idx) => {
-                                    const baseTabIndex = 10 + (idx * 4);
-                                    const isLastRow = idx === details.length - 1;
-                                    const hasItems = row.itemId || row.itemName;
-                                    
-                                    return (
-                                      <tr key={row._rowId}>
-                                        <td style={{ textAlign: "center" }}>{idx + 1}</td>
-                                        <td style={{ textAlign: "left" }}>
-                                          <input tabIndex={-1} className="inv-input-cell" value={row.indentNo || ""} readOnly style={{ textAlign: "left" }} placeholder="-" />
-                                        </td>
-                                        <td style={{ textAlign: "left" }}>
-                                          <input tabIndex={-1} className="inv-input-cell" value={row.itemName || ""} readOnly style={{ textAlign: "left" }} placeholder="-" />
-                                        </td>
-                                        <td style={{ textAlign: "center" }}>
-                                          <input tabIndex={-1} className="inv-input-cell" value={row.uom || ""} readOnly style={{ textAlign: "center" }} placeholder="-" />
-                                        </td>
-                                        
-                                        {/* Bal - value right aligned */}
-                                        <td style={{ textAlign: "right" }}>
-                                          <input tabIndex={-1} className="inv-input-cell" value={formatPoQty(row.balQty)} readOnly style={{ textAlign: "right" }} placeholder="0.000" />
-                                        </td>
-                                        
-                                        {/* PO Qty - value right aligned */}
-                                        <td style={{ textAlign: "right" }}>
-                                          <input 
-                                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex : -1} 
-                                            className="inv-input-cell" 
-                                            type="number" 
-                                            step="0.001"
-                                            value={row.poQty && row.poQty !== 0 ? row.poQty : ""} 
-                                            onChange={e => updateDetail(idx, "poQty", e.target.value)} 
-                                            style={{ textAlign: "right" }}
-                                            placeholder="0.000"
-                                          />
-                                        </td>
-                                        
-                                        {/* Unit Price - value right aligned */}
-                                        <td style={{ textAlign: "right" }}>
-                                          <input 
-                                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 1 : -1} 
-                                            className="inv-input-cell" 
-                                            type="number" 
-                                            step="0.01"
-                                            value={row.poRate && row.poRate !== 0 ? row.poRate : ""} 
-                                            onChange={e => updateDetail(idx, "poRate", e.target.value)} 
-                                            style={{ textAlign: "right" }}
-                                            placeholder="0.00"
-                                          />
-                                        </td>
-                                        
-                                        {/* Discount - value right aligned */}
-                                        <td style={{ textAlign: "right" }}>
-                                          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-                                            <input 
-                                              tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 2 : -1} 
-                                              className="inv-input-cell" 
-                                              type="number" 
-                                              step="0.01"
-                                              value={
-                                                row.discMode === 'pct' 
-                                                  ? (row.discPct && row.discPct !== 0 ? row.discPct : "")
-                                                  : (row.discPrice && row.discPrice !== 0 ? row.discPrice : "")
-                                              } 
-                                              onChange={e => updateDetail(idx, row.discMode === 'pct' ? 'discPct' : 'discPrice', e.target.value)} 
-                                              style={{ textAlign: "right", width: "calc(100% - 30px)" }}
-                                              placeholder="0.00"
-                                            />
-                                            <button 
-                                              type="button" 
-                                              className="inv-btn-icon inv-btn-sm"
-                                              onClick={() => toggleDiscMode(idx)} 
-                                              tabIndex={-1}
-                                              title={row.discMode === 'pct' ? 'Switch to price discount' : 'Switch to percentage discount'}
-                                              style={{ marginLeft: "4px" }}
-                                            >
-                                              {row.discMode === 'pct' ? '%' : '₹'}
-                                            </button>
-                                          </div>
-                                        </td>
-                                        
-                                        {/* PO Amt - value right aligned */}
-                                        <td style={{ textAlign: "right" }}>
-                                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.poAmount)} readOnly style={{ textAlign: "right" }} placeholder="0.00" />
-                                        </td>
-                                        
-                                        {/* GST% - value center aligned */}
-                                        <td style={{ textAlign: "center" }}>
-                                          <input 
-                                            tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 3 : -1} 
-                                            className="inv-input-cell" 
-                                            type="number" 
-                                            step="0.01"
-                                            value={row.gstPct && row.gstPct !== 0 ? row.gstPct : ""} 
-                                            onChange={e => updateDetail(idx, "gstPct", e.target.value)} 
-                                            style={{ textAlign: "center" }}
-                                            placeholder="0.00"
-                                          />
-                                        </td>
-                                        
-                                        {/* IGST (TotGst) - value right aligned */}
-                                        <td style={{ textAlign: "right" }}>
-                                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totGst)} readOnly style={{ textAlign: "right" }} placeholder="0.00" />
-                                        </td>
+          title="Pick Pending Indent Lines" 
+          onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); setPendingSearchTerm(""); }} 
+          full={true}
+          hideDefaultButtons={true}
+        >
+          <style>
+            {`
+              #pick-indent-modal .inv-modal-header button,
+              #pick-indent-modal .inv-modal-header .inv-btn-ghost,
+              #pick-indent-modal .inv-modal-header .inv-save-btn,
+              #pick-indent-modal .inv-modal-header .inv-btn-secondary,
+              #pick-indent-modal .inv-modal-header .inv-btn-primary,
+              #pick-indent-modal .inv-modal-header [class*="btn"],
+              #pick-indent-modal .inv-modal-header > *:not(h2):not(h3):not(.inv-modal-title),
+              #pick-indent-modal .inv-modal-footer {
+                display: none !important;
+              }
 
-                                        {/* Total Amount - value right aligned */}
-                                        <td style={{ textAlign: "right" }}>
-                                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totalAmount)} readOnly style={{ textAlign: "right" }} placeholder="0.00" />
-                                        </td> 
-                                        
-                                        {/* Delete button */}
-                                        <td style={{ textAlign: "center" }}>
-                                          <button 
-                                            className="inv-btn-icon inv-btn-danger"
-                                            onClick={() => removeRow(idx)} 
-                                            tabIndex={isLastRow && (itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 4 : -1}
-                                            title="Remove item"
-                                            aria-label="Remove item row"
-                                          >
-                                            ✕
-                                          </button>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })
+              #cancel-pick-btn, #add-items-btn {
+                display: inline-flex !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+              }
+              
+              .indent-main-row:focus, .indent-item-row:focus {
+                outline: 2px solid #3b6ef8;
+                outline-offset: -2px;
+                background-color: #eff6ff;
+              }
+              
+              .indent-item-row[style*="background-color: #eef2ff"] {
+                background-color: #eef2ff !important;
+              }
+              
+              .pending-search-input:focus {
+                outline: none;
+                border-color: #3b6ef8;
+                box-shadow: 0 0 0 2px rgba(59, 110, 248, 0.1);
+              }
+              
+              /* Fixed elements */
+              .modal-fixed-search {
+                position: sticky;
+                top: 0;
+                background: white;
+                z-index: 10;
+                border-bottom: 1px solid #e2e8f0;
+                padding: 12px 16px;
+              }
+              
+              .modal-fixed-footer {
+                position: sticky;
+                bottom: 0;
+                background: white;
+                z-index: 10;
+                border-top: 1px solid #e2e8f0;
+                padding: 12px 16px;
+              }
+              
+              .modal-scrollable-content {
+                overflow-y: auto;
+                flex: 1;
+                padding: 0 16px;
+                max-height: calc(85vh - 80px);
+              }
+            `}
+          </style>
+          
+          <div style={{ display: "flex", flexDirection: "column", height: "100%", maxHeight: "85vh" }}>
+            {/* FIXED SEARCH BAR */}
+            <div style={{ 
+              position: "sticky", 
+              top: 0, 
+              background: "white", 
+              zIndex: 10, 
+              borderBottom: "1px solid #e2e8f0", 
+              padding: "12px 16px",
+              margin: "-16px -16px 0 -16px"
+            }}>
+              <input
+                type="text"
+                id="pending-search-input"
+                ref={searchInputRef}
+                className="inv-input"
+                placeholder=" Search by Indent Number..."
+                value={pendingSearchTerm}
+                onChange={(e) => setPendingSearchTerm(e.target.value)}
+                style={{ 
+                  width: "100%", 
+                  maxWidth: "220px",
+                  borderRadius: 6,
+                  border: "1px solid #e2e8f0",
+                  padding: "10px 14px",
+                  fontSize: 14
+                }}
+              />
+              {pendingSearchTerm && (
+                <div style={{ marginTop: 8, fontSize: 13, color: "#64748b" }}>
+                  Found {Object.values(pendingIndentGroups).filter(group => 
+                    group.indentNo.toLowerCase().includes(pendingSearchTerm.toLowerCase())
+                  ).length} matching indent(s)
+                </div>
               )}
-            </tbody>  
-          </table>
-        </div>
-      </div>
-      
-      {/* FIXED FOOTER - Buttons only */}
-      <div className="modal-fixed-footer">
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <button 
-            className="inv-btn-secondary" 
-            id="cancel-pick-btn"
-            onClick={() => { setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); setPendingSearchTerm(""); }}
-          >
-            Cancel
-          </button>
-          <button 
-            id="add-items-btn"
-            className="inv-btn-primary" 
-            onClick={() => { addPendingLinesToDetails(); setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); setPendingSearchTerm(""); }}
-          >
-            Add {pendingSelected.size} Item(s) to PO
-          </button>
-        </div>
-      </div>
-    </div>
-  </Modal>
-)}
+            </div>
+            
+            {/* SCROLLABLE CONTENT - Only the table scrolls */}
+            <div className="modal-scrollable-content">
+              <div className="inv-table-wrap">
+                <table className="inv-table" id="pick-indent-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 30 }}></th>
+                      <th>Indent No</th>
+                      <th>Date</th>
+                      <th>Department</th>
+                      <th style={{ width: 100, textAlign: "right" }}>Total Qty</th>
+                      <th style={{ width: 40, textAlign: "center" }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.values(pendingIndentGroups)
+                      .filter(group => pendingSearchTerm === "" || group.indentNo.toLowerCase().includes(pendingSearchTerm.toLowerCase()))
+                      .length === 0 ? (
+                      <tr key="no-data">
+                        <td colSpan={6} style={{ padding: 60, textAlign: "center", color: "var(--text-secondary)" }}>
+                          {pendingSearchTerm ? "No matching indents found" : "No pending indents available"}
+                        </td>
+                      </tr>
+                    ) : (
+                      Object.values(pendingIndentGroups)
+                        .filter(group => pendingSearchTerm === "" || group.indentNo.toLowerCase().includes(pendingSearchTerm.toLowerCase()))
+                        .map((group) => {
+                          const isExpanded = expandedGroups[group.indentNo];
+                          const allGroupItemsSelected = group.items.every(item => pendingSelected.has(item.rowId));
+                          const someGroupItemsSelected = group.items.some(item => pendingSelected.has(item.rowId));
+                          const totalQty = group.items.reduce((sum, item) => sum + item.balQty, 0);
+                          
+                          return (
+                            <React.Fragment key={group.indentNo}>
+                              <tr 
+                                key={group.indentNo}
+                                className="indent-main-row"
+                                data-row-id={group.indentNo}
+                                data-row-type="main"
+                                role="row"
+                                aria-expanded={isExpanded}
+                                style={{ 
+                                  cursor: "pointer",
+                                  backgroundColor: "#ffffff",
+                                  borderBottom: "1px solid #e2e8f0"
+                                }}
+                                tabIndex={0}
+                                onClick={() => {
+                                  setExpandedGroups(prev => ({ ...prev, [group.indentNo]: !prev[group.indentNo] }));
+                                }}
+                              >
+                                <td style={{ textAlign: "center", color: "#64748b" }}>
+                                  {isExpanded ? "▼" : "▶"}
+                                </td>
+                                <td style={{ fontWeight: 600, color: "#3b6ef8" }}>{group.indentNo}</td>
+                                <td style={{ color: "#475569" }}>{group.indentDate}</td>
+                                <td style={{ color: "#475569" }}>{group.departmentName || "—"}</td>
+                                <td style={{ textAlign: "right", fontWeight: 500, color: "#475569" }}>{fmtQty(totalQty)}</td>
+                                <td style={{ textAlign: "center" }}>
+                                  <input 
+                                    type="checkbox"
+                                    checked={allGroupItemsSelected}
+                                    ref={(el) => {
+                                      if (el) el.indeterminate = !allGroupItemsSelected && someGroupItemsSelected;
+                                    }}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      const newSelected = new Set(pendingSelected);
+                                      group.items.forEach(item => {
+                                        if (e.target.checked) {
+                                          newSelected.add(item.rowId);
+                                        } else {
+                                          newSelected.delete(item.rowId);
+                                        }
+                                      });
+                                      setPendingSelected(newSelected);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    tabIndex={-1}
+                                  />
+                                </td>
+                              </tr>
+                              
+                              {isExpanded && (
+                                <tr className="indent-sub-row" data-parent-id={group.indentNo}>
+                                  <td colSpan={6} style={{ padding: 0, backgroundColor: "#f8fafc" }}>
+                                    <table className="inv-table" style={{ margin: 0, width: "100%", borderCollapse: "collapse" }}>
+                                      <thead>
+                                        <tr style={{ backgroundColor: "#f1f5f9", borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0" }}>
+                                          <th style={{ width: 30, padding: "10px 8px", textAlign: "center" }}>
+                                            <input
+                                              type="checkbox"
+                                              checked={group.items.every(item => pendingSelected.has(item.rowId))}
+                                              ref={(el) => {
+                                                const allSelected = group.items.every(item => pendingSelected.has(item.rowId));
+                                                const someSelected = group.items.some(item => pendingSelected.has(item.rowId));
+                                                if (el) el.indeterminate = !allSelected && someSelected;
+                                              }}
+                                              onChange={(e) => {
+                                                const newSelected = new Set(pendingSelected);
+                                                group.items.forEach(item => {
+                                                  if (e.target.checked) {
+                                                    newSelected.add(item.rowId);
+                                                  } else {
+                                                    newSelected.delete(item.rowId);
+                                                  }
+                                                });
+                                                setPendingSelected(newSelected);
+                                              }}
+                                              onClick={(e) => e.stopPropagation()}
+                                            />
+                                          </th>
+                                          <th style={{ padding: "10px 12px", textAlign: "left" }}>Item Description</th>
+                                          <th style={{ width: 80, padding: "10px 12px", textAlign: "center" }}>UOM</th>
+                                          <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>Bal Qty</th>
+                                          <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>Rate</th>
+                                          <th style={{ width: 80, padding: "10px 12px", textAlign: "center" }}>GST%</th>
+                                          <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>Total Value</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {group.items.map((item) => {
+                                          const totalValue = (item.balQty * item.rate) + ((item.balQty * item.rate) * (item.gstPct / 100));
+                                          return (
+                                            <tr 
+                                              key={item.rowId}
+                                              className="indent-item-row"
+                                              data-row-id={item.rowId}
+                                              data-parent-id={group.indentNo}
+                                              style={{ 
+                                                backgroundColor: pendingSelected.has(item.rowId) ? "#eef2ff" : "transparent",
+                                                cursor: "pointer"
+                                              }}
+                                              tabIndex={0}
+                                              onClick={() => {
+                                                const newSelected = new Set(pendingSelected);
+                                                if (newSelected.has(item.rowId)) {
+                                                  newSelected.delete(item.rowId);
+                                                } else {
+                                                  newSelected.add(item.rowId);
+                                                }
+                                                setPendingSelected(newSelected);
+                                              }}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                  e.preventDefault();
+                                                  const newSelected = new Set(pendingSelected);
+                                                  if (newSelected.has(item.rowId)) {
+                                                    newSelected.delete(item.rowId);
+                                                  } else {
+                                                    newSelected.add(item.rowId);
+                                                  }
+                                                  setPendingSelected(newSelected);
+                                                }
+                                              }}
+                                            >
+                                              <td style={{ textAlign: "center", padding: "8px" }}>
+                                                <input
+                                                  type="checkbox"
+                                                  checked={pendingSelected.has(item.rowId)}
+                                                  onChange={() => {}}
+                                                  onClick={(e) => e.stopPropagation()}
+                                                />
+                                              </td>
+                                              <td style={{ padding: "8px 12px", textAlign: "left" }}>{item.itemName || "—"}</td>
+                                              <td style={{ padding: "8px 12px", textAlign: "center" }}>{item.uom || "—"}</td>
+                                              <td style={{ padding: "8px 12px", textAlign: "right" }}>{formatPoQty(item.balQty)}</td>
+                                              <td style={{ padding: "8px 12px", textAlign: "right" }}>₹{formatNumber(item.rate)}</td>
+                                              <td style={{ padding: "8px 12px", textAlign: "center" }}>{item.gstPct}%</td>
+                                              <td style={{ padding: "8px 12px", textAlign: "right" }}>₹{formatNumber(totalValue)}</td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
+                    )}
+                  </tbody>  
+                </table>
+              </div>
+            </div>
+            
+            {/* FIXED FOOTER - Buttons only */}
+            <div className="modal-fixed-footer">
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+                <button 
+                  className="inv-btn-secondary" 
+                  id="cancel-pick-btn"
+                  onClick={() => { setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); setPendingSearchTerm(""); }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  id="add-items-btn"
+                  className="inv-btn-primary" 
+                  onClick={() => { addPendingLinesToDetails(); setPendingModalOpen(false); setPendingSelected(new Set()); setExpandedGroups({}); setPendingSearchTerm(""); }}
+                >
+                  Add {pendingSelected.size} Item(s) to PO
+                </button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
       {viewingSupplier && <SupplierDetailsModal supplier={viewingSupplier} onClose={() => setViewingSupplier(null)} />}
 
         {showSaveConfirm && (
