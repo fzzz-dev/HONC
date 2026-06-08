@@ -17,6 +17,15 @@ function getFinancialYear() {
   return `${year.toString().slice(-2)}-${(year + 1).toString().slice(-2)}`;
 }
 
+/** Get today's date in YYYY-MM-DD format */
+function getTodayDate() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /** Generate next PO number: PO/0001/2026-2027 */
 async function generatePoNo() {
   const fy = getFinancialYear();
@@ -135,7 +144,7 @@ exports.getOne = async (req, res) => {
       include: [{
         model: PurchaseOrderDetail,
         as: 'details',
-        order: [['id', 'ASC']]  // ← ADD THIS - maintains item order
+        order: [['lineNumber', 'ASC'], ['id', 'ASC']]
       }]
     });
     if (!po) return res.status(404).json({ message: "PO not found" });
@@ -147,14 +156,16 @@ exports.getOne = async (req, res) => {
 
 // ─── POST /api/purchase-orders ───────────────────────────────────────────────
 exports.create = async (req, res) => {
-  const transaction = await sequelize.transaction();  // ← ADD THIS
+  const transaction = await sequelize.transaction();
   
   try {
+    const todayDate = getTodayDate();
+    
     const {
       poNo,
       poType,
-      date,
-      deliveryDate,
+      date = todayDate,
+      deliveryDate = todayDate,
       supplierId,
       supplierName,
       paymentTermsId,
@@ -210,7 +221,7 @@ exports.create = async (req, res) => {
     // ADD LINE NUMBERS TO PRESERVE ORDER
     const computedDetails = details.map((d, idx) => ({
       ...calcDetail(d, gstEnabled, gstType),
-      lineNumber: idx + 1  // ← ADD THIS
+      lineNumber: idx + 1
     }));
     
     // Calculate summaries
@@ -228,10 +239,10 @@ exports.create = async (req, res) => {
       totalAmount += Number(d.totalAmount || 0);
     });
 
-// Use the frontend calculated totalAmount directly
-const finalTotalAmount = Number(req.body.totalAmount) || (totalAmount + (transportCharges || 0));
-const netAmount = Math.round(finalTotalAmount);
-const roundOff = +(finalTotalAmount - netAmount).toFixed(2);
+    // Use the frontend calculated totalAmount directly
+    const finalTotalAmount = Number(req.body.totalAmount) || (totalAmount + (transportCharges || 0));
+    const netAmount = Math.round(finalTotalAmount);
+    const roundOff = +(finalTotalAmount - netAmount).toFixed(2);
 
     const po = await PurchaseOrder.create({
       poNo,
@@ -255,7 +266,7 @@ const roundOff = +(finalTotalAmount - netAmount).toFixed(2);
       cgstAmount,
       sgstAmount,
       netAmount,
-     totalAmount: finalTotalAmount,
+      totalAmount: finalTotalAmount,
       roundoff: roundOff,
       totalItems: computedDetails.length,
       level1Approved,
@@ -264,7 +275,7 @@ const roundOff = +(finalTotalAmount - netAmount).toFixed(2);
       level1ApprovedDate,
       level2ApprovedBy,
       level2ApprovedDate,
-       transportCharges: transportCharges || 0,
+      transportCharges: transportCharges || 0,
     }, { transaction, include: ["details"] });
 
     if (computedDetails && computedDetails.length > 0) {
@@ -275,7 +286,7 @@ const roundOff = +(finalTotalAmount - netAmount).toFixed(2);
       await PurchaseOrderDetail.bulkCreate(detailsToCreate, { transaction });
     }
 
-    await transaction.commit();  // ← COMMIT
+    await transaction.commit();
 
     // Sync Indent Balances
     const affectedIndentDetails = [...new Set(details.map(d => d.indentDetailId).filter(Boolean))];
@@ -292,7 +303,7 @@ const roundOff = +(finalTotalAmount - netAmount).toFixed(2);
     });
     res.status(201).json(createdPo);
   } catch (err) {
-    await transaction.rollback();  // ← ROLLBACK
+    await transaction.rollback();
     if (err.name === 'SequelizeUniqueConstraintError')
       return res.status(409).json({ message: "PO number already exists" });
     console.error("Create PO error:", err);
@@ -302,7 +313,7 @@ const roundOff = +(finalTotalAmount - netAmount).toFixed(2);
 
 // ─── PUT /api/purchase-orders/:id ────────────────────────────────────────────
 exports.update = async (req, res) => {
-  const transaction = await sequelize.transaction();  // ← ADD THIS
+  const transaction = await sequelize.transaction();
   
   try {
     const po = await PurchaseOrder.findByPk(req.params.id);
@@ -311,10 +322,12 @@ exports.update = async (req, res) => {
       return res.status(404).json({ message: "PO not found" });
     }
 
+    const todayDate = getTodayDate();
+    
     const {
       poNo,
-      date,
-      deliveryDate,
+      date = todayDate,
+      deliveryDate = todayDate,
       supplierId,
       supplierName,
       paymentTermsId,
@@ -359,55 +372,56 @@ exports.update = async (req, res) => {
     // Pass index to preserve order
     const computedDetails = details.map((d, idx) => ({
       ...calcDetail(d, gstEnabled, gstType),
-      lineNumber: idx + 1  // ← ADD THIS - preserves order
+      lineNumber: idx + 1
     }));
 
     let grossAmount = 0, discAmount = 0, poAmount = 0, igstAmount = 0, cgstAmount = 0, sgstAmount = 0;
-let totalAmount = 0;
-computedDetails.forEach(d => {
-  const qty = Number(d.poQty || 0);
-  const rate = Number(d.poRate || 0);
-  grossAmount += qty * rate;
-  discAmount += Number(d.discPrice || 0);
-  poAmount += Number(d.poAmount || 0);
-  igstAmount += Number(d.igst || 0);
-  cgstAmount += Number(d.cgst || 0);
-  sgstAmount += Number(d.sgst || 0);
-  totalAmount += Number(d.totalAmount || 0);
-});
+    let totalAmount = 0;
+    computedDetails.forEach(d => {
+      const qty = Number(d.poQty || 0);
+      const rate = Number(d.poRate || 0);
+      grossAmount += qty * rate;
+      discAmount += Number(d.discPrice || 0);
+      poAmount += Number(d.poAmount || 0);
+      igstAmount += Number(d.igst || 0);
+      cgstAmount += Number(d.cgst || 0);
+      sgstAmount += Number(d.sgst || 0);
+      totalAmount += Number(d.totalAmount || 0);
+    });
 
-// Use the frontend calculated totalAmount directly
-const finalTotalAmount = Number(req.body.totalAmount) || (totalAmount + (transportCharges || 0));
-const netAmount = Math.round(finalTotalAmount);
-const roundOff = +(finalTotalAmount - netAmount).toFixed(2);
+    // Use the frontend calculated totalAmount directly
+    const finalTotalAmount = Number(req.body.totalAmount) || (totalAmount + (transportCharges || 0));
+    const netAmount = Math.round(finalTotalAmount);
+    const roundOff = +(finalTotalAmount - netAmount).toFixed(2);
 
-const updateData = {
-  poNo,
-  poType,
-  date,
-  deliveryDate,
-  supplierId: supplierId || null,
-  supplierName: finalSupplierName,
-  paymentTermsId: ptId,
-  paymentTermsName,
-  gstEnabled,
-  gstType,
-  createdBy,
-  createdOn,
-  status,
-  remarks,
-  grossAmount,
-  discAmount,
-  poAmount,
-  igstAmount,
-  cgstAmount,
-  sgstAmount,
-  netAmount,
-  totalAmount: finalTotalAmount,
-  roundoff: roundOff,
-  totalItems: computedDetails.length,
-  transportCharges: transportCharges || 0,
-};
+    const updateData = {
+      poNo,
+      poType,
+      date,
+      deliveryDate,
+      supplierId: supplierId || null,
+      supplierName: finalSupplierName,
+      paymentTermsId: ptId,
+      paymentTermsName,
+      gstEnabled,
+      gstType,
+      createdBy,
+      createdOn,
+      status,
+      remarks,
+      grossAmount,
+      discAmount,
+      poAmount,
+      igstAmount,
+      cgstAmount,
+      sgstAmount,
+      netAmount,
+      totalAmount: finalTotalAmount,
+      roundoff: roundOff,
+      totalItems: computedDetails.length,
+      transportCharges: transportCharges || 0,
+    };
+    
     if (level1Approved !== undefined) updateData.level1Approved = level1Approved;
     if (level2Approved !== undefined) updateData.level2Approved = level2Approved;
     if (level1ApprovedBy !== undefined) updateData.level1ApprovedBy = level1ApprovedBy;
@@ -455,12 +469,12 @@ const updateData = {
       include: [{
         model: PurchaseOrderDetail,
         as: 'details',
-        order: [['lineNumber', 'ASC'], ['id', 'ASC']]  // ← ORDER BY lineNumber
+        order: [['lineNumber', 'ASC'], ['id', 'ASC']]
       }] 
     });
     res.json(updatedPo);
   } catch (err) {
-    await transaction.rollback();  // ← ROLLBACK ON ERROR
+    await transaction.rollback();
     console.error("Update PO error:", err);
     res.status(500).json({ message: err.message });
   }
@@ -530,7 +544,7 @@ exports.approveLevel2 = async (req, res) => {
       level2Approved: "Yes",
       level2ApprovedBy: req.body.approvedBy || "System",
       level2ApprovedDate: new Date(),
-      status: "Approved" // Optional: Update status when fully approved
+      status: "Approved"
     });
     
     const updatedPo = await PurchaseOrder.findByPk(req.params.id, { include: ["details"] });
@@ -559,4 +573,4 @@ exports.remove = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-};  
+};

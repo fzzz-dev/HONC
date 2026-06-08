@@ -4,7 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const API = "http://192.168.1.100:5173/api";
+const API = "http://localhost:5173/api";
 
 // Helper function to get today's date in YYYY-MM-DD format
 const getTodayDate = () => {
@@ -24,10 +24,10 @@ const reportAPI = {
     if (params.searchTerm) queryParams.append('searchTerm', params.searchTerm);
     if (params.searchIndentNo) queryParams.append('searchIndentNo', params.searchIndentNo);
     if (params.category) queryParams.append('category', params.category);
-    if (params.departmentName) queryParams.append('departmentName', params.departmentName);  // ← This must match
+    if (params.departmentName) queryParams.append('departmentName', params.departmentName);
     
     const url = `${API}/reports/purchase-indent-report${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-    console.log("Full URL being called:", url);  // ← Add this debug
+    console.log("Full URL being called:", url);
     const response = await fetch(url);
     const data = await response.json();
     return data;
@@ -39,17 +39,15 @@ const reportAPI = {
     if (params.searchTerm) queryParams.append('searchTerm', params.searchTerm);
     if (params.searchIndentNo) queryParams.append('searchIndentNo', params.searchIndentNo);
     if (params.category) queryParams.append('category', params.category);
-    if (params.departmentId) queryParams.append('departmentName', params.departmentName);
+    if (params.departmentName) queryParams.append('departmentName', params.departmentName);
     
     window.open(`${API}/reports/purchase-indent-report/export/csv?${queryParams.toString()}`, '_blank');
   },
-  // Fetch ALL categories (not filtered by report results)
   getAllCategories: async () => {
     const response = await fetch(`${API}/reports/purchase-indent-report/all-categories`);
     const data = await response.json();
     return data;
   },
-  // Fetch ALL departments (not filtered by report results)
   getAllDepartments: async () => {
     const response = await fetch(`${API}/reports/purchase-indent-report/all-departments`);
     const data = await response.json();
@@ -74,31 +72,25 @@ export default function PurchaseIndentReportPage() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("");
   
-  // Dropdown options - ALWAYS show all categories and departments alphabetically
+  // Dropdown options
   const [allCategories, setAllCategories] = useState([]);
   const [allDepartments, setAllDepartments] = useState([]);
-  
-  // State to track if filters have been applied
   const [filtersApplied, setFiltersApplied] = useState(false);
 
-  // Fetch ALL categories and ALL departments on component mount (only once)
+  // Fetch dropdown options on mount
   useEffect(() => {
     const fetchDropdownOptions = async () => {
       try {
-        // Fetch all categories
         const categoriesResult = await reportAPI.getAllCategories();
         if (categoriesResult.success) {
-          // Already sorted from backend, but ensure alphabetical order
           const sortedCategories = [...categoriesResult.data].sort((a, b) => 
             a.localeCompare(b, 'en', { sensitivity: 'base' })
           );
           setAllCategories(sortedCategories);
         }
         
-        // Fetch all departments
         const departmentsResult = await reportAPI.getAllDepartments();
         if (departmentsResult.success) {
-          // Already sorted from backend, but ensure alphabetical order
           const sortedDepartments = [...departmentsResult.data].sort((a, b) => 
             a.localeCompare(b, 'en', { sensitivity: 'base' })
           );
@@ -110,44 +102,44 @@ export default function PurchaseIndentReportPage() {
     };
     
     fetchDropdownOptions();
-  }, []); // Empty dependency array - runs only once on mount
+  }, []);
 
-  // Fetch report data (only called when Result button is clicked)
+  // Fetch report data
   const fetchReport = useCallback(async () => {
-  setLoading(true);
-  setError(null);
-  try {
-    const params = {};
-    if (fromDate) params.fromDate = fromDate;
-    if (toDate) params.toDate = toDate;
-    if (searchTerm) params.searchTerm = searchTerm;
-    if (searchIndentNo) params.searchIndentNo = searchIndentNo;
-    if (selectedCategory) params.category = selectedCategory;
-    if (selectedDepartment) params.departmentName = selectedDepartment;
-    
-    console.log("Sending params to backend:", params); // Debug log
-    
-    const result = await reportAPI.getReport(params);
-    if (result.success) {
-      console.log("API Response count:", result.data?.length); // Debug log
-      setReportData(result.data || []);
-      setFiltersApplied(true);
-    } else {
-      setError(result.message || "Failed to fetch report");
+    setLoading(true);
+    setError(null);
+    try {
+      const params = {};
+      if (fromDate) params.fromDate = fromDate;
+      if (toDate) params.toDate = toDate;
+      if (searchTerm) params.searchTerm = searchTerm;
+      if (searchIndentNo) params.searchIndentNo = searchIndentNo;
+      if (selectedCategory) params.category = selectedCategory;
+      if (selectedDepartment) params.departmentName = selectedDepartment;
+      
+      console.log("Sending params to backend:", params);
+      
+      const result = await reportAPI.getReport(params);
+      if (result.success) {
+        console.log("API Response count:", result.data?.length);
+        setReportData(result.data || []);
+        setFiltersApplied(true);
+      } else {
+        setError(result.message || "Failed to fetch report");
+        setFiltersApplied(false);
+      }
+    } catch (err) {
+      setError(err.message);
       setFiltersApplied(false);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    setError(err.message);
-    setFiltersApplied(false);
-  } finally {
-    setLoading(false);
-  }
-}, [fromDate, toDate, searchTerm, searchIndentNo, selectedCategory, selectedDepartment]);
+  }, [fromDate, toDate, searchTerm, searchIndentNo, selectedCategory, selectedDepartment]);
 
-  // Auto-fetch on component mount with today's date filters
+  // Auto-fetch on component mount
   useEffect(() => {
     fetchReport();
-  }, []); // Empty dependency array - only runs once on mount
+  }, []);
 
   // Toggle expand/collapse for indent row
   const toggleExpand = (indentNo) => {
@@ -167,19 +159,17 @@ export default function PurchaseIndentReportPage() {
   };
   
   // Handle Result button click
-  // Handle Result button click
-
-const handleResult = () => {
-  // Validate dates
-  if (fromDate && toDate) {
-    if (new Date(fromDate) > new Date(toDate)) {
-      setError("From Date cannot be greater than To Date");
-      return;
+  const handleResult = () => {
+    if (fromDate && toDate) {
+      if (new Date(fromDate) > new Date(toDate)) {
+        setError("From Date cannot be greater than To Date");
+        return;
+      }
     }
-  }
-  setError(null);
-  fetchReport();
-};
+    setError(null);
+    fetchReport();
+  };
+  
   // Handle Reset button click
   const handleReset = () => {
     setFromDate(getTodayDate());
@@ -188,13 +178,12 @@ const handleResult = () => {
     setSearchIndentNo("");
     setSelectedCategory("");
     setSelectedDepartment("");
-    // Fetch with reset filters after state updates
     setTimeout(() => {
       fetchReport();
     }, 0);
   };
   
-  // Group data by Indent No and sort with new ones first (by date descending)
+  // Group data by Indent No
   const groupedData = useMemo(() => {
     const groups = {};
     reportData.forEach(item => {
@@ -221,7 +210,6 @@ const handleResult = () => {
       groups[item.indentno].totalItems += 1;
     });
     
-    // Convert to array and sort by date (newest first)
     return Object.values(groups).sort((a, b) => {
       if (!a.date && !b.date) return 0;
       if (!a.date) return 1;
@@ -230,7 +218,7 @@ const handleResult = () => {
     });
   }, [reportData]);
 
-  // Keyboard navigation for arrow keys and tab
+  // Keyboard navigation for Arrow keys on table rows ONLY (matches PO Report behavior)
   useEffect(() => {
     const handleKeyNavigation = (e) => {
       const mainRows = document.querySelectorAll('.indent-main-row');
@@ -260,6 +248,44 @@ const handleResult = () => {
     return () => document.removeEventListener('keydown', handleKeyNavigation);
   }, [groupedData]);
 
+  // Tab index navigation - ONLY for filters and buttons (tabIndex 1-9), excludes table rows
+  useEffect(() => {
+    const handleTabKey = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = Array.from(
+        document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
+      ).filter(el => {
+        const tabIndex = parseInt(el.getAttribute('tabIndex'));
+        return !isNaN(tabIndex) && tabIndex >= 1 && tabIndex <= 9 && el.offsetParent !== null && !el.disabled;
+      }).sort((a, b) => {
+        const tabA = parseInt(a.getAttribute('tabIndex'));
+        const tabB = parseInt(b.getAttribute('tabIndex'));
+        return tabA - tabB;
+      });
+      
+      if (focusableElements.length === 0) return;
+      
+      const currentElement = document.activeElement;
+      const currentIndex = focusableElements.indexOf(currentElement);
+      
+      if (!e.shiftKey) {
+        if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[0]?.focus();
+        }
+      } else {
+        if (currentIndex === 0 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[focusableElements.length - 1]?.focus();
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleTabKey);
+    return () => document.removeEventListener('keydown', handleTabKey);
+  }, []);
+
   return (
     <div className="inv-page">
       <div className="inv-page-header">
@@ -268,7 +294,7 @@ const handleResult = () => {
           <p className="inv-page-sub">View and analyze purchase indent details</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-primary" onClick={handleExport}>
+          <button className="inv-btn-primary" onClick={handleExport} tabIndex={9}>
             Export to Excel
           </button>
         </div>
@@ -280,40 +306,42 @@ const handleResult = () => {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 16 }}>
             <div className="inv-field">
               <label className="inv-label">From Date</label>
-             <input
-  type="date"
-  className="inv-input"
-  tabIndex={1}
-  value={fromDate}
-  onChange={(e) => {
-    const newFromDate = e.target.value;
-    if (toDate && newFromDate > toDate) {
-      setError("From Date cannot be greater than To Date");
-    } else {
-      setError(null);
-      setFromDate(newFromDate);
-    }
-  }}
-/>
+              <input
+                type="date"
+                className="inv-input"
+                tabIndex={1}
+                value={fromDate}
+                onChange={(e) => {
+                  const newFromDate = e.target.value;
+                  if (toDate && newFromDate > toDate) {
+                    setError("From Date cannot be greater than To Date");
+                  } else {
+                    setError(null);
+                    setFromDate(newFromDate);
+                  }
+                }}
+              />
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">To Date</label>
               <input
-  type="date"
-  className="inv-input"
-  tabIndex={2}
-  value={toDate}
-  onChange={(e) => {
-    const newToDate = e.target.value;
-    if (fromDate && fromDate > newToDate) {
-      setError("To Date cannot be less than From Date");
-    } else {
-      setError(null);
-      setToDate(newToDate);
-    }
-  }}
-/>
+                type="date"
+                className="inv-input"
+                tabIndex={2}
+                value={toDate}
+                onChange={(e) => {
+                  const newToDate = e.target.value;
+                  if (fromDate && fromDate > newToDate) {
+                    setError("To Date cannot be less than From Date");
+                  } else {
+                    setError(null);
+                    setToDate(newToDate);
+                  }
+                }}
+              />
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">Search Item</label>
               <input
@@ -325,6 +353,7 @@ const handleResult = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">Search Indent No</label>
               <input
@@ -336,6 +365,7 @@ const handleResult = () => {
                 onChange={(e) => setSearchIndentNo(e.target.value)}
               />
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">Category</label>
               <select 
@@ -350,6 +380,7 @@ const handleResult = () => {
                 ))}
               </select>
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">Department</label>
               <select 
@@ -365,6 +396,7 @@ const handleResult = () => {
               </select>
             </div>
           </div>
+          
           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
             <button 
               className="inv-btn-secondary" 
@@ -425,7 +457,7 @@ const handleResult = () => {
                             toggleExpand(indent.indentNo);
                           }
                         }}
-                        tabIndex={10 + index}
+                        tabIndex={0}
                       >
                         <td style={{ textAlign: "center" }}>
                           <span style={{ fontSize: 12 }}>
@@ -486,8 +518,8 @@ const handleResult = () => {
                                 ))}
                               </tbody>
                             </table>
-                          </td>
-                        </tr>
+                           </td>
+                         </tr>
                       )}
                     </React.Fragment>
                   );

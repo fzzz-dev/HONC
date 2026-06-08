@@ -4,7 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const API = "http://192.168.1.100:5173/api";
+const API = "http://localhost:5173/api";
 
 // Get today's date in YYYY-MM-DD format
 const getTodayDate = () => {
@@ -97,7 +97,6 @@ export default function InventoryStockFlow() {
     
     if (selectedDate > today) {
       setError("To date cannot be greater than today's date");
-      // Don't update the date if it's invalid
       return;
     } else {
       setError(null);
@@ -108,11 +107,10 @@ export default function InventoryStockFlow() {
   // Handle From Date change
   const handleFromDateChange = (e) => {
     setFromDate(e.target.value);
-    // Clear error when user changes date
     setError(null);
   };
 
-  // Fetch report data (only called when Result button is clicked)
+  // Fetch report data
   const fetchReport = useCallback(async () => {
     if (!validateDates()) return;
     
@@ -192,7 +190,7 @@ export default function InventoryStockFlow() {
     );
   }, [filteredData]);
 
-  // Keyboard navigation for arrow keys and tab
+  // Keyboard navigation for Arrow keys on table rows ONLY
   useEffect(() => {
     const handleKeyNavigation = (e) => {
       const mainRows = document.querySelectorAll('.stock-main-row');
@@ -222,6 +220,44 @@ export default function InventoryStockFlow() {
     return () => document.removeEventListener('keydown', handleKeyNavigation);
   }, [filteredData]);
 
+  // Tab index navigation - ONLY for filters and buttons (tabIndex 1-5), excludes table rows
+  useEffect(() => {
+    const handleTabKey = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = Array.from(
+        document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
+      ).filter(el => {
+        const tabIndex = parseInt(el.getAttribute('tabIndex'));
+        return !isNaN(tabIndex) && tabIndex >= 1 && tabIndex <= 5 && el.offsetParent !== null && !el.disabled;
+      }).sort((a, b) => {
+        const tabA = parseInt(a.getAttribute('tabIndex'));
+        const tabB = parseInt(b.getAttribute('tabIndex'));
+        return tabA - tabB;
+      });
+      
+      if (focusableElements.length === 0) return;
+      
+      const currentElement = document.activeElement;
+      const currentIndex = focusableElements.indexOf(currentElement);
+      
+      if (!e.shiftKey) {
+        if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[0]?.focus();
+        }
+      } else {
+        if (currentIndex === 0 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[focusableElements.length - 1]?.focus();
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleTabKey);
+    return () => document.removeEventListener('keydown', handleTabKey);
+  }, []);
+
   return (
     <div className="inv-page">
       <div className="inv-page-header">
@@ -230,7 +266,7 @@ export default function InventoryStockFlow() {
           <p className="inv-page-sub"></p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-primary" onClick={handleExport}>
+          <button className="inv-btn-primary" onClick={handleExport} tabIndex={5}>
             Export to Excel
           </button>
         </div>
@@ -344,7 +380,7 @@ export default function InventoryStockFlow() {
                     <tr 
                       key={index}
                       className="stock-main-row"
-                      tabIndex={10 + index}
+                      tabIndex={0}
                       style={{ cursor: "default" }}
                     >
                       <td style={{ fontWeight: 500 }}>{row.storename || "—"}</td>

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchCountries } from "../slices/countrySlice";
-import { fetchStates } from "../slices/stateSlice";
-import { fetchCities } from "../slices/citySlice";
+import { addCountry, fetchCountries } from "../slices/countrySlice";
+import { addState, fetchStates } from "../slices/stateSlice";
+import { createCity, fetchCities } from "../slices/citySlice";
 import Modal from "../components/Modal";
 import {
   Field,
@@ -218,44 +218,201 @@ export function normalizeAddrForForm(addr) {
 
 // ─── Address editor (embedded in page — no overlay) ───────────────────────────
 export function AddressFormPage({ address, onSave, onCancel, countries = [], states = [], cities = [], addressNumber }) {
+  const dispatch = useDispatch();
   const [form, setForm] = useState(address);
+  
+  // Modal states for inline adds
+  const [showCountryModal, setShowCountryModal] = useState(false);
+  const [showStateModal, setShowStateModal] = useState(false);
+  const [showCityModal, setShowCityModal] = useState(false);
+  
+  // Form states for new entries
+  const [newCountry, setNewCountry] = useState({ name: "", code: "", active: true });
+  const [newState, setNewState] = useState({ name: "", code: "", active: true, countryId: "" });
+  const [newCity, setNewCity] = useState({ name: "", active: true, stateId: "" });
+  
+  const [adding, setAdding] = useState(false);
+
   useEffect(() => {
     setForm(address);
   }, [address]);
 
-  const countryOptions = countries.map((c) => ({ value: String(c.id || c._id), label: c.name }));
-  const stateOptions = states.map((s) => ({ value: String(s.id || s._id), label: s.name }));
+  // ✅ FILTER states based on selected country
+  const filteredStates = useMemo(() => {
+    if (!form.countryId) return [];
+    return states.filter(s => {
+      const stateCountryId = s.countryId?.id || s.countryId?._id || s.countryId;
+      return String(stateCountryId) === String(form.countryId);
+    });
+  }, [states, form.countryId]);
 
-  // Show ALL cities regardless of state - no filtering
-  const cityOptions = cities.map((c) => ({ 
-    value: String(c.id || c._id), 
-    label: c.name 
-  }));
+  // ✅ FILTER cities based on selected state
+  const filteredCities = useMemo(() => {
+    if (!form.stateId) return [];
+    return cities.filter(c => {
+      const cityStateId = c.stateId?.id || c.stateId?._id || c.stateId;
+      return String(cityStateId) === String(form.stateId);
+    });
+  }, [cities, form.stateId]);
+
+  const countryOptions = countries.map((c) => ({ value: String(c.id || c._id), label: c.name }));
+  const stateOptions = filteredStates.map((s) => ({ value: String(s.id || s._id), label: s.name }));
+  const cityOptions = filteredCities.map((c) => ({ value: String(c.id || c._id), label: c.name }));
+
+  // ─── Add Country ──────────────────────────────────────────────────────────────
+  async function handleAddCountry() {
+    if (!newCountry.name.trim()) return alert("Country name is required");
+    setAdding(true);
+    try {
+      const payload = {
+        name: newCountry.name.trim(),
+        code: newCountry.code || null,
+        active: newCountry.active
+      };
+      
+      console.log("Adding country with payload:", payload);
+      
+      const result = await dispatch(addCountry(payload));
+      
+      if (!result.error) {
+        await dispatch(fetchCountries());
+        const addedCountry = result.payload?.data || result.payload;
+        const newId = addedCountry?.id || addedCountry?._id;
+        if (newId) {
+          setForm({ ...form, countryId: String(newId), countryName: newCountry.name, stateId: "", stateName: "", cityId: "", cityName: "" });
+        }
+        setShowCountryModal(false);
+        setNewCountry({ name: "", code: "", active: true });
+      } else {
+        console.error("Add country error:", result.error);
+        alert(result.error?.message || "Failed to add country");
+      }
+    } catch (err) {
+      console.error("Add country exception:", err);
+      alert(err.message);
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  // ─── Add State ───────────────────────────────────────────────────────────────
+  async function handleAddState() {
+    if (!newState.name.trim()) return alert("State name is required");
+    if (!newState.countryId) return alert("Please select a country for this state");
+    setAdding(true);
+    try {
+      const payload = {
+        name: newState.name.trim(),
+        countryId: parseInt(newState.countryId, 10),
+        code: newState.code || null,
+        active: newState.active
+      };
+      
+      console.log("Adding state with payload:", payload);
+      
+      const result = await dispatch(addState(payload));
+      
+      if (!result.error) {
+        await dispatch(fetchStates());
+        const addedState = result.payload?.data || result.payload;
+        const newId = addedState?.id || addedState?._id;
+        if (newId) {
+          setForm({ ...form, stateId: String(newId), stateName: newState.name, cityId: "", cityName: "" });
+        }
+        setShowStateModal(false);
+        setNewState({ name: "", code: "", active: true, countryId: "" });
+      } else {
+        console.error("Add state error:", result.error);
+        alert(result.error?.message || "Failed to add state");
+      }
+    } catch (err) {
+      console.error("Add state exception:", err);
+      alert(err.message);
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  // ─── Add City ────────────────────────────────────────────────────────────────
+  async function handleAddCity() {
+    if (!newCity.name.trim()) return alert("City name is required");
+    if (!newCity.stateId) return alert("Please select a state for this city");
+    setAdding(true);
+    try {
+      // Find the state name from filtered states
+      const selectedState = filteredStates.find(s => String(s.id || s._id) === String(newCity.stateId));
+      
+      if (!selectedState) {
+        alert("Selected state not found");
+        return;
+      }
+      
+      const payload = {
+        name: newCity.name.trim(),
+        stateId: parseInt(newCity.stateId, 10),
+        stateName: selectedState.name,
+        active: newCity.active
+      };
+      
+      console.log("Adding city with payload:", payload);
+      
+      const result = await dispatch(createCity(payload));
+      
+      if (!result.error) {
+        await dispatch(fetchCities({ page: 1, limit: 10000 }));
+        const addedCity = result.payload?.data || result.payload;
+        const newId = addedCity?.id || addedCity?._id;
+        if (newId) {
+          setForm({ ...form, cityId: String(newId), cityName: newCity.name });
+        }
+        setShowCityModal(false);
+        setNewCity({ name: "", active: true, stateId: "" });
+      } else {
+        console.error("Add city error:", result.error);
+        alert(result.error?.message || "Failed to add city");
+      }
+    } catch (err) {
+      console.error("Add city exception:", err);
+      alert(err.message);
+    } finally {
+      setAdding(false);
+    }
+  }
 
   function handleCountryChange(val) {
     const found = countries.find((x) => String(x.id || x._id) === String(val));
-    setForm({ ...form, countryId: val, countryName: found?.name || "", stateId: "", stateName: "", cityId: "", cityName: "" });
+    // ✅ Reset state and city when country changes
+    setForm({ 
+      ...form, 
+      countryId: val, 
+      countryName: found?.name || "", 
+      stateId: "", 
+      stateName: "", 
+      cityId: "", 
+      cityName: "" 
+    });
   }
-  function handleStateChange(val) {
-    const found = states.find((x) => String(x.id || x._id) === String(val));
-    setForm({ ...form, stateId: val, stateName: found?.name || "", cityId: "", cityName: "" });
-  }
-  function handleCityChange(val) {
-  const found = cities.find((x) => String(x.id || x._id) === String(val));
-  // Also update state based on selected city
-  const foundState = states.find((s) => {
-    const stateId = found?.stateId?.id || found?.stateId?._id || found?.stateId;
-    return String(s.id || s._id) === String(stateId);
-  });
   
-  setForm({ 
-    ...form, 
-    cityId: val, 
-    cityName: found?.name || "",
-    stateId: foundState?.id || foundState?._id || form.stateId,
-    stateName: foundState?.name || form.stateName
-  });
-}
+  function handleStateChange(val) {
+    const found = filteredStates.find((x) => String(x.id || x._id) === String(val));
+    // ✅ Reset city when state changes
+    setForm({ 
+      ...form, 
+      stateId: val, 
+      stateName: found?.name || "", 
+      cityId: "", 
+      cityName: "" 
+    });
+  }
+  
+  function handleCityChange(val) {
+    const found = filteredCities.find((x) => String(x.id || x._id) === String(val));
+    setForm({ 
+      ...form, 
+      cityId: val, 
+      cityName: found?.name || ""
+    });
+  }
 
   function handleSubmit() {
     const line1 = String(form.line1 ?? "").trim();
@@ -270,58 +427,254 @@ export function AddressFormPage({ address, onSave, onCancel, countries = [], sta
     onSave({ ...form, line1, line2, address: combined });
   }
 
+  const addButtonStyle = {
+    background: "none",
+    border: "none",
+    color: "var(--primary, #185FA5)",
+    cursor: "pointer",
+    fontSize: "11px",
+    fontWeight: 500,
+    padding: "4px 8px",
+    marginLeft: "8px",
+    borderRadius: "4px",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "4px",
+    whiteSpace: "nowrap",
+  };
+
+  const FieldLabelWithAdd = ({ label, required, onAddClick }) => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+      <span>
+        {label}
+        {required && <span style={{ color: "var(--danger, #e53e3e)", marginLeft: 2 }}>*</span>}
+      </span>
+      <button
+        type="button"
+        style={addButtonStyle}
+        onClick={onAddClick}
+        title={`Add new ${label.toLowerCase()}`}
+      >
+        <PlusIcon /> Add {label}
+      </button>
+    </div>
+  );
+
+  // Get fresh country list for state modal (all countries)
+  const countryOptionsForState = countries.map((c) => ({ 
+    value: String(c.id || c._id), 
+    label: c.name 
+  }));
+
+  // Get filtered states for city modal (only states in selected country)
+  const stateOptionsForCity = useMemo(() => {
+    if (!form.countryId) return [];
+    return filteredStates.map((s) => ({ 
+      value: String(s.id || s._id), 
+      label: s.name 
+    }));
+  }, [filteredStates, form.countryId]);
+
   return (
-    <div style={{ border: "1px solid var(--border-mid)", borderRadius: 10, background: "#fafbfc", marginTop: 12 }}>
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>
-          {addressNumber ? `Edit address ${addressNumber}` : "Add address"}
-        </span>
-        <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-          <button type="button" className="inv-btn-primary inv-save-btn" onClick={handleSubmit}>Save address</button>
-          <button type="button" className="inv-btn-ghost" onClick={onCancel}>Cancel</button>
+    <>
+      <div style={{ border: "1px solid var(--border-mid)", borderRadius: 10, background: "#fafbfc", marginTop: 12 }}>
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>
+            {addressNumber ? `Edit address ${addressNumber}` : "Add address"}
+          </span>
+          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+            <button type="button" className="inv-btn-primary inv-save-btn" onClick={handleSubmit}>Save address</button>
+            <button type="button" className="inv-btn-ghost" onClick={onCancel}>Cancel</button>
+          </div>
+        </div>
+        <div style={{ padding: 20 }}>
+          <FormGrid>
+            <Field label="Add 1" required>
+              <Input value={form.line1} onChange={(v) => setForm({ ...form, line1: v })} placeholder="Address line 1" />
+            </Field>
+            <Field label="Add 2">
+              <Input value={form.line2} onChange={(v) => setForm({ ...form, line2: v })} placeholder="Address line 2" />
+            </Field>
+          </FormGrid>
+          <FormGrid>
+            <Field label="Pincode">
+              <Input value={form.pinCode} onChange={(v) => setForm({ ...form, pinCode: v })} placeholder="6 digits" maxLength={6} />
+            </Field>
+            <div>
+              <FieldLabelWithAdd label="Country" required={true} onAddClick={() => setShowCountryModal(true)} />
+              <Select 
+                value={form.countryId} 
+                onChange={handleCountryChange} 
+                options={countryOptions} 
+                placeholder={countryOptions.length === 0 ? "No countries — click Add" : "Select country…"} 
+              />
+            </div>
+          </FormGrid>
+          <FormGrid>
+            <div>
+              <FieldLabelWithAdd 
+                label="State" 
+                required={true} 
+                onAddClick={() => {
+                  if (!form.countryId) {
+                    alert("Please select a country first");
+                    return;
+                  }
+                  setShowStateModal(true);
+                }} 
+              />
+              <Select 
+                value={form.stateId} 
+                onChange={handleStateChange} 
+                options={stateOptions} 
+                placeholder={!form.countryId ? "Select country first" : stateOptions.length === 0 ? "No states in selected country — click Add" : "Select state…"} 
+                disabled={!form.countryId}
+              />
+            </div>
+            <div>
+              <FieldLabelWithAdd 
+                label="City" 
+                required={true} 
+                onAddClick={() => {
+                  if (!form.stateId) {
+                    alert("Please select a state first");
+                    return;
+                  }
+                  setShowCityModal(true);
+                }} 
+              />
+              <Select 
+                value={form.cityId} 
+                onChange={handleCityChange} 
+                options={cityOptions} 
+                placeholder={!form.stateId ? "Select state first" : cityOptions.length === 0 ? "No cities in selected state — click Add" : "Select city…"} 
+                disabled={!form.stateId}
+              />
+            </div>
+          </FormGrid>
+          <Field label="Note">
+            <Textarea value={form.note} onChange={(v) => setForm({ ...form, note: v })} placeholder="Optional" rows={2} />
+          </Field>
+          <Field label="Set as primary address">
+            <div style={{ paddingTop: 6 }}>
+              <Toggle value={form.isPrimary} onChange={(v) => setForm({ ...form, isPrimary: v })} />
+            </div>
+          </Field>
         </div>
       </div>
-      <div style={{ padding: 20 }}>
-        <FormGrid>
-          <Field label="Add 1" required>
-            <Input value={form.line1} onChange={(v) => setForm({ ...form, line1: v })} placeholder="Address line 1" />
+
+      {/* ─── Add Country Modal ─────────────────────────────────────────────── */}
+      {showCountryModal && (
+        <Modal
+          title="Add Country"
+          onClose={() => setShowCountryModal(false)}
+          onSave={handleAddCountry}
+          saveDisabled={adding}
+          saveLabel={adding ? "Adding..." : "Save"}
+        >
+          <Field label="Country Name" required>
+            <Input
+              value={newCountry.name}
+              onChange={(v) => setNewCountry({ ...newCountry, name: v })}
+              placeholder="e.g. India"
+            />
           </Field>
-          <Field label="Add 2">
-            <Input value={form.line2} onChange={(v) => setForm({ ...form, line2: v })} placeholder="Address line 2" />
+          <Field label="Country Code">
+            <Input
+              value={newCountry.code}
+              onChange={(v) => setNewCountry({ ...newCountry, code: v.toUpperCase() })}
+              placeholder="e.g. IN"
+            />
           </Field>
-        </FormGrid>
-        <FormGrid>
-          <Field label="Pincode">
-            <Input value={form.pinCode} onChange={(v) => setForm({ ...form, pinCode: v })} placeholder="6 digits" maxLength={6} />
+          <Field label="Status">
+            <Toggle
+              value={newCountry.active}
+              onChange={(v) => setNewCountry({ ...newCountry, active: v })}
+              label="Active"
+            />
           </Field>
+        </Modal>
+      )}
+
+      {/* ─── Add State Modal ──────────────────────────────────────────────── */}
+      {showStateModal && (
+        <Modal
+          title="Add State"
+          onClose={() => setShowStateModal(false)}
+          onSave={handleAddState}
+          saveDisabled={adding}
+          saveLabel={adding ? "Adding..." : "Save"}
+        >
           <Field label="Country" required>
-            <Select value={form.countryId} onChange={handleCountryChange} options={countryOptions} placeholder="Select country…" />
+            <Select
+              value={newState.countryId}
+              onChange={(val) => setNewState({ ...newState, countryId: val })}
+              options={countryOptionsForState}
+              placeholder="Select country..."
+            />
           </Field>
-        </FormGrid>
-        <FormGrid>
+          <Field label="State Name" required>
+            <Input
+              value={newState.name}
+              onChange={(v) => setNewState({ ...newState, name: v })}
+              placeholder="e.g. Tamil Nadu"
+            />
+          </Field>
+          <Field label="State Code">
+            <Input
+              value={newState.code}
+              onChange={(v) => setNewState({ ...newState, code: v.toUpperCase() })}
+              placeholder="e.g. TN"
+            />
+          </Field>
+          <Field label="Status">
+            <Toggle
+              value={newState.active}
+              onChange={(v) => setNewState({ ...newState, active: v })}
+              label="Active"
+            />
+          </Field>
+        </Modal>
+      )}
+
+      {/* ─── Add City Modal ───────────────────────────────────────────────── */}
+      {showCityModal && (
+        <Modal
+          title="Add City"
+          onClose={() => setShowCityModal(false)}
+          onSave={handleAddCity}
+          saveDisabled={adding}
+          saveLabel={adding ? "Adding..." : "Save"}
+        >
           <Field label="State" required>
-            <Select value={form.stateId} onChange={handleStateChange} options={stateOptions} placeholder={!form.countryId ? "Select country first" : stateOptions.length === 0 ? "No states" : "Select state…"} />
+            <Select
+              value={newCity.stateId}
+              onChange={(val) => setNewCity({ ...newCity, stateId: val })}
+              options={stateOptionsForCity}
+              placeholder={stateOptionsForCity.length === 0 ? "No states in selected country — add a state first" : "Select state..."}
+              disabled={stateOptionsForCity.length === 0}
+            />
           </Field>
-          <Field label="City" required>
-            <Select value={form.cityId} onChange={handleCityChange} options={cityOptions} placeholder={!form.stateId ? "Select state first" : cityOptions.length === 0 ? "No cities" : "Select city…"} />
+          <Field label="City Name" required>
+            <Input
+              value={newCity.name}
+              onChange={(v) => setNewCity({ ...newCity, name: v })}
+              placeholder="e.g. Chennai"
+            />
           </Field>
-        </FormGrid>
-        <Field label="Note">
-          <Textarea value={form.note} onChange={(v) => setForm({ ...form, note: v })} placeholder="Optional" rows={2} />
-        </Field>
-        <Field label="Set as primary address">
-          <div style={{ paddingTop: 6 }}>
-            <Toggle value={form.isPrimary} onChange={(v) => setForm({ ...form, isPrimary: v })} />
-          </div>
-        </Field>
-      </div>
-    </div>
+          <Field label="Status">
+            <Toggle
+              value={newCity.active}
+              onChange={(v) => setNewCity({ ...newCity, active: v })}
+              label="Active"
+            />
+          </Field>
+        </Modal>
+      )}
+    </>
   );
 }
 
-// ─── Address List ──────────────────────────────────────────────────────────────
-// ─── Address List ──────────────────────────────────────────────────────────────
-// ─── Address List ──────────────────────────────────────────────────────────────
 export function AddressList({ addresses, onEdit, onDelete, onSetPrimary }) {
   // ✅ Ensure addresses is always an array
   const safeAddresses = Array.isArray(addresses) ? addresses : [];

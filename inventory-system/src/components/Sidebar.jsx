@@ -18,7 +18,6 @@ const Icons = {
   Make: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"></path></svg>,
   Spec: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>,
   Globe: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"></path></svg>,
-  Map: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>,
   Store: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>,
   Dept: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"></path></svg>,
   Process: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>,
@@ -29,12 +28,12 @@ const Icons = {
   Issue: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>,
   Logout: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>,
   Shield: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>,
-  PIresult: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-fold-icon lucide-calendar-fold"><path d="M3 20a2 2 0 0 0 2 2h10a2.4 2.4 0 0 0 1.706-.706l3.588-3.588A2.4 2.4 0 0 0 21 16V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/><path d="M15 22v-5a1 1 0 0 1 1-1h5"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M3 10h18"/></svg>,
-  POresult: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-chevron-left-icon lucide-square-chevron-left"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m14 16-4-4 4-4"/></svg>,
-  GRNresult :() => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-package-icon lucide-package"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/></svg>,
-  INVresult : () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-kanban-icon lucide-square-kanban"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v7"/><path d="M12 7v4"/><path d="M16 7v9"/></svg>,
-  POLevel1: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-big-icon lucide-circle-check-big"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>,
-  POLevel2: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-icon lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>,
+  PIresult: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20a2 2 0 0 0 2 2h10a2.4 2.4 0 0 0 1.706-.706l3.588-3.588A2.4 2.4 0 0 0 21 16V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/><path d="M15 22v-5a1 1 0 0 1 1-1h5"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M3 10h18"/></svg>,
+  POresult: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m14 16-4-4 4-4"/></svg>,
+  GRNresult: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/></svg>,
+  INVresult: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v7"/><path d="M12 7v4"/><path d="M16 7v9"/></svg>,
+  POLevel1: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>,
+  POLevel2: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>,
   SlideLeft: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>,
   SlideRight: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>,
 };
@@ -57,9 +56,6 @@ const MASTERS = [
   { path: "/uom", label: "UOM", icon: Icons.Uom },
   { path: "/make", label: "Make", icon: Icons.Make },
   { path: "/spec", label: "Spec Name", icon: Icons.Spec },
-  { path: "/country", label: "Country", icon: Icons.Globe },
-  { path: "/state", label: "State", icon: Icons.Map },
-  { path: "/city", label: "City", icon: Icons.Map },
   { path: "/store", label: "Store Master", icon: Icons.Store },
   { path: "/department", label: "Department Master", icon: Icons.Dept },
   { path: "/process", label: "Process Master", icon: Icons.Process },
@@ -72,7 +68,7 @@ const ADMIN = [
 
 const REPORTS = [
   { path: "/purchase-indent-report", label: "Purchase Indent Report", icon: Icons.PIresult },
-  { path: "/purchase-order-report", label: "Purchase Order Report", icon: Icons.POresult},
+  { path: "/purchase-order-report", label: "Purchase Order Report", icon: Icons.POresult },
   { path: "/purchase-grn-report", label: "Purchase GRN Report", icon: Icons.GRNresult },
   { path: "/inventory-report", label: "Inventory Report", icon: Icons.INVresult },
   { path: "/po-level2-pending", label: "PO Level 2 Pending", icon: Icons.POLevel2 },
@@ -175,6 +171,7 @@ export default function Sidebar() {
     fetchPerms();
   }, []);
 
+  // ✅ On page load or refresh, focus the sidebar
   useEffect(() => {
     const attemptFocus = (attempt = 0) => {
       const firstNavItem = document.querySelector('.inv-nav-item');
@@ -188,6 +185,7 @@ export default function Sidebar() {
     return () => clearTimeout(timer);
   }, []);
 
+  // ✅ When pathname changes, also focus sidebar (except form pages)
   useEffect(() => {
     const isFormPage = pathname === "/purchase-indent" || 
                        pathname === "/purchase-order" || 
@@ -206,74 +204,57 @@ export default function Sidebar() {
     }
   }, [pathname]);
 
+  // ✅ GLOBAL KEYBOARD HANDLER - ESC returns focus to sidebar
   useEffect(() => {
     const handleEscKey = (e) => {
       if (e.key === 'Escape') {
-        const allNavItems = document.querySelectorAll('.inv-nav-item');
+        const sidebar = document.querySelector('.inv-sidebar');
+        const firstNavItem = document.querySelector('.inv-nav-item');
         
-        let activeNavItem = null;
-        for (const item of allNavItems) {
-          if (item.getAttribute('data-path') === pathname) {
-            activeNavItem = item;
-            break;
-          }
-        }
-        
-        if (!activeNavItem) {
-          activeNavItem = document.querySelector('.inv-nav-item.active');
-        }
-        
-        if (activeNavItem) {
-          activeNavItem.focus();
-        } else {
-          const firstNavItem = document.querySelector('.inv-nav-item');
-          if (firstNavItem) firstNavItem.focus();
+        if (firstNavItem) {
+          firstNavItem.focus();
+          e.preventDefault();
         }
       }
     };
     
     document.addEventListener('keydown', handleEscKey);
     return () => document.removeEventListener('keydown', handleEscKey);
-  }, [pathname]);
+  }, []);
 
+  // ✅ GLOBAL ARROW KEY HANDLER - Works based on current focus
   useEffect(() => {
     const handleKeyDown = (e) => {
       const sidebar = document.querySelector('.inv-sidebar');
-      if (!sidebar || !sidebar.contains(document.activeElement)) return;
+      const isSidebarFocused = sidebar && sidebar.contains(document.activeElement);
       
-      if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') {
-        return;
-      }
-
-      const allFocusable = Array.from(sidebar.querySelectorAll('.inv-nav-item, [tabindex="0"], button'));
-      const currentFocused = document.activeElement;
-      const currentIndex = allFocusable.indexOf(currentFocused);
-
-      if (currentIndex === -1) return;
-
-      let nextIndex;
-
-      if (e.key === 'Tab') {
-        if (e.shiftKey) {
-          nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
-        } else {
+      // Arrow keys for sidebar navigation (Up, Down, Left, Right) - ONLY when sidebar has focus
+      if (isSidebarFocused && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const allFocusable = Array.from(sidebar.querySelectorAll('.inv-nav-item, .inv-section-label, button, [tabindex="0"]'));
+        const currentFocused = document.activeElement;
+        const currentIndex = allFocusable.indexOf(currentFocused);
+        
+        if (currentIndex === -1) return;
+        
+        let nextIndex;
+        
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
           nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
+        } else {
+          nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
         }
-        e.preventDefault();
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-        nextIndex = currentIndex === allFocusable.length - 1 ? 0 : currentIndex + 1;
-        e.preventDefault();
-      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-        nextIndex = currentIndex === 0 ? allFocusable.length - 1 : currentIndex - 1;
-        e.preventDefault();
+        
+        const nextElement = allFocusable[nextIndex];
+        if (nextElement) {
+          nextElement.focus();
+        }
       }
-
-      const nextElement = allFocusable[nextIndex];
-      if (nextElement) {
-        nextElement.focus();
-      }
+      // If sidebar does NOT have focus, arrow keys will be handled by the page (tables, etc.)
     };
-
+    
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
@@ -300,9 +281,9 @@ export default function Sidebar() {
 
   return (
     <aside className="inv-sidebar no-scrollbar">
-    <div style={{ color: 'white', display: 'flex', justifyContent: 'flex-end', padding: '0px 0px 10px 10px', cursor: 'pointer' }} onClick={toggleSidebar}>
-      <Icons.SlideLeft />
-    </div>
+      <div style={{ color: 'white', display: 'flex', justifyContent: 'flex-end', padding: '0px 0px 10px 10px', cursor: 'pointer' }} onClick={toggleSidebar}>
+        <Icons.SlideLeft />
+      </div>
       <div 
         className="inv-logo" 
         style={{ cursor: 'pointer', padding: '32px 0', border: 'none' }} 
@@ -378,7 +359,6 @@ export default function Sidebar() {
           className="inv-nav-item" 
           data-tooltip={`${user?.username} (${user?.role})`}
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { } }}
         >
           <div style={{ width: '36px', height: '36px', background: 'linear-gradient(135deg, #3b6ef8, #10b981)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', fontWeight: 'bold', flexShrink: 0, boxShadow: '0 4px 12px rgba(59, 110, 248, 0.3)' }}>
             {user?.username?.charAt(0).toUpperCase()}

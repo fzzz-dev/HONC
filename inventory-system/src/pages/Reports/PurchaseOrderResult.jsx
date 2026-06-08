@@ -4,7 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const API = "http://192.168.1.100:5173/api";
+const API = "http://localhost:5173/api";
 
 // Helper function to get today's date in YYYY-MM-DD format
 const getTodayDate = () => {
@@ -141,16 +141,16 @@ export default function PurchaseOrderReportPage() {
   
   // Handle Result button click
   const handleResult = () => {
-  // Validate dates
-  if (fromDate && toDate) {
-    if (new Date(fromDate) > new Date(toDate)) {
-      setError("From Date cannot be greater than To Date");
-      return;
+    // Validate dates
+    if (fromDate && toDate) {
+      if (new Date(fromDate) > new Date(toDate)) {
+        setError("From Date cannot be greater than To Date");
+        return;
+      }
     }
-  }
-  setError(null);
-  fetchReport();
-};  
+    setError(null);
+    fetchReport();
+  };  
   
   // Handle Reset button click
   const handleReset = () => {
@@ -165,55 +165,53 @@ export default function PurchaseOrderReportPage() {
     }, 0);
   };
   
-
-const groupedData = useMemo(() => {
-  const groups = {};
-  reportData.forEach(item => {
-    console.log('Processing item:', item.ponumber, 'totalAmount:', item.totalAmount, 'itemTotalAmount:', item.itemTotalAmount, 'transportCharges:', item.transportCharges);
-    
-    if (!groups[item.ponumber]) {
-      groups[item.ponumber] = {
-        poNo: item.ponumber,
-        poDate: item.podate,
-        supplier: item.supplier,
-        deliveryDate: item.deliverydate,
-        poType: item.potype,
-        transportCharges: Number(item.transportCharges) || 0,
-        totalAmount: Number(item.totalAmount) || 0,  // PO total (includes transport)
-        totalQty: 0,
-        totalItems: 0,
-        items: []
-      };
-      console.log('Created new group for:', item.ponumber, 'totalAmount set to:', item.totalAmount);
-    }
-    
-    // ✅ FIX: Use itemTotalAmount for individual items, not totalAmount
-    groups[item.ponumber].items.push({
-      indentNo: item.indentNo,
-      itemName: item.itemName,
-      uom: item.uom,
-      poQty: item.poQty,
-      poRate: item.porate,
-      discPrice: item.discPrice,
-      totGst: item.totGst,
-      totalAmount: item.itemTotalAmount || item.totalAmount  // Use itemTotalAmount
+  const groupedData = useMemo(() => {
+    const groups = {};
+    reportData.forEach(item => {
+      console.log('Processing item:', item.ponumber, 'totalAmount:', item.totalAmount, 'itemTotalAmount:', item.itemTotalAmount, 'transportCharges:', item.transportCharges);
+      
+      if (!groups[item.ponumber]) {
+        groups[item.ponumber] = {
+          poNo: item.ponumber,
+          poDate: item.podate,
+          supplier: item.supplier,
+          deliveryDate: item.deliverydate,
+          poType: item.potype,
+          transportCharges: Number(item.transportCharges) || 0,
+          totalAmount: Number(item.totalAmount) || 0,
+          totalQty: 0,
+          totalItems: 0,
+          items: []
+        };
+        console.log('Created new group for:', item.ponumber, 'totalAmount set to:', item.totalAmount);
+      }
+      
+      groups[item.ponumber].items.push({
+        indentNo: item.indentNo,
+        itemName: item.itemName,
+        uom: item.uom,
+        poQty: item.poQty,
+        poRate: item.porate,
+        discPrice: item.discPrice,
+        totGst: item.totGst,
+        totalAmount: item.itemTotalAmount || item.totalAmount
+      });
+      
+      groups[item.ponumber].totalQty += Number(item.poQty) || 0;
+      groups[item.ponumber].totalItems += 1;
     });
     
-    groups[item.ponumber].totalQty += Number(item.poQty) || 0;
-    groups[item.ponumber].totalItems += 1;
-  });
-  
-  console.log('Final groups:', groups);
-  
-  return Object.values(groups).sort((a, b) => {
-    if (!a.poDate && !b.poDate) return 0;
-    if (!a.poDate) return 1;
-    if (!b.poDate) return -1;
-    return new Date(b.poDate) - new Date(a.poDate);
-  });
-}, [reportData]);
+    console.log('Final groups:', groups);
+    
+    return Object.values(groups).sort((a, b) => {
+      if (!a.poDate && !b.poDate) return 0;
+      if (!a.poDate) return 1;
+      if (!b.poDate) return -1;
+      return new Date(b.poDate) - new Date(a.poDate);
+    });
+  }, [reportData]);
 
-  // Keyboard navigation
+  // Keyboard navigation for Arrow keys on PO rows
   useEffect(() => {
     const handleKeyNavigation = (e) => {
       const mainRows = document.querySelectorAll('.po-main-row');
@@ -243,11 +241,12 @@ const groupedData = useMemo(() => {
     return () => document.removeEventListener('keydown', handleKeyNavigation);
   }, [groupedData]);
 
-  // Tab index navigation for filters
+  // Tab index navigation - CYCLES BACK TO FIRST
   useEffect(() => {
     const handleTabKey = (e) => {
       if (e.key !== 'Tab') return;
       
+      // Get all focusable elements with tabIndex (1 to 999)
       const focusableElements = Array.from(
         document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
       ).filter(el => {
@@ -264,12 +263,17 @@ const groupedData = useMemo(() => {
       const currentElement = document.activeElement;
       const currentIndex = focusableElements.indexOf(currentElement);
       
+      // Tab key (forward) - NO SHIFT
       if (!e.shiftKey) {
+        // If at the last element or not found, go to first
         if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
           e.preventDefault();
           focusableElements[0]?.focus();
         }
-      } else {
+      } 
+      // Shift+Tab key (backward)
+      else {
+        // If at the first element or not found, go to last
         if (currentIndex === 0 || currentIndex === -1) {
           e.preventDefault();
           focusableElements[focusableElements.length - 1]?.focus();
@@ -289,7 +293,7 @@ const groupedData = useMemo(() => {
           <p className="inv-page-sub">View and analyze purchase order details</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-primary" onClick={handleExport}>
+          <button className="inv-btn-primary" onClick={handleExport} tabIndex={8}>
             Export to Excel
           </button>
         </div>
@@ -299,43 +303,44 @@ const groupedData = useMemo(() => {
       <div className="inv-card" style={{ marginBottom: 16 }}>
         <div className="inv-card-body">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 16 }}>
-          <div className="inv-field">
-  <label className="inv-label">From Date</label>
-  <input
-    type="date"
-    className="inv-input"
-    tabIndex={1}
-    value={fromDate}
-    onChange={(e) => {
-      const newFromDate = e.target.value;
-      if (toDate && newFromDate > toDate) {
-        setError("From Date cannot be greater than To Date");
-      } else {
-        setError(null);
-        setFromDate(newFromDate);
-      }
-    }}
-  />
-</div>
+            <div className="inv-field">
+              <label className="inv-label">From Date</label>
+              <input
+                type="date"
+                className="inv-input"
+                tabIndex={1}
+                value={fromDate}
+                onChange={(e) => {
+                  const newFromDate = e.target.value;
+                  if (toDate && newFromDate > toDate) {
+                    setError("From Date cannot be greater than To Date");
+                  } else {
+                    setError(null);
+                    setFromDate(newFromDate);
+                  }
+                }}
+              />
+            </div>
 
-<div className="inv-field">
-  <label className="inv-label">To Date</label>
-  <input
-    type="date"
-    className="inv-input"
-    tabIndex={2}
-    value={toDate}
-    onChange={(e) => {
-      const newToDate = e.target.value;
-      if (fromDate && fromDate > newToDate) {
-        setError("To Date cannot be less than From Date");
-      } else {
-        setError(null);
-        setToDate(newToDate);
-      }
-    }}
-  />
-</div>
+            <div className="inv-field">
+              <label className="inv-label">To Date</label>
+              <input
+                type="date"
+                className="inv-input"
+                tabIndex={2}
+                value={toDate}
+                onChange={(e) => {
+                  const newToDate = e.target.value;
+                  if (fromDate && fromDate > newToDate) {
+                    setError("To Date cannot be less than From Date");
+                  } else {
+                    setError(null);
+                    setToDate(newToDate);
+                  }
+                }}
+              />
+            </div>
+            
             <div className="inv-field">
               <label className="inv-label">Search PO No</label>
               <input
@@ -347,6 +352,7 @@ const groupedData = useMemo(() => {
                 onChange={(e) => setSearchPONo(e.target.value)}
               />
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">Search Item/Indent</label>
               <input
@@ -358,6 +364,7 @@ const groupedData = useMemo(() => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">Supplier</label>
               <select 
@@ -428,7 +435,7 @@ const groupedData = useMemo(() => {
                             toggleExpand(po.poNo);
                           }
                         }}
-                        tabIndex={10 + index}
+                        tabIndex={0}
                       >
                         <td style={{ textAlign: "center" }}>
                           <span style={{ fontSize: 12 }}>

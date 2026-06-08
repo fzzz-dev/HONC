@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React,{ useState, useEffect, useCallback,useRef,useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
@@ -139,6 +139,9 @@ export default function PurchaseGRNPage() {
   const [batchRowIdx, setBatchRowIdx] = useState(null);
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [formError, setFormError] = useState(null);
+  const [expandedGroups, setExpandedGroups] = useState({});
+  const [pendingSearchTerm, setPendingSearchTerm] = useState("");
+  const searchInputRef = useRef(null);
 
   const [header, setHeader] = useState({
     grnNo: "",
@@ -192,6 +195,27 @@ export default function PurchaseGRNPage() {
       setLoading(false);
     }
   }, []);
+
+  // Group pending PO items by PO Number
+const pendingPOGroups = useMemo(() => {
+  const groups = {};
+  
+  pendingPoRows.forEach(item => {
+    const poKey = item.poId || item.poNo;
+    if (!groups[poKey]) {
+      groups[poKey] = {
+        poNo: item.poNo,
+        poDate: item.poDate,
+        supplierName: item.supplierName || "",
+        supplierId: item.supplierId,
+        items: []
+      };
+    }
+    groups[poKey].items.push(item);
+  });
+  
+  return groups;
+}, [pendingPoRows]);
 
   useEffect(() => {
     loadData();
@@ -589,57 +613,59 @@ useEffect(() => {
     }
   }
 
-  function addPendingLinesToDetails() {
-    const selected = pendingPoRows.filter(r => {
-      const key = r.rowId || `${r.poId}-${r.poDetailId}`;
-      return pendingSelected.has(key);
-    });
-    if (selected.length === 0) {
-      setPendingModalOpen(false);
-      return;
-    }
-    
-    // Inherit gstType from the first selected PO if not already set
-    const firstGstType = selected[0].gstType || "local";
-    if (!header.supplierId && selected[0].supplierId) {
-      setHeader(h => ({ 
-        ...h, 
-        supplierId: String(selected[0].supplierId), 
-        supplierName: selected[0].supplierName || h.supplierName,
-        gstType: firstGstType 
-      }));
-    } else {
-      setHeader(h => ({ ...h, gstType: firstGstType }));
-    }
-
-    const newRows = selected.map(s => calcRow({
-      ...emptyDetail(),
-      poId: s.poId,
-      poNo: s.poNo,
-      poDate: s.poDate,
-      indentNo: s.indentNo || "",
-      itemId: s.itemId,
-      itemName: s.itemName,
-      uom: s.uom,
-      poQty: s.poQty,
-      alGrnQty: s.alGrnQty,
-      balQty: s.balQty,
-      grnQty: s.balQty,
-      phyQty: s.balQty,
-      poRate: s.poRate,
-      grnRate: s.poRate,
-      gstPct: s.gstPct !== undefined ? s.gstPct : 0,
-      poDetailId: s.poDetailId
-    }, firstGstType));
-    
-    setDetails(p => {
-      const existing = p.filter(r => r.itemName || r.poNo);
-      if (existing.length === 0) return newRows;
-      return [...existing, ...newRows];
-    });
+ function addPendingLinesToDetails() {
+  // Get selected items from pendingPoRows (not from groups)
+  const selected = pendingPoRows.filter(r => {
+    const key = r.rowId || `${r.poId}-${r.poDetailId}`;
+    return pendingSelected.has(key);
+  });
+  
+  if (selected.length === 0) {
     setPendingModalOpen(false);
-    setPendingSelected(new Set());
+    return;
   }
+  
+  // Inherit gstType from the first selected PO
+  const firstGstType = selected[0].gstType || "local";
+  if (!header.supplierId && selected[0].supplierId) {
+    setHeader(h => ({ 
+      ...h, 
+      supplierId: String(selected[0].supplierId), 
+      supplierName: selected[0].supplierName || h.supplierName,
+      gstType: firstGstType 
+    }));
+  } else {
+    setHeader(h => ({ ...h, gstType: firstGstType }));
+  }
+
+  const newRows = selected.map(s => calcRow({
+    ...emptyDetail(),
+    poId: s.poId,
+    poNo: s.poNo,
+    poDate: s.poDate,
+    indentNo: s.indentNo || "",
+    itemId: s.itemId,
+    itemName: s.itemName,
+    uom: s.uom,
+    poQty: s.poQty,
+    alGrnQty: s.alGrnQty,
+    balQty: s.balQty,
+    grnQty: s.balQty,
+    phyQty: s.balQty,
+    poRate: s.poRate,
+    grnRate: s.poRate,
+    gstPct: s.gstPct !== undefined ? s.gstPct : 0,
+    poDetailId: s.poDetailId
+  }, firstGstType));
+  
+  setDetails(p => {
+    const existing = p.filter(r => r.itemName || r.poNo);
+    if (existing.length === 0) return newRows;
+    return [...existing, ...newRows];
+  });
+  setPendingModalOpen(false);
+  setPendingSelected(new Set());
+}
 
   if (loading && view === "list") return <div className="inv-empty">Loading...</div>;
 
@@ -791,45 +817,387 @@ return (
     </div>
 
     {pendingModalOpen && (
-      <Modal title="Pick Pending PO Items" onClose={() => { setPendingModalOpen(false); setPendingSelected(new Set()); }} onSave={addPendingLinesToDetails} saveLabel={pendingSelected.size > 0 ? `Add ${pendingSelected.size} Item(s) to GRN` : "Select items to add"} full={true}>
-        <div style={{ padding: "0 10px" }}>
-          <table className="inv-table-premium">
+  <Modal 
+    id="pending-po-modal"
+    title="Pick Pending PO Items" 
+    onClose={() => { 
+      setPendingModalOpen(false); 
+      setPendingSelected(new Set()); 
+      setExpandedGroups({}); 
+      setPendingSearchTerm(""); 
+    }} 
+    full={true}
+    hideDefaultButtons={true}
+  >
+    <style>
+      {`
+        #pending-po-modal .inv-modal-header button,
+        #pending-po-modal .inv-modal-header .inv-btn-ghost,
+        #pending-po-modal .inv-modal-header .inv-save-btn,
+        #pending-po-modal .inv-modal-header .inv-btn-secondary,
+        #pending-po-modal .inv-modal-header .inv-btn-primary,
+        #pending-po-modal .inv-modal-header [class*="btn"],
+        #pending-po-modal .inv-modal-header > *:not(h2):not(h3):not(.inv-modal-title),
+        #pending-po-modal .inv-modal-footer {
+          display: none !important;
+        }
+
+        #cancel-pick-po-btn, #add-po-items-btn {
+          display: inline-flex !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+        }
+        
+        .po-main-row:focus, .po-item-row:focus {
+          outline: 2px solid #3b6ef8;
+          outline-offset: -2px;
+          background-color: #eff6ff;
+        }
+        
+        .po-item-row[style*="background-color: #eef2ff"] {
+          background-color: #eef2ff !important;
+        }
+        
+        /* Fixed elements */
+        .modal-fixed-search {
+          position: sticky;
+          top: 0;
+          background: white;
+          z-index: 10;
+          border-bottom: 1px solid #e2e8f0;
+          padding: 12px 16px;
+        }
+        
+        .modal-fixed-footer {
+          position: sticky;
+          bottom: 0;
+          background: white;
+          z-index: 10;
+          border-top: 1px solid #e2e8f0;
+          padding: 12px 16px;
+        }
+        
+        .modal-scrollable-content {
+          overflow-y: auto;
+          flex: 1;
+          padding: 0 16px;
+          max-height: calc(85vh - 80px);
+        }
+      `}
+    </style>
+    
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", maxHeight: "85vh" }}>
+      {/* FIXED SEARCH BAR */}
+      <div style={{ 
+        position: "sticky", 
+        top: 0, 
+        background: "white", 
+        zIndex: 10, 
+        borderBottom: "1px solid #e2e8f0", 
+        padding: "12px 16px",
+        margin: "-16px -16px 0 -16px"
+      }}>
+        <input
+          type="text"
+          id="pending-po-search-input"
+          ref={searchInputRef}
+          className="inv-input"
+          placeholder="Search by PO Number or Supplier..."
+          value={pendingSearchTerm}
+          onChange={(e) => setPendingSearchTerm(e.target.value)}
+          style={{ 
+            width: "100%", 
+            maxWidth: "300px",
+            borderRadius: 6,
+            border: "1px solid #e2e8f0",
+            padding: "10px 14px",
+            fontSize: 14
+          }}
+        />
+        {pendingSearchTerm && (
+          <div style={{ marginTop: 8, fontSize: 13, color: "#64748b" }}>
+            Found {Object.values(pendingPOGroups).filter(group => 
+              group.poNo.toLowerCase().includes(pendingSearchTerm.toLowerCase()) ||
+              group.supplierName.toLowerCase().includes(pendingSearchTerm.toLowerCase())
+            ).length} matching PO(s)
+          </div>
+        )}
+      </div>
+      
+      {/* SCROLLABLE CONTENT */}
+      <div className="modal-scrollable-content">
+        <div className="inv-table-wrap">
+          <table className="inv-table" id="pick-po-table" style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr>
-                <th style={{ width: 40, textAlign: "center" }}>
-                  <input type="checkbox" style={{ width: 18, height: 18, cursor: "pointer" }} checked={pendingPoRows.length > 0 && pendingSelected.size === pendingPoRows.length} onChange={(e) => { if (e.target.checked) setPendingSelected(new Set(pendingPoRows.map(r => r.rowId || `${r.poId}-${r.poDetailId}`))); else setPendingSelected(new Set()); }} />
-                </th>
-                <th style={{ width: 140 }}>PO No</th>
-                <th style={{ width: 100 }}>PO Date</th>
-                <th style={{ minWidth: 200 }}>Item Description</th>
-                <th style={{ width: 80 }}>UOM</th>
-                <th style={{ width: 100, textAlign: "right" }}>Pending Qty</th>
-                <th style={{ width: 100, textAlign: "right" }}>PO Rate</th>
+              <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                <th style={{ width: 30, padding: "12px 8px", textAlign: "center" }}></th>
+                <th style={{ padding: "12px 12px", textAlign: "left" }}>PO Number</th>
+                <th style={{ width: 100, padding: "12px 12px", textAlign: "left" }}>PO Date</th>
+                <th style={{ padding: "12px 12px", textAlign: "left" }}>Supplier</th>
+                <th style={{ width: 100, padding: "12px 12px", textAlign: "right" }}>Items</th>
+                <th style={{ width: 100, padding: "12px 12px", textAlign: "right" }}>Total Qty</th>
+                <th style={{ width: 40, padding: "12px 8px", textAlign: "center" }}></th>
               </tr>
             </thead>
             <tbody>
-              {pendingPoRows.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#64748b" }}>No pending PO items found</td></tr>}
-              {pendingPoRows.map(r => {
-                const rowId = r.rowId || `${r.poId}-${r.poDetailId}`;
-                return (
-                  <tr key={rowId} onClick={() => { const next = new Set(pendingSelected); if (next.has(rowId)) next.delete(rowId); else next.add(rowId); setPendingSelected(next); }} style={{ cursor: "pointer" }}>
-                    <td style={{ textAlign: "center" }} onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" style={{ width: 18, height: 18, cursor: "pointer" }} checked={pendingSelected.has(rowId)} onChange={() => { const next = new Set(pendingSelected); if (next.has(rowId)) next.delete(rowId); else next.add(rowId); setPendingSelected(next); }} />
-                    </td>
-                    <td style={{ fontWeight: 600, color: "var(--accent)" }}>{r.poNo}</td>
-                    <td style={{ fontSize: "12px" }}>{r.poDate ? new Date(r.poDate).toLocaleDateString("en-GB") : "—"}</td>
-                    <td style={{ fontWeight: 500 }}>{r.itemName}</td>
-                    <td style={{ textAlign: "center" }}>{r.uom}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(r.balQty)}</td>
-                    <td style={{ textAlign: "right" }}>₹{fmt(r.poRate)}</td>
-                  </tr>
-                );
-              })}
+              {Object.values(pendingPOGroups)
+                .filter(group => 
+                  pendingSearchTerm === "" || 
+                  group.poNo.toLowerCase().includes(pendingSearchTerm.toLowerCase()) ||
+                  group.supplierName.toLowerCase().includes(pendingSearchTerm.toLowerCase())
+                ).length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: 60, textAlign: "center", color: "#64748b" }}>
+                    {pendingSearchTerm ? "No matching PO found" : "No pending PO items available"}
+                  </td>
+                </tr>
+              ) : (
+                Object.values(pendingPOGroups)
+                  .filter(group => 
+                    pendingSearchTerm === "" || 
+                    group.poNo.toLowerCase().includes(pendingSearchTerm.toLowerCase()) ||
+                    group.supplierName.toLowerCase().includes(pendingSearchTerm.toLowerCase())
+                  )
+                  .map((group) => {
+                    const isExpanded = expandedGroups[group.poNo];
+                    const totalItems = group.items.length;
+                    const totalQty = group.items.reduce((sum, item) => sum + (item.balQty || 0), 0);
+                    const allGroupItemsSelected = group.items.every(item => 
+                      pendingSelected.has(item.rowId || `${item.poId}-${item.poDetailId}`)
+                    );
+                    const someGroupItemsSelected = group.items.some(item => 
+                      pendingSelected.has(item.rowId || `${item.poId}-${item.poDetailId}`)
+                    );
+                    
+                    return (
+                      <React.Fragment key={group.poNo}>
+                        {/* Main PO Row */}
+                        <tr 
+                          className="po-main-row"
+                          data-row-id={group.poNo}
+                          data-row-type="main"
+                          aria-expanded={isExpanded}
+                          style={{ 
+                            cursor: "pointer",
+                            backgroundColor: "#ffffff",
+                            borderBottom: "1px solid #e2e8f0"
+                          }}
+                          tabIndex={0}
+                          onClick={() => {
+                            setExpandedGroups(prev => ({ ...prev, [group.poNo]: !prev[group.poNo] }));
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setExpandedGroups(prev => ({ ...prev, [group.poNo]: !prev[group.poNo] }));
+                            }
+                          }}
+                        >
+                          <td style={{ textAlign: "center", padding: "12px 8px", color: "#64748b" }}>
+                            {isExpanded ? "▼" : "▶"}
+                          </td>
+                          <td style={{ fontWeight: 600, color: "#3b6ef8", padding: "12px 12px" }}>
+                            {group.poNo}
+                          </td>
+                          <td style={{ color: "#475569", padding: "12px 12px" }}>
+                            {group.poDate ? new Date(group.poDate).toLocaleDateString("en-GB") : "—"}
+                          </td>
+                          <td style={{ color: "#475569", padding: "12px 12px" }}>
+                            {group.supplierName || "—"}
+                          </td>
+                          <td style={{ textAlign: "right", color: "#475569", padding: "12px 12px" }}>
+                            {totalItems} item(s)
+                          </td>
+                          <td style={{ textAlign: "right", fontWeight: 500, color: "#475569", padding: "12px 12px" }}>
+                            {fmtQty(totalQty)}
+                          </td>
+                          <td style={{ textAlign: "center", padding: "12px 8px" }}>
+                            <input 
+                              type="checkbox"
+                              checked={allGroupItemsSelected}
+                              ref={(el) => {
+                                if (el) el.indeterminate = !allGroupItemsSelected && someGroupItemsSelected;
+                              }}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const newSelected = new Set(pendingSelected);
+                                group.items.forEach(item => {
+                                  const key = item.rowId || `${item.poId}-${item.poDetailId}`;
+                                  if (e.target.checked) {
+                                    newSelected.add(key);
+                                  } else {
+                                    newSelected.delete(key);
+                                  }
+                                });
+                                setPendingSelected(newSelected);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ cursor: "pointer", width: 18, height: 18 }}
+                            />
+                          </td>
+                        </tr>
+                        
+                        {/* Expanded Items Rows */}
+                        {isExpanded && (
+                          <tr className="po-sub-row" data-parent-id={group.poNo}>
+                            <td colSpan={7} style={{ padding: 0, backgroundColor: "#f8fafc" }}>
+                              <table className="inv-table" style={{ margin: 0, width: "100%", borderCollapse: "collapse", background: "#f8fafc" }}>
+                                <thead>
+                                  <tr style={{ backgroundColor: "#f1f5f9", borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0" }}>
+                                    <th style={{ width: 30, padding: "10px 8px", textAlign: "center" }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={group.items.every(item => pendingSelected.has(item.rowId || `${item.poId}-${item.poDetailId}`))}
+                                        ref={(el) => {
+                                          const allSelected = group.items.every(item => pendingSelected.has(item.rowId || `${item.poId}-${item.poDetailId}`));
+                                          const someSelected = group.items.some(item => pendingSelected.has(item.rowId || `${item.poId}-${item.poDetailId}`));
+                                          if (el) el.indeterminate = !allSelected && someSelected;
+                                        }}
+                                        onChange={(e) => {
+                                          const newSelected = new Set(pendingSelected);
+                                          group.items.forEach(item => {
+                                            const key = item.rowId || `${item.poId}-${item.poDetailId}`;
+                                            if (e.target.checked) {
+                                              newSelected.add(key);
+                                            } else {
+                                              newSelected.delete(key);
+                                            }
+                                          });
+                                          setPendingSelected(newSelected);
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        style={{ cursor: "pointer" }}
+                                      />
+                                    </th>
+                                    <th style={{ padding: "10px 12px", textAlign: "left", minWidth: 200 }}>Item Description</th>
+                                    <th style={{ width: 80, padding: "10px 12px", textAlign: "center" }}>UOM</th>
+                                    <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>Pending Qty</th>
+                                    <th style={{ width: 100, padding: "10px 12px", textAlign: "right" }}>Rate</th>
+                                    <th style={{ width: 80, padding: "10px 12px", textAlign: "center" }}>GST%</th>
+                                    <th style={{ width: 120, padding: "10px 12px", textAlign: "right" }}>Total Value</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {group.items.map((item) => {
+                                    const key = item.rowId || `${item.poId}-${item.poDetailId}`;
+                                    const totalValue = (item.balQty * item.poRate) + ((item.balQty * item.poRate) * ((item.gstPct || 0) / 100));
+                                    return (
+                                      <tr 
+                                        key={key}
+                                        className="po-item-row"
+                                        data-row-id={key}
+                                        data-parent-id={group.poNo}
+                                        style={{ 
+                                          backgroundColor: pendingSelected.has(key) ? "#eef2ff" : "transparent",
+                                          cursor: "pointer",
+                                          borderBottom: "1px solid #e2e8f0"
+                                        }}
+                                        tabIndex={0}
+                                        onClick={() => {
+                                          const newSelected = new Set(pendingSelected);
+                                          if (newSelected.has(key)) {
+                                            newSelected.delete(key);
+                                          } else {
+                                            newSelected.add(key);
+                                          }
+                                          setPendingSelected(newSelected);
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            const newSelected = new Set(pendingSelected);
+                                            if (newSelected.has(key)) {
+                                              newSelected.delete(key);
+                                            } else {
+                                              newSelected.add(key);
+                                            }
+                                            setPendingSelected(newSelected);
+                                          }
+                                        }}
+                                      >
+                                        <td style={{ textAlign: "center", padding: "10px 8px" }}>
+                                          <input
+                                            type="checkbox"
+                                            checked={pendingSelected.has(key)}
+                                            onChange={() => {}}
+                                            onClick={(e) => e.stopPropagation()}
+                                            style={{ cursor: "pointer", width: 16, height: 16 }}
+                                          />
+                                        </td>
+                                        <td style={{ padding: "10px 12px", textAlign: "left", fontWeight: 500 }}>
+                                          {item.itemName || "—"}
+                                        </td>
+                                        <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                                          {item.uom || "—"}
+                                        </td>
+                                        <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600, color: "#3b6ef8" }}>
+                                          {fmtQty(item.balQty)}
+                                        </td>
+                                        <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                                          ₹{fmt(item.poRate)}
+                                        </td>
+                                        <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                                          {item.gstPct || 0}%
+                                        </td>
+                                        <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 500 }}>
+                                          ₹{fmt(totalValue)}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+              )}
             </tbody>
           </table>
         </div>
-      </Modal>
-    )}
+      </div>
+      
+      {/* FIXED FOOTER */}
+      <div className="modal-fixed-footer">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div style={{ fontSize: 13, color: "#3b6ef8", fontWeight: 500 }}>
+            {pendingSelected.size} item(s) selected
+          </div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button 
+              className="inv-btn-secondary" 
+              id="cancel-pick-po-btn"
+              onClick={() => { 
+                setPendingModalOpen(false); 
+                setPendingSelected(new Set()); 
+                setExpandedGroups({}); 
+                setPendingSearchTerm(""); 
+              }}
+            >
+              Cancel
+            </button>
+            <button 
+              id="add-po-items-btn"
+              className="inv-btn-primary" 
+              onClick={() => { 
+                addPendingLinesToDetails(); 
+                setPendingModalOpen(false); 
+                setPendingSelected(new Set()); 
+                setExpandedGroups({}); 
+                setPendingSearchTerm(""); 
+              }}
+              disabled={pendingSelected.size === 0}
+            >
+              Add {pendingSelected.size} Item(s) to GRN
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Modal>
+)}
 
     <div className="inv-card">
       <div className="inv-card-body">

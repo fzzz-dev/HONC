@@ -10,7 +10,13 @@ import { SearchSelect } from "../../components/FormFields";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const today = () => new Date().toISOString().split("T")[0];
+const today = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 const getFY = () => {
   const d = new Date();
   const m = d.getMonth() + 1;
@@ -174,30 +180,39 @@ const emptyDetail = () => ({
   transportCharges: 0
 });
 
-const emptyHeader = () => ({
-  poNo: "", 
-  date: today(),
-  supplierId: "", 
-  supplierName: "", 
-  supplierAddress: "", 
-  supplierGst: "",
-  purchaseIndentId: "", 
-  purchaseIndentNo: "",
-  refNo: "", 
-  refDate: "", 
-  paymentTermsId: "", 
-  paymentTermsName: "", 
-  deliveryDate: "", 
-  createdBy: "Admin", 
-  createdOn: today(), 
-  status: "Open", 
-  remarks: "",
-  poType: "",
-  preparedBy: "",
-  level1Approved: "NO",
-  level2Approved: "NO"
-});
-
+const emptyHeader = () => {
+  const getTodayDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  return {
+    poNo: "", 
+    date: getTodayDate(),
+    supplierId: "", 
+    supplierName: "", 
+    supplierAddress: "", 
+    supplierGst: "",
+    purchaseIndentId: "", 
+    purchaseIndentNo: "",
+    refNo: "", 
+    refDate: "", 
+    paymentTermsId: "", 
+    paymentTermsName: "", 
+    deliveryDate: getTodayDate(), 
+    createdBy: "Admin", 
+    createdOn: getTodayDate(), 
+    status: "Open", 
+    remarks: "",
+    poType: "",
+    preparedBy: "",
+    level1Approved: "NO",
+    level2Approved: "NO"
+  };
+};
 
 const FormGrid = ({ children }) => (
   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>{children}</div>
@@ -465,7 +480,7 @@ function printPurchaseOrder({ header, details: detailRows, totals, gstEnabled, g
                     <td class="text-right">${fmt(transportAmount)}</td>
                   </tr>
                   <tr>
-                    <td class="bold text-left">Subtotal before GST</td>
+                    <td class="bold text-left">Basic Value</td>
                     <td class="text-right">${fmt(subtotalBeforeGst)}</td>
                   </tr>
                   ${gstType === 'local' ? `
@@ -877,7 +892,7 @@ const downloadAsPDF = async ({ header, details: detailRows, totals, gstEnabled, 
                       <td class="text-right">${fmt(transportAmount)}</td>
                     </tr>
                     <tr>
-                      <td class="bold text-left">Subtotal before GST</td>
+                      <td class="bold text-left">Basic Value</td>
                       <td class="text-right">${fmt(subtotalBeforeGst)}</td>
                     </tr>
                     ${gstType === 'local' ? `
@@ -1044,6 +1059,7 @@ export default function PurchaseOrderPage() {
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [pendingSearchTerm, setPendingSearchTerm] = useState("");
   const searchInputRef = useRef(null);
+  
  
 
      // New state for approval workflow
@@ -1566,22 +1582,34 @@ useEffect(() => {
   }
 
   async function openNew() {
-    setHeader({ 
-      ...emptyHeader(), 
-      preparedBy: user?.name || "Admin" ,
-      level1Approved: "No",
-      level2Approved: "No"
-    }); 
-    setDetails([emptyDetail()]); 
-    setEditId(null); 
-    setView("form"); 
-    setGstType("");
-    setItemsFromPickIndent(false);
-    try { 
-      const res = await purchaseOrderApi.getNextNumber(); 
-      if (res?.poNo) setHeader(h => ({ ...h, poNo: res.poNo })); 
-    } catch (e) { }
-  }
+  const getTodayDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  const todayDate = getTodayDate();
+  
+  setHeader({ 
+    ...emptyHeader(), 
+    preparedBy: user?.name || "Admin",
+    date: todayDate,
+    deliveryDate: todayDate,
+    level1Approved: "No",
+    level2Approved: "No"
+  }); 
+  setDetails([emptyDetail()]); 
+  setEditId(null); 
+  setView("form"); 
+  setGstType("");
+  setItemsFromPickIndent(false);
+  try { 
+    const res = await purchaseOrderApi.getNextNumber(); 
+    if (res?.poNo) setHeader(h => ({ ...h, poNo: res.poNo })); 
+  } catch (e) { }
+}
 
 function openEdit(po) {
   console.log("=== openEdit START ===");
@@ -1654,16 +1682,16 @@ function openEdit(po) {
 
   setEditId(sid(mappedPO));
 
-  const normalizeDate = (d) => {
-    if (!d) return "";
-    if (typeof d === "string" && d.match(/^\d{4}-\d{2}-\d{2}$/)) return d;
-    if (typeof d === "string" && d.includes("T")) return d.split("T")[0];
-    try {
-      const dt = new Date(d);
-      if (!isNaN(dt.getTime())) return dt.toISOString().split("T")[0];
-    } catch (e) {}
-    return "";
-  };
+ const normalizeDate = (d) => {
+  if (!d) return today();  // ✅ Returns today's date instead of empty string
+  if (typeof d === "string" && d.match(/^\d{4}-\d{2}-\d{2}$/)) return d;
+  if (typeof d === "string" && d.includes("T")) return d.split("T")[0];
+  try {
+    const dt = new Date(d);
+    if (!isNaN(dt.getTime())) return dt.toISOString().split("T")[0];
+  } catch (e) {}
+  return today();
+};
 
   setHeader({
     poNo: mappedPO.poNo,
@@ -1992,17 +2020,29 @@ async function performSave() {
   setFormError(null);
   setSaving(true);
   
+  // ✅ Get today's date as fallback
+  const getTodayDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
   const cleanDetails = details.map(({ _rowId, ...rest }) => rest);
   
   const transportAmountValue = Number(header.transportCharges) || 0;
-  console.log("Transport amount being saved:", transportAmountValue);
-  console.log("Totals before save:", totals);
-  console.log("totals.totalAmount:", totals.totalAmount);
   
-  // Use the already calculated totals which include transport in subtotal before GST
+  // ✅ Ensure dates have valid values
+  const finalDate = header.date || getTodayDate();
+  const finalDeliveryDate = header.deliveryDate || getTodayDate();
+  
+  console.log("Saving with dates:", { finalDate, finalDeliveryDate });
+  
   const payload = { 
     ...header, 
-    deliveryDate: header.deliveryDate,
+    date: finalDate,                    // ← Fixed
+    deliveryDate: finalDeliveryDate,    // ← Fixed
     gstEnabled, 
     gstType, 
     details: cleanDetails,
@@ -2015,11 +2055,6 @@ async function performSave() {
     totGst: totals.totGst,
     totalAmount: totals.totalAmount
   };
-  
-  console.log("Payload totalAmount:", payload.totalAmount);
-  console.log("Payload transportCharges:", payload.transportCharges);
-  
-  // ... rest of save code
   
   try {
     let savedPO;
@@ -2488,18 +2523,42 @@ const filteredPosForDisplay = (pos || []).filter(po => {
               <Field label="PO No (Auto)">
                 <input tabIndex={1} className="inv-input" value={header.poNo} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} />
               </Field>
-              
+
               <Field label="PO Date *">
-                <input tabIndex={2} className="inv-input" type="date" min="2026-05-01" value={header.date || today()} onChange={e => {
-                  const selectedDate = e.target.value;
-                  const minDate = "2026-05-01";
-                  if (selectedDate < minDate) {
-                    setHeader(h => ({ ...h, date: minDate, dateError: "Past dates are not allowed." }));
-                  } else {
-                    setHeader(h => ({ ...h, date: selectedDate, dateError: "" }));
-                  }
-                }} />
-                {header.dateError && <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>⚠️ {header.dateError}</div>}
+                <input 
+                  tabIndex={2} 
+                  className="inv-input" 
+                  type="date" 
+                  min="2026-05-01" 
+                  value={header.date || today()} 
+                  onChange={e => {
+                    const selectedDate = e.target.value;
+                    const isCompleteDate = selectedDate && 
+                                          selectedDate.length === 10 && 
+                                          parseInt(selectedDate.substring(0, 4)) >= 2000;
+                    
+                    if (isCompleteDate) {
+                      setHeader(h => ({ ...h, date: selectedDate, dateError: "" }));
+                    } else {
+                      // Just store without error while typing
+                      setHeader(h => ({ ...h, date: selectedDate, dateError: "" }));
+                    }
+                  }}
+                  onBlur={() => {
+                    const currentDate = header.date;
+                    if (currentDate && currentDate.length > 0 && currentDate.length < 10) {
+                      setHeader(h => ({ ...h, dateError: "Please enter a complete date (YYYY-MM-DD)" }));
+                      setTimeout(() => {
+                        setHeader(h => ({ ...h, dateError: "" }));
+                      }, 3000);
+                    }
+                  }}
+                />
+                {header.dateError && (
+                  <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+                    ⚠️ {header.dateError}
+                  </div>
+                )}
               </Field>
 
               <Field label="PO Type">
@@ -2511,7 +2570,7 @@ const filteredPosForDisplay = (pos || []).filter(po => {
                 </select>
               </Field>
               
- <Field label="Supplier *">
+              <Field label="Supplier *">
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                   <div style={{ flex: 1 }}>
                     <SearchSelect tabIndex={4} value={header.supplierId} onChange={val => {
@@ -2563,34 +2622,73 @@ const filteredPosForDisplay = (pos || []).filter(po => {
                 <input tabIndex={5} className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" />
               </Field>
 
-              <Field label="Delivery Date">
-              <input 
-                tabIndex={6} 
-                className="inv-input" 
-                type="date" 
-                min={header.date || today()}
-                value={header.deliveryDate || today()} 
-                onChange={e => {
-                  const selectedDate = e.target.value;
-                  const poDate = header.date;
-                  
-                  if (selectedDate && poDate && selectedDate < poDate) {
-                    setHeader(h => ({ 
-                      ...h, 
-                      deliveryDate: poDate, 
-                      deliveryDateError: "Delivery date cannot be earlier than PO date" 
-                    }));
-                  } else {
-                    setHeader(h => ({ ...h, deliveryDate: selectedDate, deliveryDateError: "" }));
-                  }
-                }} 
-              />
-              {header.deliveryDateError && (
-                <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
-                  ⚠️ {header.deliveryDateError}
-                </div>
-              )}
-            </Field>
+<Field label="Delivery Date">
+  <input 
+    tabIndex={6} 
+    className="inv-input" 
+    type="date" 
+    min={header.date || today()}
+    value={header.deliveryDate || today()} 
+    onChange={e => {
+      const selectedDate = e.target.value;
+      const poDate = header.date;
+      
+      // Only validate if the date is complete AND not the auto-filled first day
+      const isDateComplete = selectedDate && selectedDate.length === 10;
+      
+      // Check if the date appears to be auto-filled (ends with -01 and user was typing)
+      const isLikelyAutoFilled = selectedDate && 
+        selectedDate.endsWith('-01') && 
+        selectedDate !== poDate;
+        
+      
+      // Check if year is valid (>= 2000)
+      const year = parseInt(selectedDate.substring(0, 4));
+      const isValidYear = year >= 2000;
+
+      if (isDateComplete && isValidYear && poDate && selectedDate < poDate && !isLikelyAutoFilled) {
+        setHeader(h => ({ 
+          ...h, 
+          deliveryDate: poDate, 
+          deliveryDateError: "Delivery date cannot be earlier than PO date" 
+        }));
+      } else if (isDateComplete && isValidYear) {
+        setHeader(h => ({ ...h, deliveryDate: selectedDate, deliveryDateError: "" }));
+      } else if (isDateComplete && !isValidYear) {
+        // Year is invalid (like 0002), don't validate, just store
+        setHeader(h => ({ ...h, deliveryDate: selectedDate, deliveryDateError: "" }));
+      }
+    }} 
+    onBlur={() => {
+      const currentDate = header.deliveryDate;
+      const poDate = header.date;
+      
+      // On blur, if date is incomplete or seems invalid, set to PO date or today
+      if (currentDate && currentDate.length > 0 && currentDate.length < 10) {
+        // Incomplete date - show helpful message
+        setHeader(h => ({ 
+          ...h, 
+          deliveryDateError: "Please select a complete date from the calendar or use YYYY-MM-DD format" 
+        }));
+      } else if (currentDate && currentDate.length === 10 && poDate && currentDate < poDate) {
+        // Complete date but earlier than PO date
+        setHeader(h => ({ 
+          ...h, 
+          deliveryDate: poDate, 
+          deliveryDateError: "Delivery date cannot be earlier than PO date. Set to PO date." 
+        }));
+        setTimeout(() => {
+          setHeader(h => ({ ...h, deliveryDateError: "" }));
+        }, 3000);
+      }
+    }}
+  />
+  {header.deliveryDateError && (
+    <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+      ⚠️ {header.deliveryDateError}
+    </div>
+  )}
+</Field>
               
               <Field label="GST No">
                 <input tabIndex={7} className="inv-input" value={header.supplierGst} readOnly style={{ background: "#f8fafc" }} />

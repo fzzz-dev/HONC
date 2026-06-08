@@ -83,6 +83,12 @@ export default function PurchaseIndentPage() {
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [formError, setFormError] = useState(null);
   const [lookupsLoaded, setLookupsLoaded] = useState(false);
+  
+  // Refs for tab flow
+  const addButtonRef = useRef(null);
+  const viewListButtonRef = useRef(null);
+  const saveButtonRef = useRef(null);
+  const prevDetailsLengthRef = useRef(details.length);
 
   useEffect(() => {
     loadLookups(); 
@@ -90,11 +96,52 @@ export default function PurchaseIndentPage() {
     openNew();
   }, []);
 
-  useEffect(() => {
-    const firstField = document.querySelector('[tabIndex="1"]');
-    if (firstField) {
-      firstField.focus();
+  // Calculate indent status based on PO consumption
+const calculateIndentStatus = (indent) => {
+  // Get all details from the indent
+  const indentDetails = safeDetails(indent.details);
+  
+  if (indentDetails.length === 0) return indent.status || "Open";
+  
+  // Count total items and items that have been fully ordered
+  let totalItems = 0;
+  let fullyOrderedItems = 0;
+  let partiallyOrderedItems = 0;
+  
+  indentDetails.forEach(detail => {
+    const indentQty = Number(detail.indentQty || 0);
+    const poOrderedQty = Number(detail.poOrderedQty || 0); // This needs to come from backend
+    const balQty = Number(detail.balQty !== undefined ? detail.balQty : indentQty);
+    
+    if (indentQty > 0) {
+      totalItems++;
+      
+      if (balQty <= 0) {
+        fullyOrderedItems++;
+      } else if (poOrderedQty > 0 && balQty < indentQty) {
+        partiallyOrderedItems++;
+      }
     }
+  });
+  
+  // Determine status
+  if (fullyOrderedItems === totalItems && totalItems > 0) {
+    return "Closed";
+  } else if (partiallyOrderedItems > 0 || (fullyOrderedItems > 0 && fullyOrderedItems < totalItems)) {
+    return "Partial";
+  } else {
+    return indent.status || "Open";
+  }
+};
+
+  // Initial focus on tabIndex=1 when page loads
+  useEffect(() => {
+    setTimeout(() => {
+      const firstField = document.querySelector('[tabIndex="1"]');
+      if (firstField) {
+        firstField.focus();
+      }
+    }, 100);
   }, []);
 
   useEffect(() => {
@@ -149,10 +196,8 @@ export default function PurchaseIndentPage() {
       setHeads(headsData || []); 
       setCompany(comp);
       
-      // Store flat list for lookups
       setAllCategoriesFlat(catsData || []);
       
-      // Group categories by headId
       const grouped = (catsData || []).reduce((acc, cat) => {
         const headId = sid(cat.headId);
         if (!acc[headId]) acc[headId] = [];
@@ -177,16 +222,20 @@ export default function PurchaseIndentPage() {
   }
 
   async function loadIndents() {
-    setLoadingList(true); 
-    try { 
-      const data = await purchaseIndentApi.getAll(); 
-      setIndents(Array.isArray(data) ? data : []); 
-    } catch (e) { 
-      setListError(e.message); 
-    } finally { 
-      setLoadingList(false); 
-    }
+  setLoadingList(true); 
+  try { 
+    const data = await purchaseIndentApi.getAll(); 
+    const indentsWithStatus = (Array.isArray(data) ? data : []).map(indent => ({
+      ...indent,
+      displayStatus: calculateIndentStatus(indent)
+    }));
+    setIndents(indentsWithStatus); 
+  } catch (e) { 
+    setListError(e.message); 
+  } finally { 
+    setLoadingList(false); 
   }
+}
 
   async function openNew() {
     setHeader({ ...emptyHeader(), preparedBy: user?.name || "Admin" });
@@ -201,7 +250,6 @@ export default function PurchaseIndentPage() {
 
   function openEdit(indent) {
     if (!lookupsLoaded) {
-      // Wait for lookups to load, then retry
       const timer = setTimeout(() => {
         openEdit(indent);
       }, 200);
@@ -221,16 +269,13 @@ export default function PurchaseIndentPage() {
     
     const safeDetailsList = safeDetails(indent.details);
     
-    // Process details to ensure proper data structure
     const processedDetails = safeDetailsList.map((d, index) => {
-      // Find the head ID from head name if needed
       let headIdValue = sid(d.headId);
       if (!headIdValue && d.headName) {
         const foundHead = heads.find(h => h.headName === d.headName);
         headIdValue = foundHead ? sid(foundHead) : "";
       }
       
-      // Find the category ID from category name if needed
       let categoryIdValue = sid(d.mainCategoryId);
       if (!categoryIdValue && d.mainCategoryName) {
         const foundCat = allCategoriesFlat.find(c => 
@@ -239,7 +284,6 @@ export default function PurchaseIndentPage() {
         categoryIdValue = foundCat ? sid(foundCat) : "";
       }
       
-      // Find item ID from item name if needed
       let itemIdValue = sid(d.itemId);
       if (!itemIdValue && d.itemName) {
         const foundItem = items.find(it => 
@@ -304,18 +348,11 @@ export default function PurchaseIndentPage() {
   }
 
   function addRow() { 
-    setDetails(p => [...p, { ...emptyDetail(), _originalIndex: p.length }]);
-    setTimeout(() => {
-      const headElements = document.querySelectorAll('.head-select');
-      const lastHead = headElements[headElements.length - 1];
-      if (lastHead) {
-        lastHead.focus();
-      }
-    }, 100);
+    setDetails(prev => [...prev, { ...emptyDetail(), _originalIndex: prev.length }]);
   }
   
   function removeRow(idx) { 
-    setDetails(p => p.filter((_, i) => i !== idx)); 
+    setDetails(prev => prev.filter((_, i) => i !== idx)); 
   }
 
   const handleSave = useCallback(async () => {
@@ -428,6 +465,57 @@ export default function PurchaseIndentPage() {
 
   const displayDetails = editId ? sortedDetails : details;
 
+  // ─── Tab Index Calculation ───────────────────────────────────────────────────
+  const getTabIndex = (rowIndex, fieldOffset, totalRows) => {
+    const headerFieldsCount = 4;  // tabs 1-4 for header
+    const fieldsPerRow = 8;       // Head, Category, Item, UOM, Qty, Due Date, Remarks, Delete
+    const rowStartTab = headerFieldsCount + (rowIndex * fieldsPerRow) + 1;
+    return rowStartTab + fieldOffset;
+  };
+
+  const getAddButtonTabIndex = (totalRows) => {
+    return 4 + (totalRows * 8) + 1;
+  };
+
+  const getViewListTabIndex = (totalRows) => {
+    return getAddButtonTabIndex(totalRows) + 1;
+  };
+
+  const getSaveTabIndex = (totalRows) => {
+    return getAddButtonTabIndex(totalRows) + 2;
+  };
+
+  const totalRows = displayDetails.length;
+  const addButtonTabIndex = getAddButtonTabIndex(totalRows);
+  const viewListTabIndex = getViewListTabIndex(totalRows);
+  const saveTabIndex = getSaveTabIndex(totalRows);
+
+  // Focus on new row's Head field ONLY when a row is added (not on initial load)
+  useEffect(() => {
+    // Skip on initial render (when prevLength is undefined or same as current)
+    if (prevDetailsLengthRef.current === undefined) {
+      prevDetailsLengthRef.current = details.length;
+      return;
+    }
+    
+    // Only run if a row was actually added (length increased)
+    const rowWasAdded = details.length > prevDetailsLengthRef.current;
+    
+    if (rowWasAdded && view === "form" && displayDetails.length > 0) {
+      setTimeout(() => {
+        const lastRowIndex = displayDetails.length - 1;
+        const headFieldTabIndex = getTabIndex(lastRowIndex, 0, displayDetails.length);
+        const headField = document.querySelector(`[tabIndex="${headFieldTabIndex}"]`);
+        if (headField) {
+          headField.focus();
+        }
+      }, 100);
+    }
+    
+    // Update ref for next render
+    prevDetailsLengthRef.current = details.length;
+  }, [details.length, view, displayDetails.length]);
+
   // ─────────────────────────────────────────────────────────────────────────────
   // LIST VIEW
   // ─────────────────────────────────────────────────────────────────────────────
@@ -516,8 +604,11 @@ export default function PurchaseIndentPage() {
                         <td className="inv-muted-sm">{safeDetails(indent.details).length} lines</td>
                         <td>{fmt(safeDetails(indent.details).reduce((s, d) => s + Number(d.indentQty || 0), 0))}</td>
                         <td>
-                          <span className={`inv-badge ${indent.status === 'Open' ? 'inv-badge-yes' : 'inv-badge-no'}`}>
-                            {indent.status}
+                          <span className={`inv-badge ${
+                            indent.displayStatus === 'Closed' ? 'inv-badge-no' : 
+                            indent.displayStatus === 'Partial' ? 'inv-badge-warning' : 'inv-badge-yes'
+                          }`}>
+                            {indent.displayStatus || indent.status}
                           </span>
                         </td>
                         <td className="inv-actions-cell">
@@ -571,20 +662,22 @@ export default function PurchaseIndentPage() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button 
+            ref={viewListButtonRef}
             className="inv-btn-secondary" 
             onClick={() => {
               setFormError("");
               setView("list");
             }}
-            tabIndex={100}
+            tabIndex={viewListTabIndex}
           >
             View List
           </button>
           <button 
+            ref={saveButtonRef}
             className="inv-btn-primary" 
             onClick={handleSave} 
             disabled={saving}
-            tabIndex={101}
+            tabIndex={saveTabIndex}
           >
             {saving ? "Saving..." : "Save Indent"}
           </button>
@@ -617,10 +710,35 @@ export default function PurchaseIndentPage() {
                   onChange={e => {
                     const selectedDate = e.target.value;
                     const minDate = "2026-05-01";
-                    if (selectedDate < minDate) {
+                    
+                    // Only validate if the date is complete (10 characters) and year is valid
+                    const isDateComplete = selectedDate && selectedDate.length === 10;
+                    const year = parseInt(selectedDate?.substring(0, 4));
+                    const isValidYear = year >= 2000;
+                    
+                    if (isDateComplete && isValidYear && selectedDate < minDate) {
                       setHeader(h => ({ ...h, indentDate: minDate, indentDateError: "Past dates are not allowed." }));
-                    } else {
+                    } else if (isDateComplete && isValidYear) {
                       setHeader(h => ({ ...h, indentDate: selectedDate, indentDateError: "" }));
+                    } else {
+                      // Incomplete date or invalid year - store without validation
+                      setHeader(h => ({ ...h, indentDate: selectedDate, indentDateError: "" }));
+                    }
+                  }}
+                  onBlur={() => {
+                    const currentDate = header.indentDate;
+                    const minDate = "2026-05-01";
+                    
+                    if (currentDate && currentDate.length === 10) {
+                      const year = parseInt(currentDate.substring(0, 4));
+                      if (year >= 2000 && currentDate < minDate) {
+                        setHeader(h => ({ 
+                          ...h, 
+                          indentDate: minDate, 
+                          indentDateError: "Past dates are not allowed." 
+                        }));
+                        setTimeout(() => setHeader(h => ({ ...h, indentDateError: "" })), 3000);
+                      }
                     }
                   }}
                 />
@@ -632,28 +750,63 @@ export default function PurchaseIndentPage() {
               </Field>
 
               <Field label="Due Date *">
-                <input 
-                  className="inv-input"
-                  tabIndex={2}
-                  type="date"  
-                  min="2026-05-01"
-                  value={header.dueDate || getTodayDate()}
-                  onChange={e => {
-                    const selectedDate = e.target.value;
-                    const minDate = "2026-05-01";
-                    if (selectedDate < minDate) {
-                      setHeader(h => ({ ...h, dueDate: minDate, dueDateError: "Past dates are not allowed." }));
-                    } else {
-                      setHeader(h => ({ ...h, dueDate: selectedDate, dueDateError: "" }));
-                      syncDueDateToAllRows(selectedDate);
-                    }
-                  }}
-                />
-                {header.dueDateError && (
-                  <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
-                    ⚠️ {header.dueDateError}
-                  </div>
-                )}
+  <input 
+    className="inv-input"
+    tabIndex={2}
+    type="date"  
+    min="2026-05-01"
+    value={header.dueDate || getTodayDate()}
+    onChange={e => {
+      const selectedDate = e.target.value;
+      const minDate = "2026-05-01";
+      
+      // Only validate if the date is complete (10 characters) and year is valid
+      const isDateComplete = selectedDate && selectedDate.length === 10;
+      const year = parseInt(selectedDate?.substring(0, 4));
+      const isValidYear = year >= 2000;
+      
+      if (isDateComplete && isValidYear && selectedDate < minDate) {
+        setHeader(h => ({ ...h, dueDate: minDate, dueDateError: "Past dates are not allowed." }));
+      } else if (isDateComplete && isValidYear) {
+        setHeader(h => ({ ...h, dueDate: selectedDate, dueDateError: "" }));
+        syncDueDateToAllRows(selectedDate);
+      } else {
+        // Incomplete date or invalid year - store without validation
+        setHeader(h => ({ ...h, dueDate: selectedDate, dueDateError: "" }));
+      }
+    }}
+    onBlur={() => {
+      const currentDate = header.dueDate;
+      const minDate = "2026-05-01";
+      const indentDate = header.indentDate;
+      
+      if (currentDate && currentDate.length === 10) {
+        const year = parseInt(currentDate.substring(0, 4));
+        if (year >= 2000 && currentDate < minDate) {
+          setHeader(h => ({ 
+            ...h, 
+            dueDate: minDate, 
+            dueDateError: "Past dates are not allowed." 
+          }));
+          syncDueDateToAllRows(minDate);
+          setTimeout(() => setHeader(h => ({ ...h, dueDateError: "" })), 3000);
+        } else if (year >= 2000 && indentDate && currentDate < indentDate) {
+          setHeader(h => ({ 
+            ...h, 
+            dueDate: indentDate, 
+            dueDateError: "Due date cannot be earlier than Indent date" 
+          }));
+          syncDueDateToAllRows(indentDate);
+          setTimeout(() => setHeader(h => ({ ...h, dueDateError: "" })), 3000);
+        }
+      }
+    }}
+  />
+  {header.dueDateError && (
+    <div style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
+      ⚠️ {header.dueDateError}
+    </div>
+  )}
               </Field>
 
               <Field label="Department *">
@@ -696,9 +849,10 @@ export default function PurchaseIndentPage() {
           <div className="inv-card-body" style={{ minHeight: "400px", padding: 0 }}>
             <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "16px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
               <button 
+                ref={addButtonRef}
                 className="inv-btn-primary inv-btn-sm" 
                 onClick={addRow}
-                tabIndex={99}
+                tabIndex={addButtonTabIndex}
                 style={{ borderRadius: 4 }}
               >
                 + Add Row
@@ -721,25 +875,19 @@ export default function PurchaseIndentPage() {
                 </thead>
                 <tbody>
                   {displayDetails.map((row, idx) => {
-                    // ✅ Category filter: based ONLY on Head
                     const filteredCategories = row.headId ? (categories[sid(row.headId)] || []) : [];
                     
-                    // ✅ Get the selected category name for item matching
                     const selectedCategory = row.mainCategoryId 
                       ? allCategoriesFlat.find(c => sid(c) === sid(row.mainCategoryId))
                       : null;
                     const selectedCategoryName = selectedCategory?.groupName || selectedCategory?.name || "";
                     
-                    // ✅ FIXED: Item filter based on Head ID AND Category Name (using 'group' field)
                     const filteredItems = (row.mainCategoryId && row.headId && selectedCategoryName)
                       ? items.filter(it => {
-                          // Items have: headId (ID), group (Category Name)
                           return sid(it.headId) === sid(row.headId) && 
                                 (it.group === selectedCategoryName || it.categoryName === selectedCategoryName);
                         })
                       : [];
-                    
-                    const baseTab = 5 + (idx * 8);
                     
                     return (
                       <tr key={row._rowId}>
@@ -748,7 +896,9 @@ export default function PurchaseIndentPage() {
                         {/* Head - SearchSelect */}
                         <td style={{ minWidth: "220px" }}>
                           <SearchSelect
-                            tabIndex={baseTab}
+                            data-row={idx}
+                            data-field="head"
+                            tabIndex={getTabIndex(idx, 0, totalRows)}
                             className="inv-input-cell"
                             style={{ width: "100%" }}
                             value={row.headId || ""}
@@ -756,7 +906,6 @@ export default function PurchaseIndentPage() {
                               const selectedHead = heads.find(h => sid(h) === val);
                               updateDetail(idx, "headId", val);
                               updateDetail(idx, "headName", selectedHead?.headName || "");
-                              // Clear dependent fields when head changes
                               updateDetail(idx, "mainCategoryId", "");
                               updateDetail(idx, "mainCategoryName", "");
                               updateDetail(idx, "itemId", "");
@@ -775,7 +924,9 @@ export default function PurchaseIndentPage() {
                         {/* Category - SearchSelect */}
                         <td style={{ minWidth: "220px" }}>
                           <SearchSelect
-                            tabIndex={baseTab + 1}
+                            data-row={idx}
+                            data-field="category"
+                            tabIndex={getTabIndex(idx, 1, totalRows)}
                             className="inv-input-cell"
                             style={{ width: "100%" }}
                             value={row.mainCategoryId || ""}
@@ -783,7 +934,6 @@ export default function PurchaseIndentPage() {
                               const selectedCategory = filteredCategories.find(c => sid(c) === val);
                               updateDetail(idx, "mainCategoryId", val);
                               updateDetail(idx, "mainCategoryName", selectedCategory?.groupName || selectedCategory?.name || "");
-                              // Clear item when category changes
                               updateDetail(idx, "itemId", "");
                               updateDetail(idx, "itemName", "");
                               updateDetail(idx, "uom", "");
@@ -798,10 +948,12 @@ export default function PurchaseIndentPage() {
                           />
                         </td>
                         
-                        {/* Item Description - SearchSelect - FIXED: matches using Head ID + Category Name */}
+                        {/* Item Description - SearchSelect */}
                         <td style={{ minWidth: "250px" }}>
                           <SearchSelect
-                            tabIndex={baseTab + 2}
+                            data-row={idx}
+                            data-field="item"
+                            tabIndex={getTabIndex(idx, 2, totalRows)}
                             className="inv-input-cell"
                             style={{ width: "100%" }}
                             value={row.itemId || ""}
@@ -828,7 +980,7 @@ export default function PurchaseIndentPage() {
                             value={row.uom} 
                             readOnly 
                             style={{ textAlign: "center" }}
-                            tabIndex={baseTab + 3}
+                            tabIndex={getTabIndex(idx, 3, totalRows)}
                           />
                         </td>
                         
@@ -842,7 +994,7 @@ export default function PurchaseIndentPage() {
                             onChange={e => updateDetail(idx, "indentQty", e.target.value)} 
                             onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value || 0).toFixed(3))} 
                             style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} 
-                            tabIndex={baseTab + 4}
+                            tabIndex={getTabIndex(idx, 4, totalRows)}
                           />
                         </td>
                         
@@ -853,8 +1005,16 @@ export default function PurchaseIndentPage() {
                             type="date" 
                             min={getTodayDate()}  
                             value={row.dueDate || header.dueDate}
-                            onChange={e => updateDetail(idx, "dueDate", e.target.value)}
-                            tabIndex={baseTab + 5}
+                            onChange={e => {
+                              const newDate = e.target.value;
+                              // Update the specific row
+                              updateDetail(idx, "dueDate", newDate);
+                              // ALSO update the header to match this row's due date
+                              setHeader(prev => ({ ...prev, dueDate: newDate }));
+                              // Sync all other rows to this date as well (optional - if you want all rows to match)
+                              syncDueDateToAllRows(newDate);
+                            }}
+                            tabIndex={getTabIndex(idx, 5, totalRows)}
                           />
                         </td>
                         
@@ -865,7 +1025,7 @@ export default function PurchaseIndentPage() {
                             value={row.remarks} 
                             onChange={e => updateDetail(idx, "remarks", e.target.value)} 
                             placeholder="Notes..." 
-                            tabIndex={baseTab + 6}
+                            tabIndex={getTabIndex(idx, 6, totalRows)}
                           />
                         </td>
                         
@@ -875,7 +1035,7 @@ export default function PurchaseIndentPage() {
                             className="inv-btn-icon inv-btn-danger" 
                             onClick={() => removeRow(idx)} 
                             style={{ border: "none", background: "transparent", cursor: "pointer", color: "#ef4444", padding: "4px" }}
-                            tabIndex={baseTab + 7}
+                            tabIndex={getTabIndex(idx, 7, totalRows)}
                           >
                             ✕
                           </button>
@@ -959,4 +1119,4 @@ export default function PurchaseIndentPage() {
       )}
     </div>
   );
-} 
+}

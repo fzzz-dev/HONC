@@ -4,7 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const API = "http://192.168.1.100:5173/api";
+const API = "http://localhost:5173/api";
 
 // Helper function to get today's date in YYYY-MM-DD format
 const getTodayDate = () => {
@@ -49,6 +49,7 @@ const reportAPI = {
     return data;
   }
 };
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function PurchaseGrnReportPage() {
   const { user } = useAuth();
@@ -70,57 +71,59 @@ export default function PurchaseGrnReportPage() {
   const [suppliers, setSuppliers] = useState([]);
   const [filtersApplied, setFiltersApplied] = useState(false);
 
+  // Fetch suppliers on mount
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const result = await reportAPI.getSuppliers();
+        if (result.success) {
+          const sortedSuppliers = [...result.data].sort((a, b) => 
+            a.localeCompare(b, 'en', { sensitivity: 'base' })
+          );
+          setSuppliers(sortedSuppliers);
+        }
+      } catch (err) {
+        console.error("Error fetching suppliers:", err);
+      }
+    };
+    fetchSuppliers();
+  }, []);
+
   // Fetch report data
   const fetchReport = useCallback(async (skipLoading = false) => {
-  if (!skipLoading) setLoading(true);
-  setError(null);
-  try {
-    const params = {};
-    if (fromDate) params.fromDate = fromDate;
-    if (toDate) params.toDate = toDate;
-    if (searchTerm) params.searchTerm = searchTerm;
-    if (searchGRNNo) params.searchGRNNo = searchGRNNo;
-    if (selectedSupplier) params.supplier = selectedSupplier;
-    if (searchPONo) params.poNo = searchPONo;
-    
-    console.log("Fetching with params:", params);
-    const result = await reportAPI.getReport(params);
-    if (result.success) {
-      setReportData(result.data || []);
-      // Don't overwrite suppliers here - they are already loaded separately
-      setFiltersApplied(true);
-    } else {
-      setError(result.message || "Failed to fetch report");
+    if (!skipLoading) setLoading(true);
+    setError(null);
+    try {
+      const params = {};
+      if (fromDate) params.fromDate = fromDate;
+      if (toDate) params.toDate = toDate;
+      if (searchTerm) params.searchTerm = searchTerm;
+      if (searchGRNNo) params.searchGRNNo = searchGRNNo;
+      if (selectedSupplier) params.supplier = selectedSupplier;
+      if (searchPONo) params.poNo = searchPONo;
+      
+      console.log("Fetching with params:", params);
+      const result = await reportAPI.getReport(params);
+      if (result.success) {
+        setReportData(result.data || []);
+        setFiltersApplied(true);
+      } else {
+        setError(result.message || "Failed to fetch report");
+        setFiltersApplied(false);
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(err.message);
       setFiltersApplied(false);
+    } finally {
+      if (!skipLoading) setLoading(false);
     }
-  } catch (err) {
-    console.error("Fetch error:", err);
-    setError(err.message);
-    setFiltersApplied(false);
-  } finally {
-    if (!skipLoading) setLoading(false);
-  }
-}, [fromDate, toDate, searchTerm, searchGRNNo, selectedSupplier, searchPONo]);
+  }, [fromDate, toDate, searchTerm, searchGRNNo, selectedSupplier, searchPONo]);
 
-  // Auto-fetch on component mount with today's date filters
+  // Auto-fetch on component mount
   useEffect(() => {
     fetchReport();
   }, []);
-
-  // Add this useEffect after your other useEffects
-useEffect(() => {
-  const fetchSuppliers = async () => {
-    try {
-      const result = await reportAPI.getSuppliers();
-      if (result.success) {
-        setSuppliers(result.data);
-      }
-    } catch (err) {
-      console.error("Error fetching suppliers:", err);
-    }
-  };
-  fetchSuppliers();
-}, []);
 
   // Toggle expand/collapse for GRN row
   const toggleExpand = (grnNo) => {
@@ -141,25 +144,32 @@ useEffect(() => {
   
   // Handle Result button click
   const handleResult = () => {
+    // Validate dates
+    if (fromDate && toDate) {
+      if (new Date(fromDate) > new Date(toDate)) {
+        setError("From Date cannot be greater than To Date");
+        return;
+      }
+    }
+    setError(null);
     setLoading(true);
     fetchReport();
   };
   
   // Handle Reset button click
   const handleReset = () => {
-  setFromDate(getTodayDate()); // Reset to today's date
-  setToDate(getTodayDate());   // Reset to today's date
-  setSearchTerm("");
-  setSearchGRNNo("");
-  setSelectedSupplier("");
-  setSearchPONo("");
-  // Fetch with reset filters after state updates
-  setTimeout(() => {
-    fetchReport();
-  }, 0);
-};
+    setFromDate(getTodayDate());
+    setToDate(getTodayDate());
+    setSearchTerm("");
+    setSearchGRNNo("");
+    setSelectedSupplier("");
+    setSearchPONo("");
+    setTimeout(() => {
+      fetchReport();
+    }, 0);
+  };
   
-  // Group data by GRN Number and sort with new ones first (by date descending)
+  // Group data by GRN Number
   const groupedData = useMemo(() => {
     const groups = {};
     reportData.forEach(item => {
@@ -197,18 +207,15 @@ useEffect(() => {
       groups[grnNo].totalItems += 1;
     });
     
-    // Convert to array and sort by date (newest first)
     return Object.values(groups).sort((a, b) => {
-      // Handle null/undefined dates
       if (!a.grnDate && !b.grnDate) return 0;
       if (!a.grnDate) return 1;
       if (!b.grnDate) return -1;
-      // Sort descending (newest first)
       return new Date(b.grnDate) - new Date(a.grnDate);
     });
   }, [reportData]);
 
-  // Keyboard navigation
+  // Keyboard navigation for Arrow keys on table rows ONLY
   useEffect(() => {
     const handleKeyNavigation = (e) => {
       const mainRows = document.querySelectorAll('.grn-main-row');
@@ -238,43 +245,43 @@ useEffect(() => {
     return () => document.removeEventListener('keydown', handleKeyNavigation);
   }, [groupedData]);
 
-  // Tab index navigation for filters
-  useEffect(() => {
-    const handleTabKey = (e) => {
-      if (e.key !== 'Tab') return;
-      
-      const focusableElements = Array.from(
-        document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
-      ).filter(el => {
-        const tabIndex = parseInt(el.getAttribute('tabIndex'));
-        return !isNaN(tabIndex) && tabIndex >= 1 && el.offsetParent !== null && !el.disabled;
-      }).sort((a, b) => {
-        const tabA = parseInt(a.getAttribute('tabIndex'));
-        const tabB = parseInt(b.getAttribute('tabIndex'));
-        return tabA - tabB;
-      });
-      
-      if (focusableElements.length === 0) return;
-      
-      const currentElement = document.activeElement;
-      const currentIndex = focusableElements.indexOf(currentElement);
-      
-      if (!e.shiftKey) {
-        if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
-          e.preventDefault();
-          focusableElements[0]?.focus();
-        }
-      } else {
-        if (currentIndex === 0 || currentIndex === -1) {
-          e.preventDefault();
-          focusableElements[focusableElements.length - 1]?.focus();
-        }
-      }
-    };
+  // Tab index navigation - ONLY for filters and buttons (tabIndex 1-9), excludes table rows
+useEffect(() => {
+  const handleTabKey = (e) => {
+    if (e.key !== 'Tab') return;
     
-    document.addEventListener('keydown', handleTabKey);
-    return () => document.removeEventListener('keydown', handleTabKey);
-  }, []);
+    const focusableElements = Array.from(
+      document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
+    ).filter(el => {
+      const tabIndex = parseInt(el.getAttribute('tabIndex'));
+      return !isNaN(tabIndex) && tabIndex >= 1 && tabIndex <= 9 && el.offsetParent !== null && !el.disabled;
+    }).sort((a, b) => {
+      const tabA = parseInt(a.getAttribute('tabIndex'));
+      const tabB = parseInt(b.getAttribute('tabIndex'));
+      return tabA - tabB;
+    });
+    
+    if (focusableElements.length === 0) return;
+    
+    const currentElement = document.activeElement;
+    const currentIndex = focusableElements.indexOf(currentElement);
+    
+    if (!e.shiftKey) {
+      if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
+        e.preventDefault();
+        focusableElements[0]?.focus();
+      }
+    } else {
+      if (currentIndex === 0 || currentIndex === -1) {
+        e.preventDefault();
+        focusableElements[focusableElements.length - 1]?.focus();
+      }
+    }
+  };
+  
+  document.addEventListener('keydown', handleTabKey);
+  return () => document.removeEventListener('keydown', handleTabKey);
+}, []);
 
   return (
     <div className="inv-page">
@@ -284,7 +291,7 @@ useEffect(() => {
           <p className="inv-page-sub">View and analyze Goods Receipt Notes</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-primary" onClick={handleExport}>
+          <button className="inv-btn-primary" onClick={handleExport} tabIndex={9}>
             Export to Excel
           </button>
         </div>
@@ -301,9 +308,18 @@ useEffect(() => {
                 className="inv-input"
                 tabIndex={1}
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={(e) => {
+                  const newFromDate = e.target.value;
+                  if (toDate && newFromDate > toDate) {
+                    setError("From Date cannot be greater than To Date");
+                  } else {
+                    setError(null);
+                    setFromDate(newFromDate);
+                  }
+                }}
               />
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">To Date</label>
               <input
@@ -311,9 +327,18 @@ useEffect(() => {
                 className="inv-input"
                 tabIndex={2}
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
+                onChange={(e) => {
+                  const newToDate = e.target.value;
+                  if (fromDate && fromDate > newToDate) {
+                    setError("To Date cannot be less than From Date");
+                  } else {
+                    setError(null);
+                    setToDate(newToDate);
+                  }
+                }}
               />
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">Search GRN No</label>
               <input
@@ -325,6 +350,7 @@ useEffect(() => {
                 onChange={(e) => setSearchGRNNo(e.target.value)}
               />
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">Search PO No</label>
               <input
@@ -336,6 +362,7 @@ useEffect(() => {
                 onChange={(e) => setSearchPONo(e.target.value)}
               />
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">Search Item/Indent</label>
               <input
@@ -347,9 +374,15 @@ useEffect(() => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            
             <div className="inv-field">
               <label className="inv-label">Supplier</label>
-              <select className="inv-input" tabIndex={6} value={selectedSupplier} onChange={(e) => setSelectedSupplier(e.target.value)}>
+              <select 
+                className="inv-input" 
+                tabIndex={6} 
+                value={selectedSupplier} 
+                onChange={(e) => setSelectedSupplier(e.target.value)}
+              >
                 <option value="">All Suppliers</option>
                 {suppliers.map(sup => (
                   <option key={sup} value={sup}>{sup}</option>
@@ -364,7 +397,7 @@ useEffect(() => {
               Reset
             </button>
             <button className="inv-btn-primary" onClick={handleResult} tabIndex={8} style={{ minWidth: 50 }}>
-               Result
+              Result
             </button>
           </div>
         </div>
@@ -412,13 +445,13 @@ useEffect(() => {
                             toggleExpand(grn.grnNo);
                           }
                         }}
-                        tabIndex={10 + index}
+                        tabIndex={0}
                       >
                         <td style={{ textAlign: "center" }}>
                           <span style={{ fontSize: 12 }}>
                             {isExpanded ? "▼" : "▶"}
                           </span>
-                         </td>
+                        </td>
                         <td style={{ fontWeight: 600, color: "#3b6ef8" }}>{grn.grnNo}</td>
                         <td>{grn.grnDate || "—"}</td>
                         <td>{grn.supplierName || "—"}</td>
@@ -427,7 +460,7 @@ useEffect(() => {
                         <td style={{ textAlign: "right", fontWeight: 500 }}>{fmtQty(grn.totalQty)}</td>
                         <td style={{ textAlign: "right", fontWeight: 500, color: "#7c3aed" }}>{fmt(grn.totalGST)}</td>
                         <td style={{ textAlign: "right", fontWeight: 500, color: "#10b981" }}>{fmt(grn.totalAmount)}</td>
-                       </tr>
+                      </tr>
                       
                       {/* Expanded Items Row */}
                       {isExpanded && (
@@ -456,7 +489,7 @@ useEffect(() => {
                                   <th style={{ width: "8%", padding: "8px 12px", textAlign: "center" }}>Disc %</th>
                                   <th style={{ width: "10%", padding: "8px 12px", textAlign: "right" }}>GST</th>
                                   <th style={{ width: "12%", padding: "8px 12px", textAlign: "right" }}>Total Amount</th>
-                                 </tr>
+                                </tr>
                               </thead>
                               <tbody>
                                 {grn.items.map((item, idx) => (
@@ -478,7 +511,7 @@ useEffect(() => {
                                     <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "center", verticalAlign: "top" }}>{item.discPct || 0}%</td>
                                     <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top" }}>{fmt(item.totGst)}</td>
                                     <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top", fontWeight: 600, color: "#10b981" }}>{fmt(item.totalAmount)}</td>
-                                   </tr>
+                                  </tr>
                                 ))}
                               </tbody>
                               <tfoot>
@@ -488,7 +521,7 @@ useEffect(() => {
                                   <td colSpan={3}></td>
                                   <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmt(grn.totalGST)}</td>
                                   <td style={{ padding: "10px 12px", textAlign: "right", color: "#10b981" }}>{fmt(grn.totalAmount)}</td>
-                                 </tr>
+                                </tr>
                               </tfoot>
                             </table>
                           </td>

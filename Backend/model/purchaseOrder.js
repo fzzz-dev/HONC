@@ -13,13 +13,14 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
     unique: true,
   },
   date: {
-    type: DataTypes.STRING,
+    type: DataTypes.DATEONLY,
     allowNull: false,
+    defaultValue: DataTypes.NOW,  // ← KEY FIX
   },
-  // In your PurchaseOrder model
   deliveryDate: {
     type: DataTypes.DATEONLY,
-    allowNull: true, 
+    allowNull: false,
+    defaultValue: DataTypes.NOW,  // ← KEY FIX
   },
   purchaseIndentId: {
     type: DataTypes.INTEGER,

@@ -35,50 +35,78 @@ export default function POLevel1Pending() {
 
   // Fetch data
   const fetchData = async () => {
-  setLoading(true);
-  setError(null);
-  try {
-    let response;
-    if (showApproved) {
-      response = await purchaseOrderApi.getAll();
-      const data = response?.data || response || [];
-      const filtered = data.filter(po => po.level1Approved === "Yes");
-      
-      const grouped = {};
-      filtered.forEach(po => {
-        let totalQty = 0;
-        const items = [];
+    setLoading(true);
+    setError(null);
+    try {
+      let response;
+      if (showApproved) {
+        response = await purchaseOrderApi.getAll();
+        const data = response?.data || response || [];
+        const filtered = data.filter(po => po.level1Approved === "Yes");
         
-        if (po.details && Array.isArray(po.details)) {
-          po.details.forEach(item => {
-            totalQty += Number(item.poQty) || 0;
-            items.push({
-              indentNo: item.indentNo,
-              itemId: item.itemId,
-              itemName: item.itemName,
-              uom: item.uom,
-              poQty: item.poQty,
-              poRate: item.poRate,
-              poAmount: item.poAmount,
-              discPrice: item.discPrice,
-              totGst: item.totGst,
-              gstPct: item.gstPct,
-              sgst: item.sgst,
-              cgst: item.cgst,
-              igst: item.igst,
-              totalAmount: Number(item.totalAmount) || 0
+        const grouped = {};
+        filtered.forEach(po => {
+          let totalQty = 0;
+          const items = [];
+          
+          if (po.details && Array.isArray(po.details)) {
+            po.details.forEach(item => {
+              totalQty += Number(item.poQty) || 0;
+              items.push({
+                indentNo: item.indentNo,
+                itemId: item.itemId,
+                itemName: item.itemName,
+                uom: item.uom,
+                poQty: item.poQty,
+                poRate: item.poRate,
+                poAmount: item.poAmount,
+                discPrice: item.discPrice,
+                totGst: item.totGst,
+                gstPct: item.gstPct,
+                sgst: item.sgst,
+                cgst: item.cgst,
+                igst: item.igst,
+                totalAmount: Number(item.totalAmount) || 0
+              });
             });
-          });
-        }
+          }
+          
+          grouped[po.id] = {
+            id: po.id,
+            poNo: po.poNo,
+            poDate: po.date,
+            supplier: po.supplierName,
+            supplierId: po.supplierId,
+            deliveryDate: po.deliveryDate,
+            poType: po.poType,
+            transportCharges: Number(po.transportCharges) || 0,
+            totalAmount: Number(po.totalAmount) || 0,
+            level1Approved: po.level1Approved,
+            level1ApprovedBy: po.level1ApprovedBy,
+            level1ApprovedDate: po.level1ApprovedDate,
+            level2Approved: po.level2Approved,
+            level2ApprovedBy: po.level2ApprovedBy,
+            level2ApprovedDate: po.level2ApprovedDate,
+            totalQty: totalQty,
+            totalItems: po.details?.length || 0,
+            items: items,
+            gstType: po.gstType || "local"
+          };
+        });
+        const sortedData = Object.values(grouped).sort((a, b) => new Date(b.poDate) - new Date(a.poDate));
+        setReportData(sortedData);
+      } else {
+        response = await purchaseOrderApi.getLevel1Pending();
+        const data = response?.data || response || [];
         
-        grouped[po.id] = {
+        const grouped = data.map(po => ({
           id: po.id,
-          poNo: po.poNo,
-          poDate: po.date,
-          supplier: po.supplierName,
+          poNo: po.ponumber,
+          poDate: po.podate,
+          supplier: po.supplier,
           supplierId: po.supplierId,
-          deliveryDate: po.deliveryDate,
-          poType: po.poType,
+          deliveryDate: po.deliverydate,
+          poType: po.potype,
           transportCharges: Number(po.transportCharges) || 0,
           totalAmount: Number(po.totalAmount) || 0,
           level1Approved: po.level1Approved,
@@ -87,66 +115,36 @@ export default function POLevel1Pending() {
           level2Approved: po.level2Approved,
           level2ApprovedBy: po.level2ApprovedBy,
           level2ApprovedDate: po.level2ApprovedDate,
-          totalQty: totalQty,
-          totalItems: po.details?.length || 0,
-          items: items,
+          totalQty: po.items?.reduce((sum, item) => sum + (Number(item.poQty) || 0), 0) || 0,
+          totalItems: po.items?.length || 0,
+          items: (po.items || []).map(item => ({
+            indentNo: item.indentNo,
+            itemId: item.itemId,
+            itemName: item.itemName,
+            uom: item.uom,
+            poQty: item.poQty,
+            poRate: item.poRate,
+            poAmount: item.poAmount,
+            discPrice: item.discPrice,
+            totGst: item.totGst,
+            gstPct: item.gstPct,
+            sgst: item.sgst,
+            cgst: item.cgst,
+            igst: item.igst,
+            totalAmount: Number(item.totalAmount) || 0
+          })),
           gstType: po.gstType || "local"
-        };
-      });
-      // ✅ Sort approved list - newest first
-      const sortedData = Object.values(grouped).sort((a, b) => new Date(b.poDate) - new Date(a.poDate));
-      setReportData(sortedData);
-    } else {
-      response = await purchaseOrderApi.getLevel1Pending();
-      const data = response?.data || response || [];
-      
-      const grouped = data.map(po => ({
-        id: po.id,
-        poNo: po.ponumber,
-        poDate: po.podate,
-        supplier: po.supplier,
-        supplierId: po.supplierId,
-        deliveryDate: po.deliverydate,
-        poType: po.potype,
-        transportCharges: Number(po.transportCharges) || 0,
-        totalAmount: Number(po.totalAmount) || 0,
-        level1Approved: po.level1Approved,
-        level1ApprovedBy: po.level1ApprovedBy,
-        level1ApprovedDate: po.level1ApprovedDate,
-        level2Approved: po.level2Approved,
-        level2ApprovedBy: po.level2ApprovedBy,
-        level2ApprovedDate: po.level2ApprovedDate,
-        totalQty: po.items?.reduce((sum, item) => sum + (Number(item.poQty) || 0), 0) || 0,
-        totalItems: po.items?.length || 0,
-        items: (po.items || []).map(item => ({
-          indentNo: item.indentNo,
-          itemId: item.itemId,
-          itemName: item.itemName,
-          uom: item.uom,
-          poQty: item.poQty,
-          poRate: item.poRate,
-          poAmount: item.poAmount,
-          discPrice: item.discPrice,
-          totGst: item.totGst,
-          gstPct: item.gstPct,
-          sgst: item.sgst,
-          cgst: item.cgst,
-          igst: item.igst,
-          totalAmount: Number(item.totalAmount) || 0
-        })),
-        gstType: po.gstType || "local"
-      }));
-      // ✅ Sort pending list - newest first
-      const sortedData = grouped.sort((a, b) => new Date(b.poDate) - new Date(a.poDate));
-      setReportData(sortedData);
+        }));
+        const sortedData = grouped.sort((a, b) => new Date(b.poDate) - new Date(a.poDate));
+        setReportData(sortedData);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error(err);
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
     fetchData();
@@ -272,6 +270,74 @@ export default function POLevel1Pending() {
     });
   }, [reportData, searchTerm]);
 
+  // Keyboard navigation for Arrow keys on table rows ONLY
+  useEffect(() => {
+    const handleKeyNavigation = (e) => {
+      const mainRows = document.querySelectorAll('.po-main-row');
+      const currentElement = document.activeElement;
+      const currentIndex = Array.from(mainRows).indexOf(currentElement);
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (currentIndex < mainRows.length - 1) {
+          mainRows[currentIndex + 1].focus();
+        } else {
+          mainRows[0].focus();
+        }
+      }
+      
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (currentIndex > 0) {
+          mainRows[currentIndex - 1].focus();
+        } else {
+          mainRows[mainRows.length - 1].focus();
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyNavigation);
+    return () => document.removeEventListener('keydown', handleKeyNavigation);
+  }, [filteredData]);
+
+  // Tab index navigation - ONLY for filters and buttons (tabIndex 1-5), excludes table rows
+  useEffect(() => {
+    const handleTabKey = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = Array.from(
+        document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
+      ).filter(el => {
+        const tabIndex = parseInt(el.getAttribute('tabIndex'));
+        return !isNaN(tabIndex) && tabIndex >= 1 && tabIndex <= 5 && el.offsetParent !== null && !el.disabled;
+      }).sort((a, b) => {
+        const tabA = parseInt(a.getAttribute('tabIndex'));
+        const tabB = parseInt(b.getAttribute('tabIndex'));
+        return tabA - tabB;
+      });
+      
+      if (focusableElements.length === 0) return;
+      
+      const currentElement = document.activeElement;
+      const currentIndex = focusableElements.indexOf(currentElement);
+      
+      if (!e.shiftKey) {
+        if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[0]?.focus();
+        }
+      } else {
+        if (currentIndex === 0 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[focusableElements.length - 1]?.focus();
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleTabKey);
+    return () => document.removeEventListener('keydown', handleTabKey);
+  }, []);
+
   return (
     <div className="inv-page">
       <div className="inv-page-header">
@@ -280,7 +346,9 @@ export default function POLevel1Pending() {
           <p>{showApproved ? "View fully approved POs" : "Final approval after Level 2 is complete"}</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-secondary" onClick={() => navigate("/purchase-order")}>← Back</button>
+          <button className="inv-btn-secondary" onClick={() => navigate("/purchase-order")} tabIndex={5}>
+            ← Back
+          </button>
         </div>
       </div>
 
@@ -300,6 +368,7 @@ export default function POLevel1Pending() {
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <button
               onClick={() => setShowApproved(false)}
+              tabIndex={1}
               style={{
                 padding: "8px 20px",
                 borderRadius: "6px",
@@ -314,6 +383,7 @@ export default function POLevel1Pending() {
             </button>
             <button
               onClick={() => setShowApproved(true)}
+              tabIndex={2}
               style={{
                 padding: "8px 20px",
                 borderRadius: "6px",
@@ -343,6 +413,7 @@ export default function POLevel1Pending() {
             placeholder="Search by PO Number, Indent Number or Item Name..." 
             value={searchTerm} 
             onChange={e => setSearchTerm(e.target.value)} 
+            tabIndex={3}
             style={{ width: "100%", padding: "10px 12px" }}
           />
         </div>
@@ -353,7 +424,7 @@ export default function POLevel1Pending() {
         <div className="inv-card" style={{ marginBottom: 16, background: "#eef2ff", border: "1px solid #3b6ef8" }}>
           <div className="inv-card-body" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>✓ {selectedPOs.size} PO(s) selected for approval</span>
-            <button className="inv-btn-primary" onClick={handleBulkApprove} disabled={bulkApproving}>
+            <button className="inv-btn-primary" onClick={handleBulkApprove} disabled={bulkApproving} tabIndex={4}>
               {bulkApproving ? "Approving..." : `Final Approve (${selectedPOs.size})`}
             </button>
           </div>
@@ -402,12 +473,12 @@ export default function POLevel1Pending() {
                             toggleExpand(po.id);
                           }
                         }}
-                        tabIndex={10 + index}
+                        tabIndex={0}
                       >
                         {!showApproved && (
                           <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
                             <input type="checkbox" checked={selectedPOs.has(po.id)} onChange={() => toggleSelect(po.id)} />
-                           </td>
+                          </td>
                         )}
                         <td style={{ textAlign: "center" }}>
                           <button
