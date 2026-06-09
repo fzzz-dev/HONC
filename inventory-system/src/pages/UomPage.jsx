@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Modal from "../components/Modal";
 import { Field, Input, Toggle } from "../components/FormFields";
 import { uomApi } from "../services/inventoryApi";
@@ -15,6 +15,19 @@ export default function UomPage() {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  
+  // Refs for modal focus trapping
+  const modalRef = useRef(null);
+  const previousActiveElement = useRef(null);
+
+  // Sorted UOMs for display (alphabetical by name)
+  const sortedUoms = useMemo(() => {
+    return [...uoms].sort((a, b) => {
+      const nameA = (a.name || "").toLowerCase();
+      const nameB = (b.name || "").toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }, [uoms]);
 
   // ── Fetch ──────────────────────────────────────────────────────
   const fetchUoms = useCallback(async () => {
@@ -23,7 +36,6 @@ export default function UomPage() {
       setError(null);
       const data = await uomApi.getAll();
       setUoms(data.map((u) => ({ ...u, id: u.id || u._id })));
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -35,8 +47,8 @@ export default function UomPage() {
     fetchUoms();
   }, [fetchUoms]);
 
-  // ── Client-side filter ─────────────────────────────────────────
-  const filtered = uoms.filter((u) =>
+  // ── Client-side filter (using sorted UOMs) ─────────────────────────
+  const filtered = sortedUoms.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase()),
   );
 
@@ -45,6 +57,7 @@ export default function UomPage() {
     setForm({ ...EMPTY });
     setModal({ mode: "add" });
   }
+  
   function openEdit(row) {
     setForm({
       name: row.name,
@@ -85,6 +98,125 @@ export default function UomPage() {
     }
   }
 
+  // Focus on search input when page loads
+  useEffect(() => {
+    setTimeout(() => {
+      const searchInput = document.querySelector('[tabIndex="1"]');
+      if (searchInput) searchInput.focus();
+    }, 100);
+  }, []);
+
+  // Global Tab navigation - ONLY when modal is NOT open
+  useEffect(() => {
+    if (modal || deleteConfirm) return;
+    
+    const handleTabKey = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = Array.from(
+        document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
+      ).filter(el => {
+        const tabIndex = parseInt(el.getAttribute('tabIndex'));
+        return !isNaN(tabIndex) && tabIndex >= 1 && el.offsetParent !== null && !el.disabled;
+      }).sort((a, b) => {
+        const tabA = parseInt(a.getAttribute('tabIndex'));
+        const tabB = parseInt(b.getAttribute('tabIndex'));
+        return tabA - tabB;
+      });
+      
+      if (focusableElements.length === 0) return;
+      
+      const currentElement = document.activeElement;
+      const currentIndex = focusableElements.indexOf(currentElement);
+      
+      if (!e.shiftKey) {
+        if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[0]?.focus();
+        }
+      } else {
+        if (currentIndex === 0 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[focusableElements.length - 1]?.focus();
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleTabKey);
+    return () => document.removeEventListener('keydown', handleTabKey);
+  }, [modal, deleteConfirm]);
+
+  // Modal focus trapping effect
+  useEffect(() => {
+    const isModalOpen = modal || deleteConfirm;
+    
+    if (!isModalOpen) return;
+    
+    previousActiveElement.current = document.activeElement;
+    
+    const getFocusableElements = () => {
+      return Array.from(
+        document.querySelectorAll('.inv-modal button, .inv-modal input, .inv-modal select, .inv-modal textarea, .inv-modal [tabindex]:not([tabindex="-1"])')
+      ).filter(el => {
+        return el.offsetParent !== null && !el.disabled;
+      });
+    };
+    
+    setTimeout(() => {
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length > 0) {
+        focusableElements[0].focus();
+      }
+    }, 50);
+    
+    const handleModalTabKey = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length === 0) return;
+      
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      }
+      else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    };
+    
+    document.addEventListener('keydown', handleModalTabKey);
+    
+    return () => {
+      document.removeEventListener('keydown', handleModalTabKey);
+      if (previousActiveElement.current && previousActiveElement.current.focus) {
+        setTimeout(() => {
+          previousActiveElement.current.focus();
+        }, 50);
+      }
+    };
+  }, [modal, deleteConfirm]);
+
+  // CTRL+S Save Shortcut
+  useEffect(() => {
+    const listener = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (modal && !saving) {
+          handleSave();
+        }
+      }
+    };  
+    document.addEventListener("keydown", listener);
+    return () => {
+      document.removeEventListener("keydown", listener);
+    };
+  }, [modal, saving, handleSave]);
+
   // ── Render ────────────────────────────────────────────────────
   return (
     <div className="inv-page">
@@ -95,7 +227,11 @@ export default function UomPage() {
             Define units of measure used across inventory items
           </p>
         </div>
-        <button className="inv-btn-primary" onClick={openAdd}>
+        <button 
+          className="inv-btn-primary" 
+          onClick={openAdd}
+          tabIndex={3}
+        >
           + Add UOM
         </button>
       </div>
@@ -105,9 +241,11 @@ export default function UomPage() {
           <div className="inv-toolbar">
             <input
               className="inv-search"
-              placeholder="Search UOMs..."
+              placeholder="Search UOMs (e.g. kg, pcs, ltr)..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              tabIndex={1}
+              style={{ flex: 1, minWidth: "250px" }}
             />
             <span className="inv-count">
               {filtered.length} record{filtered.length !== 1 ? "s" : ""}
@@ -162,6 +300,7 @@ export default function UomPage() {
                           className="inv-btn-icon"
                           title="Edit"
                           onClick={() => openEdit(row)}
+                          tabIndex={-1}
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -182,6 +321,7 @@ export default function UomPage() {
                           className="inv-btn-icon inv-btn-danger"
                           title="Delete"
                           onClick={() => setDeleteConfirm(row.id)}
+                          tabIndex={-1}
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -211,8 +351,10 @@ export default function UomPage() {
         </div>
       </div>
 
+      {/* Add/Edit Modal */}
       {modal && (
         <Modal
+          ref={modalRef}
           title={modal.mode === "add" ? "Add UOM" : "Edit UOM"}
           onClose={() => setModal(null)}
           onSave={handleSave}
@@ -223,6 +365,7 @@ export default function UomPage() {
               value={form.name}
               onChange={(v) => setForm((f) => ({ ...f, name: v }))}
               placeholder="e.g. kg, pcs, ltr"
+              tabIndex={1}
             />
           </Field>
           <Field label="Description">
@@ -230,6 +373,7 @@ export default function UomPage() {
               value={form.description}
               onChange={(v) => setForm((f) => ({ ...f, description: v }))}
               placeholder="Optional description"
+              tabIndex={2}
             />
           </Field>
           <Field label="Status">
@@ -237,11 +381,13 @@ export default function UomPage() {
               value={form.active}
               onChange={(v) => setForm((f) => ({ ...f, active: v }))}
               label="Active"
+              tabIndex={3}
             />
           </Field>
         </Modal>
       )}
 
+      {/* Delete Confirmation Modal */}
       {deleteConfirm && (
         <Modal
           title="Confirm Delete"

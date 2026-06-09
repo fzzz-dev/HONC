@@ -139,7 +139,7 @@ const calculateIndentStatus = (indent) => {
     setTimeout(() => {
       const firstField = document.querySelector('[tabIndex="1"]');
       if (firstField) {
-        firstField.focus();
+        firstField.focus(); 
       }
     }, 100);
   }, []);

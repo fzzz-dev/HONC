@@ -359,7 +359,11 @@ exports.getPendingPOItems = async (req, res) => {
     console.log("Fetching pending PO items for:", { supplierId, poId });
 
     // Build PO query - show all Open POs, optionally filtered by supplier
-    const query = { status: "Open" };
+     const query = {
+      status: {
+        [Op.in]: ["Open", "Approved", "Partially Received", "Issued", "Completed"]
+      }
+    };
     
     if (supplierId && String(supplierId).trim() !== "") {
       let cleanId = String(supplierId).trim();
@@ -558,4 +562,4 @@ exports.getNextGRNNumber = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to generate GRN number", error: error.message });
   }
-};
+};

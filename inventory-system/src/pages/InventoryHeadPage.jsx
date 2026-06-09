@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Modal from "../components/Modal";
 import { Field, Input, Toggle } from "../components/FormFields";
 import { inventoryHeadApi } from "../services/inventoryApi";
@@ -15,6 +15,10 @@ export default function InventoryHeadPage() {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  
+  // Refs for modal focus trapping
+  const modalRef = useRef(null);
+  const previousActiveElement = useRef(null);
 
   // ── Fetch ──────────────────────────────────────────────────────
   const fetchHeads = useCallback(async () => {
@@ -22,9 +26,7 @@ export default function InventoryHeadPage() {
       setLoading(true);
       setError(null);
       const data = await inventoryHeadApi.getAll();
-      // Normalise: map _id → id for frontend compatibility
       setHeads(data.map((h) => ({ ...h, id: h.id || h._id })));
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -37,15 +39,18 @@ export default function InventoryHeadPage() {
   }, [fetchHeads]);
 
   // ── Filter (client-side) ───────────────────────────────────────
-  const filtered = heads.filter((h) =>
-    h.headName.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = heads
+    .filter((h) =>
+      h.headName.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort((a, b) => a.headName.localeCompare(b.headName)); // Added sorting
 
   // ── Handlers ──────────────────────────────────────────────────
   function openAdd() {
     setForm({ ...EMPTY });
     setModal({ mode: "add" });
   }
+  
   function openEdit(row) {
     setForm({ headName: row.headName, active: row.active });
     setModal({ mode: "edit", id: row.id });
@@ -82,6 +87,117 @@ export default function InventoryHeadPage() {
     }
   }
 
+  // Focus on search input when page loads
+  useEffect(() => {
+    setTimeout(() => {
+      const searchInput = document.querySelector('[tabIndex="1"]');
+      if (searchInput) searchInput.focus();
+    }, 100);
+  }, []);
+
+  // Global Tab navigation - ONLY when modal is NOT open
+  useEffect(() => {
+    // Don't run global tab handler when modal is open
+    if (modal || deleteConfirm) return;
+    
+    const handleTabKey = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = Array.from(
+        document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
+      ).filter(el => {
+        const tabIndex = parseInt(el.getAttribute('tabIndex'));
+        return !isNaN(tabIndex) && tabIndex >= 1 && el.offsetParent !== null && !el.disabled;
+      }).sort((a, b) => {
+        const tabA = parseInt(a.getAttribute('tabIndex'));
+        const tabB = parseInt(b.getAttribute('tabIndex'));
+        return tabA - tabB;
+      });
+      
+      if (focusableElements.length === 0) return;
+      
+      const currentElement = document.activeElement;
+      const currentIndex = focusableElements.indexOf(currentElement);
+      
+      if (!e.shiftKey) {
+        if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[0]?.focus();
+        }
+      } else {
+        if (currentIndex === 0 || currentIndex === -1) {
+          e.preventDefault();
+          focusableElements[focusableElements.length - 1]?.focus();
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleTabKey);
+    return () => document.removeEventListener('keydown', handleTabKey);
+  }, [modal, deleteConfirm]);
+
+  // Modal focus trapping effect
+  useEffect(() => {
+    // Check if any modal is open
+    const isModalOpen = modal || deleteConfirm;
+    
+    if (!isModalOpen) return;
+    
+    // Store the element that had focus before modal opened
+    previousActiveElement.current = document.activeElement;
+    
+    // Find all focusable elements inside modal
+    const getFocusableElements = () => {
+      return Array.from(
+        document.querySelectorAll('.inv-modal button, .inv-modal input, .inv-modal select, .inv-modal textarea, .inv-modal [tabindex]:not([tabindex="-1"])')
+      ).filter(el => {
+        return el.offsetParent !== null && !el.disabled;
+      });
+    };
+    
+    // Focus on the first focusable element in modal
+    setTimeout(() => {
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length > 0) {
+        focusableElements[0].focus();
+      }
+    }, 50);
+    
+    // Handle tab trapping inside modal
+    const handleModalTabKey = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length === 0) return;
+      
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      
+      // If Shift+Tab on first element, go to last
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      }
+      // If Tab on last element, go to first
+      else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    };
+    
+    document.addEventListener('keydown', handleModalTabKey);
+    
+    return () => {
+      document.removeEventListener('keydown', handleModalTabKey);
+      // Restore focus to previous element when modal closes
+      if (previousActiveElement.current && previousActiveElement.current.focus) {
+        setTimeout(() => {
+          previousActiveElement.current.focus();
+        }, 50);
+      }
+    };
+  }, [modal, deleteConfirm]);
+
   // ── Render ────────────────────────────────────────────────────
   return (
     <div className="inv-page">
@@ -92,7 +208,11 @@ export default function InventoryHeadPage() {
             Define inventory heads and their default fields
           </p>
         </div>
-        <button className="inv-btn-primary" onClick={openAdd}>
+        <button 
+          className="inv-btn-primary" 
+          onClick={openAdd}
+          tabIndex={3}
+        >
           + Add Head
         </button>
       </div>
@@ -105,6 +225,7 @@ export default function InventoryHeadPage() {
               placeholder="Search heads..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              tabIndex={1}
             />
             <span className="inv-count">
               {filtered.length} record{filtered.length !== 1 ? "s" : ""}
@@ -157,6 +278,7 @@ export default function InventoryHeadPage() {
                           className="inv-btn-icon"
                           title="Edit"
                           onClick={() => openEdit(row)}
+                          tabIndex={-1}
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -177,6 +299,7 @@ export default function InventoryHeadPage() {
                           className="inv-btn-icon inv-btn-danger"
                           title="Delete"
                           onClick={() => setDeleteConfirm(row.id)}
+                          tabIndex={-1}
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -206,8 +329,10 @@ export default function InventoryHeadPage() {
         </div>
       </div>
 
+      {/* Add/Edit Modal */}
       {modal && (
         <Modal
+          ref={modalRef}
           title={
             modal.mode === "add" ? "Add Inventory Head" : "Edit Inventory Head"
           }
@@ -220,6 +345,7 @@ export default function InventoryHeadPage() {
               value={form.headName}
               onChange={(v) => setForm((f) => ({ ...f, headName: v }))}
               placeholder="e.g. Raw Materials"
+              tabIndex={1}
             />
           </Field>
           <Field label="Status">
@@ -227,11 +353,13 @@ export default function InventoryHeadPage() {
               value={form.active}
               onChange={(v) => setForm((f) => ({ ...f, active: v }))}
               label="Active"
+              tabIndex={2}
             />
           </Field>
         </Modal>
       )}
 
+      {/* Delete Confirmation Modal */}
       {deleteConfirm && (
         <Modal
           title="Confirm Delete"
