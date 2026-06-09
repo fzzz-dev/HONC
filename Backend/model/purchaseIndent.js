@@ -37,9 +37,9 @@ const PurchaseIndent = sequelize.define("PurchaseIndent", {
     defaultValue: "",
   },
   status: {
-    type: DataTypes.ENUM("Open", "Closed", "Cancelled"),
+    type: DataTypes.ENUM("Open", "Partial", "Closed", "Cancelled"),
     defaultValue: "Open",
-  },
+},
   remarks: {
     type: DataTypes.TEXT,
     defaultValue: "",

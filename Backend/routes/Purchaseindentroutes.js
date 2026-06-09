@@ -8,6 +8,7 @@ const {
   create,
   update,
   remove,
+  updateIndentBalance
 } = require("../controller/purchaseindentcontroller");
 
 
@@ -18,6 +19,7 @@ router.get("/",     getAll);
 router.get("/:id",  getOne);
 router.post("/",    create);
 router.put("/:id",  update);
+router.put('/update-balance/:indentDetailId', updateIndentBalance);
 router.delete("/:id", remove);
 
 module.exports = router;

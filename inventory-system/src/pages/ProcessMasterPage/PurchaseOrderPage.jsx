@@ -1156,48 +1156,95 @@ useEffect(() => {
     return [];
   };
 
-  // 2. All useMemo hooks
- const pendingIndentGroups = useMemo(() => {
+
+  const pendingIndentGroups = useMemo(() => {
+  console.log("=== DEBUG: pendingIndentGroups START ===");
+  console.log("editId:", editId);
+  console.log("details length:", details.length);
+  console.log("indents length:", indents.length);
+  
   const groups = {};
   
+  // Build map of what's already in current PO
+  const currentPOOrderedMap = new Map();
+  if (editId && details.length > 0) {
+    details.forEach(detail => {
+      if (detail.indentDetailId) {
+        const currentQty = currentPOOrderedMap.get(detail.indentDetailId) || 0;
+        currentPOOrderedMap.set(detail.indentDetailId, currentQty + Number(detail.poQty || 0));
+      }
+    });
+  }
+  console.log("currentPOOrderedMap:", Object.fromEntries(currentPOOrderedMap));
+  
   indents.forEach(ind => {
+    console.log(`\n--- Processing Indent: ${ind.indentNo} ---`);
+    console.log("Indent details from backend:", ind.details);
+    
     const details_array = safeDetails(ind.details);
+    console.log("Parsed details_array:", details_array);
+    
     const pendingDetails = details_array.filter(d => {
-      const balance = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
+      const indentDetailId = sid(d.id || d._id);
+      const originalBalance = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
         ? Number(d.balQty)
         : Number(d.indentQty || 0);
-      return balance > 0 && d.itemId;
+      
+      const alreadyInThisPO = currentPOOrderedMap.get(indentDetailId) || 0;
+      const remainingBalance = originalBalance - alreadyInThisPO;
+      
+      const hasItemId = d.itemId ? true : false;
+      
+      console.log(`  Item: ${d.itemName || d.itemDescription}`);
+      console.log(`    indentDetailId: ${indentDetailId}`);
+      console.log(`    originalBalance (balQty): ${originalBalance}`);
+      console.log(`    alreadyInThisPO: ${alreadyInThisPO}`);
+      console.log(`    remainingBalance: ${remainingBalance}`);
+      console.log(`    hasItemId: ${hasItemId}`);
+      
+      return remainingBalance > 0 && hasItemId;
     });
     
-    if (pendingDetails.length === 0) return;
+    console.log(`pendingDetails count for ${ind.indentNo}: ${pendingDetails.length}`);
+    
+    if (pendingDetails.length === 0) {
+      console.log(`❌ SKIPPING indent ${ind.indentNo} - no pending items`);
+      return;
+    }
     
     groups[sid(ind)] = {
       indentNo: ind.indentNo,
       indentDate: ind.date,
       departmentName: ind.departmentName,
       items: pendingDetails.map(d => {
-        const itemMaster = items.find(i => sid(i) === sid(d.itemId));
-        const realBalQty = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
+        const indentDetailId = sid(d.id || d._id);
+        let originalBalance = (d.balQty !== undefined && d.balQty !== null && String(d.balQty) !== '')
           ? Number(d.balQty)
           : Number(d.indentQty || 0);
+        const alreadyInThisPO = currentPOOrderedMap.get(indentDetailId) || 0;
+        const realBalQty = originalBalance - alreadyInThisPO;
+        
         return {
-          rowId: `${sid(ind.id || ind._id)}-${sid(d.id || d._id)}`,
-          detailId: sid(d.id || d._id),
+          rowId: `${sid(ind.id || ind._id)}-${indentDetailId}`,
+          detailId: indentDetailId,
           itemId: sid(d.itemId),
           itemName: (d.itemDescription || d.itemName),
           categoryName: d.mainCategoryName || d.categoryName || "",
           uom: d.uom,
           balQty: realBalQty,
-          rate: itemMaster?.rate || d.rate || 0,
-          gstPct: itemMaster?.gstPercent !== undefined ? itemMaster.gstPercent : (d.gstPct !== undefined ? d.gstPct : 18),
-          indentNo: ind.indentNo  // ← ADD THIS LINE - it's missing!
+          rate: d.rate || 0,
+          gstPct: d.gstPct !== undefined ? d.gstPct : 18,
+          indentNo: ind.indentNo
         };
       })
     };
   });
   
+  console.log("=== FINAL groups:", Object.keys(groups));
+  console.log("=== DEBUG: pendingIndentGroups END ===");
+  
   return groups;
-}, [indents, items]);
+}, [indents, items, editId, details]);
 
   // ==================== ALL useEffect HOOKS ====================
 
@@ -1537,22 +1584,28 @@ useEffect(() => {
 }, [pendingModalOpen, pendingSelected, pendingIndentGroups, expandedGroups]);
 
   // 4. All functions
-  async function loadLookups() {
-    try {
-      const [supps, inds, its, pterms, comp] = await Promise.all([
-        purchaseOrderApi.getSuppliers(),
-        purchaseOrderApi.getIndents(),
-        itemApi.getAll(),
-        paymentTermsApi.getAll(),
-        fetch((import.meta.env.VITE_API_URL || "/api") + "/company").then(res => res.json()).catch(() => null)
-      ]);
-      setSuppliers(Array.isArray(supps) ? supps : []);
-      setIndents(Array.isArray(inds) ? inds : []);
-      setItems(Array.isArray(its) ? its : []);
-      setTerms(Array.isArray(pterms) ? pterms : []);
-      setCompany(comp);
-    } catch (e) { console.error(e); }
+async function loadLookups() {
+  try {
+    const [supps, inds, its, pterms, comp] = await Promise.all([
+      purchaseOrderApi.getSuppliers(),
+      purchaseOrderApi.getIndents(), // This will now fetch updated indents
+      itemApi.getAll(),
+      paymentTermsApi.getAll(),
+      fetch((import.meta.env.VITE_API_URL || "/api") + "/company").then(res => res.json()).catch(() => null)
+    ]);
+    
+    // Handle response properly
+    let indentsArray = Array.isArray(inds) ? inds : (inds?.data || []);
+    
+    setSuppliers(Array.isArray(supps) ? supps : []);
+    setIndents(indentsArray);
+    setItems(Array.isArray(its) ? its : []);
+    setTerms(Array.isArray(pterms) ? pterms : []);
+    setCompany(comp);
+  } catch (err) {
+    console.error("Failed to load lookups:", err);
   }
+}
 
 
   async function loadPos() {
@@ -1740,7 +1793,8 @@ function openEdit(po) {
         discMode: d.discMode || "pct",
         discPct: d.discPct || 0,
         discPrice: d.discPrice || 0,
-        lineNumber: d.lineNumber || idx + 1
+        lineNumber: d.lineNumber || idx + 1,
+        balQty: d.balQty || 0 
       };
       return mapped;
     });
@@ -2020,7 +2074,6 @@ async function performSave() {
   setFormError(null);
   setSaving(true);
   
-  // ✅ Get today's date as fallback
   const getTodayDate = () => {
     const now = new Date();
     const year = now.getFullYear();
@@ -2030,19 +2083,14 @@ async function performSave() {
   };
   
   const cleanDetails = details.map(({ _rowId, ...rest }) => rest);
-  
   const transportAmountValue = Number(header.transportCharges) || 0;
-  
-  // ✅ Ensure dates have valid values
   const finalDate = header.date || getTodayDate();
   const finalDeliveryDate = header.deliveryDate || getTodayDate();
   
-  console.log("Saving with dates:", { finalDate, finalDeliveryDate });
-  
   const payload = { 
     ...header, 
-    date: finalDate,                    // ← Fixed
-    deliveryDate: finalDeliveryDate,    // ← Fixed
+    date: finalDate,
+    deliveryDate: finalDeliveryDate,
     gstEnabled, 
     gstType, 
     details: cleanDetails,
@@ -2066,7 +2114,11 @@ async function performSave() {
       savedPO = created;
     }
     
+    // ✅ NEW CODE: Update indent balances after PO is saved
+    await updateIndentBalances(cleanDetails);
+    
     await loadPos();
+    await loadLookups(); // ✅ Refresh indents to get updated status
     
     if (editId || savedPO) {
       const poToLoad = savedPO || await purchaseOrderApi.getOne(editId);
@@ -2087,6 +2139,29 @@ async function performSave() {
     setSaving(false); 
   }
 }
+
+// ✅ Add this new function to update indent balances
+async function updateIndentBalances(poDetails) {
+  try {
+    // Group by indentDetailId to sum quantities
+    const indentQuantities = new Map();
+    
+    poDetails.forEach(detail => {
+      if (detail.indentDetailId) {
+        const currentQty = indentQuantities.get(detail.indentDetailId) || 0;
+        indentQuantities.set(detail.indentDetailId, currentQty + Number(detail.poQty || 0));
+      }
+    });
+    
+    // Call your backend API to update each indent detail
+    for (const [indentDetailId, poQty] of indentQuantities) {
+      await purchaseOrderApi.updateIndentBalance(indentDetailId, poQty);
+    }
+  } catch (err) {
+    console.error("Error updating indent balances:", err);
+  }
+}
+
 
 const totals = details.reduce((acc, r) => ({
   grossAmount: (acc.grossAmount || 0) + Number(r.grossAmount || 0),
@@ -2140,56 +2215,79 @@ if (gstEnabled && transportAmount > 0) {
 const grandTotal = totals.totalAmount;
 const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
-  function addPendingLinesToDetails() {
-    const selected = [];
-    
-    Object.values(pendingIndentGroups).forEach(group => {
-      group.items.forEach(item => {
-        if (pendingSelected.has(item.rowId)) {
-          selected.push(item);
-        }
-      });
+function addPendingLinesToDetails() {
+  const selected = [];
+  
+  Object.values(pendingIndentGroups).forEach(group => {
+    group.items.forEach(item => {
+      if (pendingSelected.has(item.rowId)) {
+        selected.push(item);
+      }
     });
+  });
 
-     console.log("Selected items:", selected); 
+  console.log("Selected items to add:", selected);
 
-    if (selected.length === 0) {
-      setPendingModalOpen(false);
-      return;
-    }
-
-     const newRows = selected.map(s => {
-      console.log("Item indentNo:", s.indentNo); 
-      return calcRow({
-        ...emptyDetail(), 
-        indentDetailId: s.detailId, 
-        indentNo: s.indentNo, 
-        itemId: s.itemId, 
-        itemName: s.itemName, 
-        uom: s.uom, 
-        balQty: s.balQty, 
-        poQty: s.balQty, 
-        poRate: s.rate || 0,
-        gstPct: s.gstPct || 0
-      });
-    });
-
-    setDetails(p => {
-      const existing = p.filter(r => r.itemId || r.itemName);
-      if (existing.length === 0) return newRows;
-      return [...existing, ...newRows];
-    });
-
-    setPendingModalOpen(false); 
-    setPendingSelected(new Set());
-    setTableEnabled(true);
-    setItemsFromPickIndent(true);
-    
-    setTimeout(() => {
-      const firstPoQty = document.querySelector('tbody tr:first-child td:nth-child(6) input');
-      if (firstPoQty) firstPoQty.focus();
-    }, 150);
+  if (selected.length === 0) {
+    setPendingModalOpen(false);
+    return;
   }
+
+  setDetails(prev => {
+    let updatedRows = [...prev];
+    
+    selected.forEach(s => {
+      // Check if this indent detail already exists in the PO
+      const existingIndex = updatedRows.findIndex(
+        row => row.indentDetailId === s.detailId
+      );
+      
+      if (existingIndex !== -1) {
+        // ✅ Item already in PO - add to existing quantity
+        const existingRow = updatedRows[existingIndex];
+        const currentQty = Number(existingRow.poQty) || 0;
+        const newQty = currentQty + s.balQty;
+        
+        console.log(`Updating existing item ${s.itemName}: ${currentQty} + ${s.balQty} = ${newQty}`);
+        
+        updatedRows[existingIndex] = calcRow({
+          ...existingRow,
+          poQty: newQty,
+          // Keep the original balQty for reference
+          balQty: (Number(existingRow.balQty) || 0) + s.balQty
+        });
+      } else {
+        // ✅ New item - add as new row
+        console.log(`Adding new item ${s.itemName}: ${s.balQty}`);
+        
+        const newRow = calcRow({
+          ...emptyDetail(),
+          indentDetailId: s.detailId,
+          indentNo: s.indentNo,
+          itemId: s.itemId,
+          itemName: s.itemName,
+          uom: s.uom,
+          balQty: s.balQty,
+          poQty: s.balQty,
+          poRate: s.rate || 0,
+          gstPct: s.gstPct || 0
+        });
+        updatedRows.push(newRow);
+      }
+    });
+    
+    return updatedRows;
+  });
+
+  setPendingModalOpen(false);
+  setPendingSelected(new Set());
+  setItemsFromPickIndent(true);
+  
+  setTimeout(() => {
+    const firstPoQty = document.querySelector('tbody tr:first-child td:nth-child(6) input');
+    if (firstPoQty) firstPoQty.focus();
+  }, 150);
+}
 
    // Filter POs for list view
 const filteredPosForDisplay = (pos || []).filter(po => {

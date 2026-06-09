@@ -193,6 +193,7 @@ export default function PurchaseIndentReportPage() {
           date: item.date,
           deptname: item.deptname,
           createdBy: item.createdBy,
+          status: item.status || "Open",  // ✅ Added status with default "Open"
           totalQty: 0,
           totalItems: 0,
           items: []
@@ -218,7 +219,7 @@ export default function PurchaseIndentReportPage() {
     });
   }, [reportData]);
 
-  // Keyboard navigation for Arrow keys on table rows ONLY (matches PO Report behavior)
+  // Keyboard navigation for Arrow keys on table rows ONLY
   useEffect(() => {
     const handleKeyNavigation = (e) => {
       const mainRows = document.querySelectorAll('.indent-main-row');
@@ -248,7 +249,7 @@ export default function PurchaseIndentReportPage() {
     return () => document.removeEventListener('keydown', handleKeyNavigation);
   }, [groupedData]);
 
-  // Tab index navigation - ONLY for filters and buttons (tabIndex 1-9), excludes table rows
+  // Tab index navigation - ONLY for filters and buttons
   useEffect(() => {
     const handleTabKey = (e) => {
       if (e.key !== 'Tab') return;
@@ -438,6 +439,7 @@ export default function PurchaseIndentReportPage() {
                   <th>Indent Date</th>
                   <th>Department</th>
                   <th>Requested By</th>
+                  <th style={{ textAlign: "center" }}>Status</th>  {/* ✅ Status column header */}
                   <th style={{ textAlign: "right" }}>Total Items</th>
                   <th style={{ textAlign: "right" }}>Total Qty</th>
                 </tr>
@@ -468,13 +470,22 @@ export default function PurchaseIndentReportPage() {
                         <td>{indent.date}</td>
                         <td>{indent.deptname || "—"}</td>
                         <td>{indent.createdBy || "—"}</td>
+                        {/* ✅ Status cell with badge - matching the PurchaseIndentPage pattern */}
+                        <td style={{ textAlign: "center" }}>
+                          <span className={`inv-badge ${
+                            indent.status === 'Closed' ? 'inv-badge-no' : 
+                            indent.status === 'Partial' ? 'inv-badge-warning' : 'inv-badge-yes'
+                          }`}>
+                            {indent.status || "Open"}
+                          </span>
+                        </td>
                         <td style={{ textAlign: "right" }}>{indent.totalItems}</td>
                         <td style={{ textAlign: "right", fontWeight: 500 }}>{fmtQty(indent.totalQty)}</td>
                       </tr>
                       
                       {isExpanded && (
                         <tr style={{ backgroundColor: "#fafafa" }}>
-                          <td colSpan={7} style={{ padding: 0 }}>
+                          <td colSpan={8} style={{ padding: 0 }}>  {/* ✅ Updated colSpan to 8 */}
                             <table className="inv-table" style={{ 
                               margin: 0, 
                               width: "100%", 
@@ -518,8 +529,8 @@ export default function PurchaseIndentReportPage() {
                                 ))}
                               </tbody>
                             </table>
-                           </td>
-                         </tr>
+                          </td>
+                        </tr>
                       )}
                     </React.Fragment>
                   );

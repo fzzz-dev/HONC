@@ -160,7 +160,7 @@ export const purchaseOrderApi = {
   getAll: (p = {}) => request(`/purchase-orders${qs(p)}`),
   getOne: (id) => request(`/purchase-orders/${id}`),
   getNextNumber: () => request("/purchase-orders/next-number"),
-  getIndents: () => request("/purchase-orders/indents"),
+  getIndents: () => request("/purchase-indents"),
   getSuppliers: () => request("/purchase-orders/suppliers"),
   create: (body) => request("/purchase-orders", { method: "POST", body: j(body) }),
   update: (id, b) => request(`/purchase-orders/${id}`, { method: "PUT", body: j(b) }),
@@ -182,6 +182,29 @@ export const purchaseOrderApi = {
   approveLevel1Simple: (id, approvedBy) => request(`/level/approve-level1/${id}`, { method: "PUT", body: JSON.stringify({ approvedBy }) }),
   bulkApproveLevel2Simple: (poIds, approvedBy) => request("/level/bulk-approve-level2", { method: "POST", body: JSON.stringify({ poIds, approvedBy }) }),
   bulkApproveLevel1Simple: (poIds, approvedBy) => request("/level/bulk-approve-level1", { method: "POST", body: JSON.stringify({ poIds, approvedBy }) }),
+
+  // Add this to purchaseOrderApi
+getIndentsForPicking: async () => {
+  // Try to get with both statuses, or just get all and filter in frontend
+  try {
+    const [openIndents, partialIndents] = await Promise.all([
+      api.get('/purchase-indents?status=Open'),
+      api.get('/purchase-indents?status=Partial')
+    ]);
+    
+    const allIndents = [...(openIndents.data?.data || []), ...(partialIndents.data?.data || [])];
+    return { success: true, data: allIndents };
+  } catch (err) {
+    console.error("Error fetching indents for picking:", err);
+    return { success: false, data: [] };
+  }
+},
+
+updateIndentBalance: (indentDetailId, poQty) => 
+  request(`/purchase-indents/update-balance/${indentDetailId}`, { 
+    method: "PUT", 
+    body: JSON.stringify({ poQty }) 
+  }),
 };
 
 export const grnApi = {
