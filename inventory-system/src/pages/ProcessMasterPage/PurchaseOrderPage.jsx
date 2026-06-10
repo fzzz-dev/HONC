@@ -1849,7 +1849,6 @@ useEffect(() => {
 const calcRow = (row, gType = gstType) => {
   const qty = Number(row.poQty || 0); 
   const rate = Number(row.poRate || 0);
-  // Remove: const transportCharges = Number(row.transportCharges || 0);
   let disc = 0;
   if (row.discMode === 'pct') {
     disc = (qty * rate) * (Number(row.discPct || 0) / 100);
@@ -1858,31 +1857,27 @@ const calcRow = (row, gType = gstType) => {
   }
   const amt = (qty * rate) - disc;
   
-  const hasExistingGST = row.sgst !== undefined && row.sgst !== null && row.sgst !== 0;
+  // Calculate GST
+  let sgstVal = 0, cgstVal = 0, igstVal = 0, totGstVal = 0, totalAmtVal = amt;
   
-  let sgstVal = 0, cgstVal = 0, igstVal = 0, totGstVal = 0, totalAmtVal = 0;
-  
-  if (hasExistingGST) {
-    sgstVal = Number(row.sgst) || 0;
-    cgstVal = Number(row.cgst) || 0;
-    igstVal = Number(row.igst) || 0;
-    totGstVal = Number(row.totGst) || 0;
-    totalAmtVal = Number(row.totalAmount) || 0;
-  } else {
+  if (gstEnabled) {
     const gPct = Number(row.gstPct || 0);
-    const tax = gstEnabled ? (amt * gPct / 100) : 0;
+    const tax = (amt * gPct / 100);
     totGstVal = tax;
-    totalAmtVal = amt + tax;  // Remove + transportCharges
+    totalAmtVal = amt + tax;
     
     if (gType === 'local') {
       sgstVal = tax / 2;
       cgstVal = tax / 2;
+      igstVal = 0;  // IGST = 0 for local
     } else {
       igstVal = tax;
+      sgstVal = 0;
+      cgstVal = 0;
     }
   }
   
-  const result = {
+  return {
     ...row,
     grossAmount: (qty * rate) || 0,
     rowDisc: disc || 0,
@@ -1890,12 +1885,9 @@ const calcRow = (row, gType = gstType) => {
     sgst: sgstVal,
     cgst: cgstVal,
     igst: igstVal,
-    totGst: totGstVal,
+    totGst: totGstVal,  // ✅ This is what shows in table
     totalAmount: totalAmtVal
-    // Remove: transportCharges: transportCharges
   };
-  
-  return result;
 };
 
   function updateDetail(idx, field, val) {
@@ -2175,43 +2167,50 @@ const totals = details.reduce((acc, r) => ({
   poQty: (acc.poQty || 0) + Number(r.poQty || 0)
 }), { grossAmount: 0, discPrice: 0, poAmount: 0, totGst: 0, totalAmount: 0, sgst: 0, cgst: 0, igst: 0, poQty: 0 });
 
-// ========== ADD TRANSPORT AND RECALCULATE GST ==========
+// ========== TOTALS CALCULATION FOR SUMMARY ==========
+const itemsTotalAfterDisc = totals.poAmount;
 const transportAmount = Number(header.transportCharges || 0);
-const transportGstPct = 18;
 
-if (gstEnabled && transportAmount > 0) {
-  // Items total after discount
-  const itemsTotal = totals.poAmount;
-  
-  // Subtotal before GST = Items Total + Transport
-  const subtotalBeforeGst = itemsTotal + transportAmount;
-  
-  // Calculate GST on the Subtotal (items + transport)
-  let newCgst = 0, newSgst = 0, newIgst = 0, newTotGst = 0;
-  
+// Calculate GST from each item individually
+let itemsGstTotal = 0;
+details.forEach(row => {
+  const taxableValue = Number(row.poAmount) || 0;
+  const gstPct = Number(row.gstPct) || 0;
+  itemsGstTotal += (taxableValue * gstPct / 100);
+});
+
+// Calculate transport GST (always 18%)
+const transportGst = transportAmount > 0 ? transportAmount * 0.18 : 0;
+
+// Total GST amount
+const totalGstAmount = itemsGstTotal + transportGst;
+const subtotalBeforeGst = itemsTotalAfterDisc + transportAmount;
+
+// ✅ Set summary values based on GST type
+if (gstEnabled && gstType) {
   if (gstType === 'local') {
-    // CGST and SGST each at 9% (total 18%)
-    newCgst = subtotalBeforeGst * 0.09;
-    newSgst = subtotalBeforeGst * 0.09;
-    newTotGst = newCgst + newSgst;
+    // Local: Split total GST equally between CGST and SGST
+    totals.cgst = totalGstAmount / 2;
+    totals.sgst = totalGstAmount / 2;
+    totals.igst = 0;  // ✅ IGST remains 0 for local
   } else {
-    // IGST at 18%
-    newIgst = subtotalBeforeGst * 0.18;
-    newTotGst = newIgst;
+    // Other/Interstate: Full amount as IGST
+    totals.cgst = 0;
+    totals.sgst = 0;
+    totals.igst = totalGstAmount;  // ✅ IGST shows total GST
   }
   
-  // Update totals with recalculated values
-  totals.cgst = newCgst;
-  totals.sgst = newSgst;
-  totals.igst = newIgst;
-  totals.totGst = newTotGst;
-  totals.totalAmount = subtotalBeforeGst + newTotGst;
+  totals.totGst = totalGstAmount;
+  totals.totalAmount = subtotalBeforeGst + totalGstAmount;
 } else {
-  // No transport, keep existing values
-  totals.totalAmount = totals.poAmount + totals.totGst;
+  // No GST
+  totals.cgst = 0;
+  totals.sgst = 0;
+  totals.igst = 0;
+  totals.totGst = 0;
+  totals.totalAmount = subtotalBeforeGst;
 }
 
-// Grand total
 const grandTotal = totals.totalAmount;
 const effectiveDiscPct = totals.grossAmount > 0 ? (totals.discPrice / totals.grossAmount) * 100 : 0;
 
@@ -2236,28 +2235,33 @@ function addPendingLinesToDetails() {
   setDetails(prev => {
     let updatedRows = [...prev];
     
+    // ✅ Filter out any empty/default rows that have no itemId
+    // This prevents empty rows from staying at the top
+    const nonEmptyRows = updatedRows.filter(row => 
+      row.itemId && row.itemId !== "" && row.itemName && row.itemName !== ""
+    );
+    
     selected.forEach(s => {
       // Check if this indent detail already exists in the PO
-      const existingIndex = updatedRows.findIndex(
+      const existingIndex = nonEmptyRows.findIndex(
         row => row.indentDetailId === s.detailId
       );
       
       if (existingIndex !== -1) {
-        // ✅ Item already in PO - add to existing quantity
-        const existingRow = updatedRows[existingIndex];
+        // Item already in PO - add to existing quantity
+        const existingRow = nonEmptyRows[existingIndex];
         const currentQty = Number(existingRow.poQty) || 0;
         const newQty = currentQty + s.balQty;
         
         console.log(`Updating existing item ${s.itemName}: ${currentQty} + ${s.balQty} = ${newQty}`);
         
-        updatedRows[existingIndex] = calcRow({
+        nonEmptyRows[existingIndex] = calcRow({
           ...existingRow,
           poQty: newQty,
-          // Keep the original balQty for reference
           balQty: (Number(existingRow.balQty) || 0) + s.balQty
         });
       } else {
-        // ✅ New item - add as new row
+        // New item - add as new row
         console.log(`Adding new item ${s.itemName}: ${s.balQty}`);
         
         const newRow = calcRow({
@@ -2272,21 +2276,52 @@ function addPendingLinesToDetails() {
           poRate: s.rate || 0,
           gstPct: s.gstPct || 0
         });
-        updatedRows.push(newRow);
+        nonEmptyRows.push(newRow);
       }
     });
     
-    return updatedRows;
+    // ✅ If there are no rows left, add one empty row at the end
+    if (nonEmptyRows.length === 0) {
+      nonEmptyRows.push(emptyDetail());
+    }
+    
+    return nonEmptyRows;
   });
 
   setPendingModalOpen(false);
   setPendingSelected(new Set());
   setItemsFromPickIndent(true);
   
+  // ✅ Focus on the FIRST row's PO Qty field after adding items
   setTimeout(() => {
-    const firstPoQty = document.querySelector('tbody tr:first-child td:nth-child(6) input');
-    if (firstPoQty) firstPoQty.focus();
-  }, 150);
+    // Get all visible rows (skip any hidden/empty rows)
+    const allRows = document.querySelectorAll('tbody tr');
+    let firstValidRow = null;
+    
+    for (let i = 0; i < allRows.length; i++) {
+      const row = allRows[i];
+      const poQtyInput = row.querySelector('td:nth-child(6) input');
+      const itemName = row.querySelector('td:nth-child(3) input');
+      
+      // Check if this is a valid row (has item name or poQty field is not disabled)
+      if (poQtyInput && !poQtyInput.disabled && itemName && itemName.value) {
+        firstValidRow = poQtyInput;
+        break;
+      }
+    }
+    
+    if (firstValidRow) {
+      firstValidRow.focus();
+      firstValidRow.select(); // Select the text for easy editing
+    } else {
+      // Fallback: try the first PO Qty field
+      const firstPoQty = document.querySelector('tbody tr:first-child td:nth-child(6) input');
+      if (firstPoQty && !firstPoQty.disabled) {
+        firstPoQty.focus();
+        firstPoQty.select();
+      }
+    }
+  }, 200); // Increased timeout to ensure DOM is fully updated
 }
 
    // Filter POs for list view
@@ -2828,7 +2863,7 @@ const filteredPosForDisplay = (pos || []).filter(po => {
                     <th style={{ width: 100, textAlign: "right" }}>Disc</th>
                     <th style={{ width: 110, textAlign: "right" }}>PO Amt</th>
                     <th style={{ width: 70, textAlign: "center" }}>GST%</th>
-                    <th style={{ width: 90, textAlign: "right" }}>IGST</th>
+                    <th style={{ width: 90, textAlign: "right" }}>Total GST</th>
                     <th style={{ width: 120, textAlign: "right" }}>Total</th>
                     <th style={{ width: 40 }}></th>
                   </tr>
@@ -2933,10 +2968,17 @@ const filteredPosForDisplay = (pos || []).filter(po => {
                             placeholder="0.00"
                           />
                         </td>
-                        
-                        {/* IGST (Total GST) - right aligned */}
+
+                        {/* ✅ Show TOTAL GST only (not IGST) */}
                         <td style={{ textAlign: "right" }}>
-                          <input tabIndex={-1} className="inv-input-cell" value={formatNumber(row.totGst)} readOnly style={{ textAlign: "right" }} placeholder="0.00" />
+                          <input 
+                            tabIndex={-1} 
+                            className="inv-input-cell" 
+                            value={formatNumber(row.totGst)} 
+                            readOnly 
+                            style={{ textAlign: "right", fontWeight: 500 }} 
+                            placeholder="0.00" 
+                          />
                         </td>
 
                         {/* Total Amount - right aligned */}
