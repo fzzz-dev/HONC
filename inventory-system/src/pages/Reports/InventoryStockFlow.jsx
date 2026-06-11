@@ -191,7 +191,7 @@ export default function InventoryStockFlow() {
   }, [filteredData]);
 
   // Keyboard navigation for Arrow keys on table rows ONLY
-  useEffect(() => {
+  {/*useEffect(() => {
     const handleKeyNavigation = (e) => {
       const mainRows = document.querySelectorAll('.stock-main-row');
       const currentElement = document.activeElement;
@@ -218,7 +218,7 @@ export default function InventoryStockFlow() {
     
     document.addEventListener('keydown', handleKeyNavigation);
     return () => document.removeEventListener('keydown', handleKeyNavigation);
-  }, [filteredData]);
+  }, [filteredData]);*/}
 
   // Tab index navigation - ONLY for filters and buttons (tabIndex 1-5), excludes table rows
   useEffect(() => {

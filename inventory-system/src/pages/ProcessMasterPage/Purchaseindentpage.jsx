@@ -989,7 +989,7 @@ const calculateIndentStatus = (indent) => {
                           <input 
                             className="inv-input-cell" 
                             type="number" 
-                            step="0.001" 
+                            step="1.00" 
                             value={row.indentQty} 
                             onChange={e => updateDetail(idx, "indentQty", e.target.value)} 
                             onBlur={e => updateDetail(idx, "indentQty", Number(e.target.value || 0).toFixed(3))} 

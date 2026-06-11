@@ -756,7 +756,7 @@ div[class*="modal"]:not(.inv-modal-overlay) {
 }
 
 .inv-badge-warning::before {
-  content: "⏳ ";
+  content: "";
 }
 
 .inv-badge-yes {

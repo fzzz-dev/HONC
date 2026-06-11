@@ -672,7 +672,7 @@ export default function OpeningStockPage() {
                       <td>
                         <input 
                           type="number" 
-                          step="0.001" 
+                          step="1.00" 
                           className="inv-input" 
                           tabIndex={baseTab + 3} 
                           style={{ border: "none", width: "100%" }} 
@@ -685,7 +685,7 @@ export default function OpeningStockPage() {
                       <td>
                         <input 
                           type="number" 
-                          step="0.01" 
+                          step="1.00" 
                           className="inv-input" 
                           tabIndex={baseTab + 4} 
                           style={{ border: "none", width: "100%" }} 

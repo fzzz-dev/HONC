@@ -216,7 +216,7 @@ export default function PurchaseGrnReportPage() {
   }, [reportData]);
 
   // Keyboard navigation for Arrow keys on table rows ONLY
-  useEffect(() => {
+  {/*useEffect(() => {
     const handleKeyNavigation = (e) => {
       const mainRows = document.querySelectorAll('.grn-main-row');
       const currentElement = document.activeElement;
@@ -243,7 +243,7 @@ export default function PurchaseGrnReportPage() {
     
     document.addEventListener('keydown', handleKeyNavigation);
     return () => document.removeEventListener('keydown', handleKeyNavigation);
-  }, [groupedData]);
+  }, [groupedData]);*/}
 
   // Tab index navigation - ONLY for filters and buttons (tabIndex 1-9), excludes table rows
 useEffect(() => {

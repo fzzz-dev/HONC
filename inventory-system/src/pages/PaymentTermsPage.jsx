@@ -396,7 +396,7 @@ export default function PaymentTermsPage() {
             <Field label="Advance %" required>
               <Input
                 type="number"
-                step="0.01"
+                step="1.00"
                 value={form.advancePct}
                 onChange={(v) => setForm((f) => ({ ...f, advancePct: v }))}
                 placeholder="0–100"

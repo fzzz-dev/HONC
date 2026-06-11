@@ -71,9 +71,9 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
     defaultValue: "",
   },
   status: {
-    type: DataTypes.ENUM("Open", "Closed", "Cancelled"),
-    defaultValue: "Open",
-  },
+  type: DataTypes.ENUM("Open", "Partial", "Closed", "Cancelled"),
+  defaultValue: "Open",
+},
   remarks: {
     type: DataTypes.TEXT,
     defaultValue: "",

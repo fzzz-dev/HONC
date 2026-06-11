@@ -220,7 +220,7 @@ export default function PurchaseIndentReportPage() {
   }, [reportData]);
 
   // Keyboard navigation for Arrow keys on table rows ONLY
-  useEffect(() => {
+  {/*useEffect(() => {
     const handleKeyNavigation = (e) => {
       const mainRows = document.querySelectorAll('.indent-main-row');
       const currentElement = document.activeElement;
@@ -247,7 +247,7 @@ export default function PurchaseIndentReportPage() {
     
     document.addEventListener('keydown', handleKeyNavigation);
     return () => document.removeEventListener('keydown', handleKeyNavigation);
-  }, [groupedData]);
+  }, [groupedData]);*/}
 
   // Tab index navigation - ONLY for filters and buttons
   useEffect(() => {

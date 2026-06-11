@@ -2525,20 +2525,25 @@ const filteredPosForDisplay = (pos || []).filter(po => {
                       <td>{po.date}</td>
                       <td>{po.supplierName}</td>
                       <td>
-                        <span className={`inv-badge ${po.status === 'Open' ? 'inv-badge-yes' : 'inv-badge-no'}`}>
-                          {po.status}
+                        <span className={`inv-badge ${
+                          po.status === 'Open' ? 'inv-badge-yes' : 
+                          po.status === 'Closed' ? 'inv-badge-no' :
+                          po.status === 'Partial' ? 'inv-badge-warning' : 
+                          'inv-badge-no'
+                        }`}>
+                          {po.status === 'Partial' ? 'Partial' : po.status}
                         </span>
                       </td>
                       {approvalMode && (
                         <>
                           <td>
                             <span className={`inv-badge ${po.level1Approved === 'Yes' ? 'inv-badge-yes' : 'inv-badge-warning'}`}>
-                              {po.level1Approved === 'Yes' ? '✓ Approved' : '⏳ Pending'}
+                              {po.level1Approved === 'Yes' ? '✓ Approved' : 'Pending'}
                             </span>
                           </td>
                           <td>
                             <span className={`inv-badge ${po.level2Approved === 'Yes' ? 'inv-badge-yes' : 'inv-badge-warning'}`}>
-                              {po.level2Approved === 'Yes' ? '✓ Approved' : '⏳ Pending'}
+                              {po.level2Approved === 'Yes' ? '✓ Approved' : 'Pending'}
                             </span>
                           </td>
                         </>
@@ -2898,7 +2903,7 @@ const filteredPosForDisplay = (pos || []).filter(po => {
                             tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex : -1} 
                             className="inv-input-cell" 
                             type="number" 
-                            step="0.001"
+                            step="1.00"
                             value={row.poQty && row.poQty !== 0 ? row.poQty : ""} 
                             onChange={e => updateDetail(idx, "poQty", e.target.value)} 
                             style={{ textAlign: "right" }}
@@ -2912,7 +2917,7 @@ const filteredPosForDisplay = (pos || []).filter(po => {
                             tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 1 : -1} 
                             className="inv-input-cell" 
                             type="number" 
-                            step="0.01"
+                            step="1.00"
                             value={row.poRate && row.poRate !== 0 ? row.poRate : ""} 
                             onChange={e => updateDetail(idx, "poRate", e.target.value)} 
                             style={{ textAlign: "right" }}
@@ -2927,7 +2932,7 @@ const filteredPosForDisplay = (pos || []).filter(po => {
                               tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 2 : -1} 
                               className="inv-input-cell" 
                               type="number" 
-                              step="0.01"
+                              step="1.00"
                               value={
                                 row.discMode === 'pct' 
                                   ? (row.discPct && row.discPct !== 0 ? row.discPct : "")
@@ -2961,7 +2966,7 @@ const filteredPosForDisplay = (pos || []).filter(po => {
                             tabIndex={(itemsFromPickIndent || tableEnabled) && hasItems ? baseTabIndex + 3 : -1} 
                             className="inv-input-cell" 
                             type="number" 
-                            step="0.01"
+                            step="1.00"
                             value={row.gstPct && row.gstPct !== 0 ? row.gstPct : ""} 
                             onChange={e => updateDetail(idx, "gstPct", e.target.value)} 
                             style={{ textAlign: "center" }}

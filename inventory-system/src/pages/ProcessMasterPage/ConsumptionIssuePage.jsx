@@ -848,7 +848,7 @@ export default function ConsumptionIssuePage() {
                       <td>
                         <input 
                           type="number" 
-                          step="0.001" 
+                          step="1.00" 
                           className="inv-input-cell" 
                           style={{ width: "100%", textAlign: "right" }} 
                           value={row.stkQty} 
@@ -874,7 +874,7 @@ export default function ConsumptionIssuePage() {
                       <td>
                         <input 
                           type="number" 
-                          step="0.001" 
+                          step="1.00" 
                           className="inv-input-cell" 
                           style={{ width: "100%", textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} 
                           value={row.issueQty} 

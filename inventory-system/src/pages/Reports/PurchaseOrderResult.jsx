@@ -212,7 +212,7 @@ export default function PurchaseOrderReportPage() {
   }, [reportData]);
 
   // Keyboard navigation for Arrow keys on PO rows
-  useEffect(() => {
+  {/*useEffect(() => {
     const handleKeyNavigation = (e) => {
       const mainRows = document.querySelectorAll('.po-main-row');
       const currentElement = document.activeElement;
@@ -239,7 +239,7 @@ export default function PurchaseOrderReportPage() {
     
     document.addEventListener('keydown', handleKeyNavigation);
     return () => document.removeEventListener('keydown', handleKeyNavigation);
-  }, [groupedData]);
+  }, [groupedData]);*/}
 
   // Tab index navigation - CYCLES BACK TO FIRST
   useEffect(() => {
