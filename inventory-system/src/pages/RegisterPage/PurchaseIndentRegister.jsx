@@ -24,10 +24,10 @@ const PurchaseIndentRegister = () => {
         try {
             setLoading(true);
             const res = await purchaseIndentApi.getAll();
-            console.log(res);
+
             setRows(Array.isArray(res) ? res : []);
         } catch (err) {
-            console.error("Failed to load purchase indent register", err);
+
         } finally {
             setLoading(false);
         }

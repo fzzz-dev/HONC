@@ -10,20 +10,20 @@ const { sequelize } = require('./model/index');
 
 async function runPatch() {
   const dbName = sequelize.config.database;
-  console.log(`🚀 Starting Full System Patch for database: ${dbName}`);
+
 
   try {
     // 0. GET ACTUAL TABLE NAMES (FOR CASE SENSITIVITY)
     const [dbTablesRaw] = await sequelize.query("SHOW TABLES");
     const dbTables = dbTablesRaw.map(t => Object.values(t)[0]);
-    console.log(`  Found ${dbTables.length} tables in database.`);
+
 
     const getTable = (name) => {
         return dbTables.find(t => t.toLowerCase() === name.toLowerCase());
     };
 
     // 1. ADD MISSING COLUMNS
-    console.log("\nStep 1: Adding missing columns...");
+
     
     const columnPatches = [
       { table: 'PurchaseOrderDetails', column: 'alGrnQty', ddl: "ADD COLUMN `alGrnQty` DECIMAL(10,2) NOT NULL DEFAULT 0" },
@@ -33,23 +33,23 @@ async function runPatch() {
     for (const patch of columnPatches) {
       const actualTable = getTable(patch.table);
       if (!actualTable) {
-        console.warn(`  ⚠️  Table ${patch.table} not found, skipping.`);
+
         continue;
       }
       try {
         await sequelize.query(`ALTER TABLE \`${actualTable}\` ${patch.ddl}`);
-        console.log(`  ✅ Added ${actualTable}.${patch.column}`);
+
       } catch (e) {
         if (e.message.includes("Duplicate column name")) {
-          console.log(`  ℹ️  ${actualTable}.${patch.column} already exists.`);
+
         } else {
-          console.error(`  ❌ Failed ${actualTable}.${patch.column}: ${e.message}`);
+
         }
       }
     }
 
     // 2. AGGRESSIVE ID OVERFLOW FIX
-    console.log("\nStep 2: Upgrading IDs to BIGINT and fixing overflows...");
+
     
     const detailsTables = ['PurchaseOrderDetails', 'PurchaseGRNDetails', 'PurchaseIndentDetails', 'OpeningStockDetails', 'ConsumptionIssueDetails'];
     const parentTables = ['PurchaseOrders', 'PurchaseGRNs', 'PurchaseIndents', 'OpeningStocks', 'ConsumptionIssues'];
@@ -70,7 +70,7 @@ async function runPatch() {
       for (const c of constraints) {
         try {
           await sequelize.query(`ALTER TABLE \`${actualTable}\` DROP FOREIGN KEY \`${c.CONSTRAINT_NAME}\``);
-          console.log(`  Dropped constraint ${c.CONSTRAINT_NAME} from ${actualTable}`);
+
         } catch(e) {}
       }
     }
@@ -79,14 +79,14 @@ async function runPatch() {
     for (const table of parentTables) {
       const actualTable = getTable(table);
       if (!actualTable) {
-        console.warn(`  ⚠️  Parent table ${table} not found.`);
+
         continue;
       }
       try {
         await sequelize.query(`ALTER TABLE \`${actualTable}\` MODIFY COLUMN id BIGINT NOT NULL AUTO_INCREMENT`);
-        console.log(`  ✅ Upgraded ${actualTable}.id to BIGINT`);
+
       } catch(e) {
-        console.error(`  ❌ Failed ${actualTable}.id: ${e.message}`);
+
       }
     }
 
@@ -108,14 +108,14 @@ async function runPatch() {
         if (fkCol) {
           await sequelize.query(`ALTER TABLE \`${actualTable}\` MODIFY COLUMN \`${fkCol}\` BIGINT NOT NULL`);
         }
-        console.log(`  ✅ Upgraded ${actualTable} columns to BIGINT`);
+
       } catch(e) {
-        console.error(`  ❌ Failed ${actualTable}: ${e.message}`);
+
       }
     }
 
     // Restore clean foreign keys
-    console.log("\nStep 3: Restoring database integrity...");
+
     const relations = [
       { child: 'PurchaseOrderDetails', parent: 'PurchaseOrders', col: 'purchaseOrderId', name: 'fk_po_details' },
       { child: 'PurchaseGRNDetails', parent: 'PurchaseGRNs', col: 'purchaseGRNId', name: 'fk_grn_details' },
@@ -134,9 +134,9 @@ async function runPatch() {
           FOREIGN KEY (\`${rel.col}\`) REFERENCES \`${actualParent}\`(id) 
           ON DELETE CASCADE ON UPDATE CASCADE
         `);
-        console.log(`  ✅ Restored ${rel.name} on ${actualChild}`);
+
       } catch(e) {
-        console.log(`  ℹ️  Note: ${rel.name} might already exist or parent missing.`);
+
       }
     }
 
@@ -153,11 +153,11 @@ async function runPatch() {
     }
 
 
-    console.log("\n✨ SYSTEM PATCH COMPLETED SUCCESSFULLY!");
-    console.log("Please restart your Node.js server now.");
+
+
     process.exit(0);
   } catch (err) {
-    console.error("\n❌ CRITICAL PATCH ERROR:", err.message);
+
     process.exit(1);
   }
 }

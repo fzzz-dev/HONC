@@ -178,7 +178,7 @@ exports.getAll = async (req, res) => {
     
     res.json({ success: true, data: transformedIndents });
   } catch (err) {
-    console.error("❌ getAll indents error:", err);
+
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -189,7 +189,7 @@ exports.getNextNumber = async (req, res) => {
     const indentNo = await generateIndentNo();
     res.json({ success: true, indentNo });
   } catch (err) {
-    console.error("❌ getNextNumber error:", err);
+
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -222,7 +222,7 @@ exports.getOne = async (req, res) => {
     
     res.json({ success: true, data: transformedIndent });
   } catch (err) {
-    console.error("❌ getOne indent error:", err);
+
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -266,7 +266,7 @@ exports.create = async (req, res) => {
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError')
       return res.status(400).json({ success: false, message: "Indent number already exists" });
-    console.error("❌ create indent error:", err);
+
     res.status(400).json({ success: false, message: err.message });
   }
 };
@@ -316,7 +316,7 @@ exports.update = async (req, res) => {
     
     res.json({ success: true, data: transformedIndent });
   } catch (err) {
-    console.error("❌ update indent error:", err);
+
     res.status(400).json({ success: false, message: err.message });
   }
 };
@@ -362,7 +362,7 @@ exports.updateIndentBalance = async (req, res) => {
     
     res.json({ success: true, message: "Indent balance updated" });
   } catch (err) {
-    console.error("Update indent balance error:", err);
+
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -376,7 +376,7 @@ exports.remove = async (req, res) => {
     await indent.destroy();
     res.json({ success: true, message: "Indent deleted successfully" });
   } catch (err) {
-    console.error("❌ delete indent error:", err);
+
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -399,7 +399,7 @@ exports.updateIndentDetailPOQuantities = async (indentDetailId, totalPoQty) => {
     
     return true;
   } catch (err) {
-    console.error("❌ updateIndentDetailPOQuantities error:", err);
+
     return false;
   }
 };
@@ -427,7 +427,7 @@ exports.recalculateAllIndentStatuses = async (req, res) => {
       data: results
     });
   } catch (err) {
-    console.error("❌ recalculateAllIndentStatuses error:", err);
+
     res.status(500).json({ success: false, message: err.message });
   }
 };

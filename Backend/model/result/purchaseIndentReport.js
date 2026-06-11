@@ -70,7 +70,7 @@ const getPurchaseIndentReport = async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error fetching purchase indent report:', error);
+
     res.status(500).json({
       success: false,
       message: 'Error fetching report data',
@@ -166,7 +166,7 @@ const exportToCSV = async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename=purchase_indent_report.csv');
     res.send(csvRows.join('\n'));
   } catch (error) {
-    console.error('Error exporting to CSV:', error);
+
     res.status(500).json({
       success: false,
       message: 'Error exporting report',
@@ -219,7 +219,7 @@ const getReportSummary = async (req, res) => {
       data: results[0] || {}
     });
   } catch (error) {
-    console.error('Error fetching report summary:', error);
+
     res.status(500).json({
       success: false,
       message: 'Error fetching report summary',

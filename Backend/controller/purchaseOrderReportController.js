@@ -38,8 +38,8 @@ const createPurchaseOrder = async (req, res) => {
       transportCharges = 0  // ✅ ADDED - destructure transportCharges
     } = req.body;
 
-    console.log("Creating PO with deliveryDate:", deliveryDate);
-    console.log("Transport Charges received:", transportCharges);
+
+
 
     // Calculate final total with transport charges
     const finalTotalAmount = (Number(totalAmount) || 0) + (Number(transportCharges) || 0);
@@ -123,7 +123,7 @@ const createPurchaseOrder = async (req, res) => {
       message: "Purchase Order created successfully"
     });
   } catch (error) {
-    console.error("Error creating purchase order:", error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -169,8 +169,8 @@ const updatePurchaseOrder = async (req, res) => {
       transportCharges = 0  // ✅ ADDED - destructure transportCharges
     } = req.body;
 
-    console.log("Updating PO ID:", id, "with deliveryDate:", deliveryDate);
-    console.log("Transport Charges received:", transportCharges);
+
+
 
     // Calculate final total with transport charges
     const finalTotalAmount = (Number(totalAmount) || 0) + (Number(transportCharges) || 0);
@@ -271,7 +271,7 @@ const updatePurchaseOrder = async (req, res) => {
       data: updatedOrder
     });
   } catch (error) {
-    console.error("Error updating purchase order:", error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -318,7 +318,7 @@ const getAllPurchaseOrders = async (req, res) => {
       data: results
     });
   } catch (error) {
-    console.error("Error fetching purchase orders:", error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -451,7 +451,7 @@ const getPurchaseOrderById = async (req, res) => {
       data: order
     });
   } catch (error) {
-    console.error("Error fetching purchase order:", error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -472,7 +472,7 @@ const deletePurchaseOrder = async (req, res) => {
       message: "Purchase Order deleted successfully"
     });
   } catch (error) {
-    console.error("Error deleting purchase order:", error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -496,7 +496,7 @@ const getNextPONumber = async (req, res) => {
     
     res.json({ success: true, poNo: nextNumber });
   } catch (error) {
-    console.error("Error generating PO number:", error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -514,7 +514,7 @@ const getPurchaseOrderResultView = async (req, res) => {
       data: results
     });
   } catch (error) {
-    console.error("Error fetching purchase order result view:", error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };

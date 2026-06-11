@@ -81,7 +81,7 @@ export default function PurchaseOrderReportPage() {
           setAllSuppliers(sortedSuppliers);
         }
       } catch (err) {
-        console.error("Error fetching suppliers:", err);
+
       }
     };
     
@@ -100,7 +100,7 @@ export default function PurchaseOrderReportPage() {
       if (searchPONo) params.searchPONo = searchPONo;
       if (selectedSupplier) params.supplier = selectedSupplier;
       
-      console.log("Fetching with params:", params);
+
       const result = await reportAPI.getReport(params);
       if (result.success) {
         setReportData(result.data || []);
@@ -110,7 +110,7 @@ export default function PurchaseOrderReportPage() {
         setFiltersApplied(false);
       }
     } catch (err) {
-      console.error("Fetch error:", err);
+
       setError(err.message);
       setFiltersApplied(false);
     } finally {
@@ -168,7 +168,7 @@ export default function PurchaseOrderReportPage() {
   const groupedData = useMemo(() => {
     const groups = {};
     reportData.forEach(item => {
-      console.log('Processing item:', item.ponumber, 'totalAmount:', item.totalAmount, 'itemTotalAmount:', item.itemTotalAmount, 'transportCharges:', item.transportCharges);
+
       
       if (!groups[item.ponumber]) {
         groups[item.ponumber] = {
@@ -183,7 +183,7 @@ export default function PurchaseOrderReportPage() {
           totalItems: 0,
           items: []
         };
-        console.log('Created new group for:', item.ponumber, 'totalAmount set to:', item.totalAmount);
+
       }
       
       groups[item.ponumber].items.push({
@@ -201,7 +201,7 @@ export default function PurchaseOrderReportPage() {
       groups[item.ponumber].totalItems += 1;
     });
     
-    console.log('Final groups:', groups);
+
     
     return Object.values(groups).sort((a, b) => {
       if (!a.poDate && !b.poDate) return 0;

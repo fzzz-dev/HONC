@@ -250,14 +250,14 @@ export default function PurchaseGRNPage() {
       setPos(poData || []);
       setIndents(indData || []);
     } catch (err) {
-      console.error("Failed to load GRN data", err);
+
     } finally {
       setLoading(false);
     }
   }, []);
 
   const pendingPOGroups = useMemo(() => {
-  console.log("=== pendingPOGroups DEBUG ===");
+
   const groups = {};
   
   pendingPoRows.forEach((item) => {
@@ -277,8 +277,8 @@ export default function PurchaseGRNPage() {
   
   // ✅ ADD THIS - Log each group's item count
   Object.keys(groups).forEach(poNo => {
-    console.log(`Group ${poNo}: ${groups[poNo].items.length} items`);
-    console.log(`  First item:`, groups[poNo].items[0]?.itemName);
+
+
   });
   
   return groups;
@@ -606,7 +606,7 @@ export default function PurchaseGRNPage() {
         setView("list");
       }, 2000);
     } catch (err) {
-      console.error("Save error:", err);
+
       setFormError(err.message || "Failed to save GRN");
     } finally {
       setSaving(false);
@@ -668,10 +668,10 @@ export default function PurchaseGRNPage() {
     const rows = Array.isArray(pendingData) ? pendingData : [];
     
     // ✅ ADD THIS DEBUG LOG
-    console.log("=== PENDING DATA FROM API ===");
-    console.log("Rows count:", rows.length);
-    console.log("First 2 rows:", rows.slice(0, 2));
-    console.log("All rows:", rows);
+
+
+
+
     
     if (rows.length === 0) {
       alert(header.supplierId
@@ -693,8 +693,8 @@ function addPendingLinesToDetails() {
     return pendingSelected.has(key);
   });
   
-  console.log("=== SELECTED ITEMS COUNT ===", selected.length);
-  console.log("Selected items:", selected.map(s => s.itemName));
+
+
   
   if (selected.length === 0) {
     setPendingModalOpen(false);
@@ -1211,12 +1211,21 @@ function addPendingLinesToDetails() {
                       const cleanId = val.includes(':') ? val.split(':')[0] : val; 
                       const s = suppliers.find(x => String(x.id) === cleanId);
                       const newGstType = determineGstType(cleanId, suppliers);
+                      
+                      // ✅ ADD THIS DEBUG LOG
+
+
+
+
+
+                      
                       setHeader(h => ({ 
                         ...h, 
                         supplierId: cleanId, 
                         supplierName: s?.supplierName || "",
                         gstType: newGstType
                       }));
+                      
                       setDetails(prev => prev.map(row => calcRow(row, newGstType, true)));
                     }} 
                     options={suppliers.map(s => ({ value: String(s.id || s._id), label: s.supplierName }))} 

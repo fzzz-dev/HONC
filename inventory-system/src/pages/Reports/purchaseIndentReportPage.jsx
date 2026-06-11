@@ -27,7 +27,7 @@ const reportAPI = {
     if (params.departmentName) queryParams.append('departmentName', params.departmentName);
     
     const url = `${API}/reports/purchase-indent-report${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-    console.log("Full URL being called:", url);
+
     const response = await fetch(url);
     const data = await response.json();
     return data;
@@ -97,7 +97,7 @@ export default function PurchaseIndentReportPage() {
           setAllDepartments(sortedDepartments);
         }
       } catch (err) {
-        console.error("Error fetching dropdown options:", err);
+
       }
     };
     
@@ -117,11 +117,11 @@ export default function PurchaseIndentReportPage() {
       if (selectedCategory) params.category = selectedCategory;
       if (selectedDepartment) params.departmentName = selectedDepartment;
       
-      console.log("Sending params to backend:", params);
+
       
       const result = await reportAPI.getReport(params);
       if (result.success) {
-        console.log("API Response count:", result.data?.length);
+
         setReportData(result.data || []);
         setFiltersApplied(true);
       } else {

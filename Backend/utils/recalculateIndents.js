@@ -71,7 +71,7 @@ async function recalculateIndents() {
       }
     }
   } catch (err) {
-    console.error("recalculateIndents error:", err.message);
+
   }
 }
 

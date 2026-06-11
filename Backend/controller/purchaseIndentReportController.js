@@ -74,7 +74,7 @@ const getPurchaseIndentReport = async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -180,7 +180,7 @@ const exportToCSV = async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename=purchase_indent_report.csv');
     res.send(csvRows.join('\n'));
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -229,7 +229,7 @@ const getReportSummary = async (req, res) => {
       data: results[0] || {}
     });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };

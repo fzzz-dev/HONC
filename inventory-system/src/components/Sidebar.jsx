@@ -165,7 +165,7 @@ export default function Sidebar() {
         const data = await res.json();
         setPermissions(data);
       } catch (err) {
-        console.error(err);
+
       }
     };
     fetchPerms();

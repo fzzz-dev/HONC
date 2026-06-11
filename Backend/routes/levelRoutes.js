@@ -41,7 +41,7 @@ router.get('/level2-pending', async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -81,7 +81,7 @@ router.get('/level1-pending', async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -121,7 +121,7 @@ router.get('/po-items/:poId', async (req, res) => {
       data: results
     });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -146,7 +146,7 @@ router.put('/approve-level2/:id', async (req, res) => {
     
     res.json({ success: true, message: 'Level 2 approved successfully' });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -172,7 +172,7 @@ router.put('/approve-level1/:id', async (req, res) => {
     
     res.json({ success: true, message: 'PO fully approved!' });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -202,7 +202,7 @@ router.post('/bulk-approve-level2', async (req, res) => {
     
     res.json({ success: true, message: `${poIds.length} PO(s) approved at Level 2` });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -233,7 +233,7 @@ router.post('/bulk-approve-level1', async (req, res) => {
     
     res.json({ success: true, message: `${poIds.length} PO(s) fully approved!` });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });

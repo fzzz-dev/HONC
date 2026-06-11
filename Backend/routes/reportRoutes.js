@@ -86,12 +86,12 @@ router.get('/purchase-indent-report', async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error in /purchase-indent-report:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
   
-console.log("Received query params:", req.query);
-console.log("departmentName value:", departmentName);
+
+
 });
 // Add these after your existing routes in reports.js
 
@@ -108,7 +108,7 @@ router.get('/purchase-indent-report/all-categories', async (req, res) => {
     const categories = results.map(row => row.groupName);
     res.json({ success: true, data: categories });
   } catch (error) {
-    console.error('Error fetching all categories:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -127,7 +127,7 @@ router.get('/purchase-indent-report/all-departments', async (req, res) => {
     const departments = results.map(row => row.name);
     res.json({ success: true, data: departments });
   } catch (error) {
-    console.error('Error fetching all departments:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -243,7 +243,7 @@ router.get('/purchase-indent-report/export/csv', async (req, res) => {
     res.send(BOM + csvRows.join('\n'));
     
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -313,7 +313,7 @@ router.get('/purchase-order-report', async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 }); 
@@ -419,7 +419,7 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
     res.send(BOM + csvRows.join('\n'));
     
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -439,7 +439,7 @@ router.get('/purchase-order-report/suppliers', async (req, res) => {
     const suppliers = results.map(row => row.supplierName);
     res.json({ success: true, data: suppliers });
   } catch (error) {
-    console.error('Error fetching suppliers:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -512,7 +512,7 @@ router.get('/purchase-grn-report', async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error in /purchase-grn-report:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -621,7 +621,7 @@ router.get('/purchase-grn-report/export/csv', async (req, res) => {
     res.send(BOM + csvRows.join('\n'));
     
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -640,7 +640,7 @@ router.get('/purchase-grn-report/suppliers', async (req, res) => {
     const suppliers = results.map(row => row.supplierName);
     res.json({ success: true, data: suppliers });
   } catch (error) {
-    console.error('Error fetching all GRN suppliers:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -722,7 +722,7 @@ router.get('/inventory/stock-flow', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error fetching stock flow report:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -802,7 +802,7 @@ router.get('/inventory/stock-flow/summary', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error fetching report summary:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -829,7 +829,7 @@ router.get('/inventory/stock-flow/date-range', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error fetching date range:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -929,7 +929,7 @@ router.get('/inventory/stock-flow/export/csv', async (req, res) => {
     res.send(BOM + csvRows.join('\n'));
     
   } catch (error) {
-    console.error('Error exporting stock flow report:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -1030,7 +1030,7 @@ router.get('/po-level2-pending', async (req, res) => {
       type: 'level2-pending'
     });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -1132,7 +1132,7 @@ router.get('/po-level1-pending', async (req, res) => {
       type: 'level1-pending'
     });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -1162,7 +1162,7 @@ router.post('/bulk-approve-level2', async (req, res) => {
     
     res.json({ success: true, message: `${poIds.length} PO(s) approved at Level 2` });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -1195,7 +1195,7 @@ router.post('/bulk-approve-level1', async (req, res) => {
     
     res.json({ success: true, message: `${poIds.length} PO(s) fully approved!` });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -1220,7 +1220,7 @@ router.put('/approve-level2/:id', async (req, res) => {
     
     res.json({ success: true, message: 'Level 2 approved successfully' });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -1246,7 +1246,7 @@ router.put('/approve-level1/:id', async (req, res) => {
     
     res.json({ success: true, message: 'PO fully approved!' });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 });

@@ -67,7 +67,7 @@ export default function ItemPriceListPage() {
       setItems(itemsData);
       setSuppliers(suppsData);
     } catch (err) {
-      console.error("Failed to load lookups", err);
+
     }
   }
 
@@ -82,7 +82,7 @@ export default function ItemPriceListPage() {
       setPriceLists(response.data || response || []);
     } catch (err) {
       setError(err.message);
-      console.error("Failed to load price lists:", err);
+
     } finally {
       setLoading(false);
     }
@@ -123,7 +123,7 @@ export default function ItemPriceListPage() {
       setView("form");
     } catch (err) {
       setError(err.message);
-      console.error("Failed to load price list:", err);
+
       alert("Failed to load price list details");
     } finally {
       setLoading(false);
@@ -184,7 +184,7 @@ export default function ItemPriceListPage() {
       setView("list");
     } catch (err) {
       setError(err.message);
-      console.error("Failed to save price list:", err);
+
       alert(`Failed to save: ${err.message}`);
     } finally {
       setLoading(false);
@@ -205,7 +205,7 @@ export default function ItemPriceListPage() {
       await loadPriceLists();
     } catch (err) {
       setError(err.message);
-      console.error("Failed to delete price list:", err);
+
       alert(`Failed to delete: ${err.message}`);
     } finally {
       setLoading(false);

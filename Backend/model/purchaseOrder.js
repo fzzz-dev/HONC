@@ -136,7 +136,7 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
         const { recalculateIndents } = require("../utils/recalculateIndents");
         await recalculateIndents();
       } catch (e) {
-        console.error("recalculateIndents (afterSave PO):", e.message);
+
       }
     },
     afterUpdate: async (po) => {
@@ -144,7 +144,7 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
         const { recalculateIndents } = require("../utils/recalculateIndents");
         await recalculateIndents();
       } catch (e) {
-        console.error("recalculateIndents (afterUpdate PO):", e.message);
+
       }
     },
     afterDestroy: async (po) => {
@@ -152,7 +152,7 @@ const PurchaseOrder = sequelize.define("PurchaseOrder", {
         const { recalculateIndents } = require("../utils/recalculateIndents");
         await recalculateIndents();
       } catch (e) {
-        console.error("recalculateIndents (afterDestroy PO):", e.message);
+
       }
     },
   },

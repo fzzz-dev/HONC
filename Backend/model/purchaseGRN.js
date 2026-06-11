@@ -187,11 +187,11 @@ const PurchaseGRN = sequelize.define("PurchaseGRN", {
       
       if (newStatus !== po.status) {
         await po.update({ status: newStatus });
-        console.log(`✅ PO ${po.poNo}: ${po.status} → ${newStatus}`);
+
       }
     }
   } catch (e) {
-    console.error("afterSave GRN hook error:", e.message);
+
   }
 },
     
@@ -209,7 +209,7 @@ afterUpdate: async (grn) => {
     });
     
     if (!freshGrn) {
-      console.log("Could not fetch GRN with details for status update");
+
       return;
     }
     
@@ -224,7 +224,7 @@ afterUpdate: async (grn) => {
     });
     
     if (affectedPoIds.size === 0) {
-      console.log("No PO IDs found in GRN details");
+
       return;
     }
     
@@ -254,7 +254,7 @@ afterUpdate: async (grn) => {
             const key = gd.poDetailId || `item_${gd.itemId || gd.itemName}`;
             const currentQty = receivedMap.get(key) || 0;
             receivedMap.set(key, currentQty + Number(gd.grnQty || 0));
-            console.log(`[DEBUG] Received: ${key}, Qty: ${gd.grnQty}, Total: ${currentQty + Number(gd.grnQty || 0)}`);
+
           }
         });
       });
@@ -278,10 +278,10 @@ afterUpdate: async (grn) => {
         }
         
         totalReceivedQty += receivedQty;
-        console.log(`[DEBUG] PO Detail ${detailId}: PO Qty=${poQty}, Received=${receivedQty}, Item=${detail.itemName}`);
+
       });
       
-      console.log(`📊 PO ${po.poNo}: Total PO Qty = ${totalPoQty}, Total Received = ${totalReceivedQty}, Current Status = ${po.status}`);
+
       
       // Determine new status
       let newStatus;
@@ -295,18 +295,18 @@ afterUpdate: async (grn) => {
         newStatus = "Open";
       }
       
-      console.log(`🎯 PO ${po.poNo}: New Status should be = ${newStatus}`);
+
       
       if (newStatus !== po.status) {
         await po.update({ status: newStatus });
-        console.log(`✅ PO ${po.poNo}: ${po.status} → ${newStatus} (after GRN edit)`);
+
       } else {
-        console.log(`ℹ️ PO ${po.poNo}: Status unchanged (${po.status}) - ${totalReceivedQty}/${totalPoQty} received`);
+
       }
     }
   } catch (e) {
-    console.error("afterUpdate GRN hook error:", e.message);
-    console.error(e.stack);
+
+
   }
 },
     
@@ -391,7 +391,7 @@ afterUpdate: async (grn) => {
             
             if (newStatus !== po.status) {
               await po.update({ status: newStatus });
-              console.log(`✅ PO ${po.poNo}: ${po.status} → ${newStatus}`);
+
             }
           }
           return;
@@ -451,11 +451,11 @@ afterUpdate: async (grn) => {
           
           if (newStatus !== po.status) {
             await po.update({ status: newStatus });
-            console.log(`✅ PO ${po.poNo}: ${po.status} → ${newStatus}`);
+
           }
         }
       } catch (e) {
-        console.error("afterDestroy GRN hook error:", e.message);
+
       }
     },
   },

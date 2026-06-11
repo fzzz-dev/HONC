@@ -59,7 +59,7 @@ async function updateIndentBalance(indentDetailId) {
       );
     }
   } catch (err) {
-    console.error("updateIndentBalance error:", err.message);
+
   }
 }
 

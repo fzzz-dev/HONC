@@ -23,7 +23,7 @@ const PINCODE_IN = /^\d{6}$/;
 
 // ─── Shared error handler ──────────────────────────────────────────────────────
 function handleError(res, error, context = "supplier") {
-  console.error(`[${context}] Error:`, error);
+
   return res.status(500).json({
     success: false,
     message: `Error processing ${context}`,

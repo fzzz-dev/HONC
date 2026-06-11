@@ -60,10 +60,10 @@ async function updatePOStatusAfterGRNChange(poId) {
     
     if (newStatus !== po.status) {
       await po.update({ status: newStatus });
-      console.log(`✅ PO ${po.poNo}: ${po.status} → ${newStatus}`);
+
     }
   } catch (error) {
-    console.error("Error updating PO status:", error);
+
   }
 }
 
@@ -110,7 +110,7 @@ exports.getAllGRNs = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Get all GRNs error:", error);
+
     res.status(500).json({ success: false, message: "Failed to fetch GRNs", error: error.message });
   }
 };
@@ -168,7 +168,7 @@ exports.getGRNsByPO = async (req, res) => {
 
     res.json({ success: true, data: { po, grns: filteredGrns, summary: Object.values(poSummary) } });
   } catch (error) {
-    console.error("Get GRNs by PO error:", error);
+
     res.status(500).json({ success: false, message: "Failed to fetch GRNs for PO", error: error.message });
   }
 };
@@ -313,7 +313,7 @@ exports.createGRN = async (req, res) => {
 
     res.status(201).json({ success: true, message: "GRN created successfully", data: grn });
   } catch (error) {
-    console.error("CREATE GRN ERROR:", error);
+
     res.status(500).json({ 
       success: false, 
       message: "Failed to create GRN: " + error.message,
@@ -460,7 +460,7 @@ exports.updateGRN = async (req, res) => {
     res.json({ success: true, message: "GRN updated successfully", data: updatedGrn });
 
   } catch (error) {
-    console.error("Update GRN error:", error);
+
     res.status(500).json({ success: false, message: "Failed to update GRN", error: error.message });
   }
 };
@@ -494,7 +494,7 @@ exports.deleteGRN = async (req, res) => {
     
     res.json({ success: true, message: "GRN deleted successfully" });
   } catch (error) {
-    console.error("Delete GRN error:", error);
+
     res.status(500).json({ success: false, message: "Failed to delete GRN", error: error.message });
   }
 };
@@ -628,7 +628,7 @@ exports.getPendingPOItems = async (req, res) => {
 
     res.json(pendingItems);
   } catch (error) {
-    console.error("Get pending PO items error:", error);
+
     res.status(500).json({ 
       success: false,
       message: `Failed to fetch pending PO items: ${error.message}`, 
@@ -685,7 +685,7 @@ exports.getExpiringItems = async (req, res) => {
     expiringItems.sort((a, b) => a.daysToExpiry - b.daysToExpiry);
     res.json({ success: true, data: expiringItems });
   } catch (error) {
-    console.error("Get expiring items error:", error);
+
     res.status(500).json({ success: false, message: "Failed to fetch expiring items", error: error.message });
   }
 };

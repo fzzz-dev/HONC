@@ -124,7 +124,7 @@ export default function OpeningStockPage() {
       setItems(normalizedItems);
       
     } catch (err) {
-      console.error("Failed to load opening stock data", err);
+
     } finally {
       setLoading(false);
     }
@@ -187,7 +187,7 @@ export default function OpeningStockPage() {
       const res = await openingStockApi.getNextNumber();
       nextNo = res?.openingNo || "";
     } catch (err) {
-      console.error("Failed to get next number", err);
+
     }
 
     setHeader({
@@ -305,7 +305,7 @@ export default function OpeningStockPage() {
         const rate = parseFloat(row["Phy Rate"] || row["PhyRate"] || row["Physical Rate"] || row["Rate"] || row["Unit Price"] || 0);
         
         if (!headName || !categoryName || !itemName) {
-          console.warn(`Row ${rowNumber}: Missing head, category, or item name`);
+
           skippedCount++;
           continue;
         }
@@ -315,7 +315,7 @@ export default function OpeningStockPage() {
         );
         
         if (!head) {
-          console.warn(`Row ${rowNumber}: Head not found - ${headName}`);
+
           skippedCount++;
           continue;
         }
@@ -326,7 +326,7 @@ export default function OpeningStockPage() {
         );
         
         if (!category) {
-          console.warn(`Row ${rowNumber}: Category not found - ${categoryName} under head ${headName}`);
+
           skippedCount++;
           continue;
         }
@@ -338,7 +338,7 @@ export default function OpeningStockPage() {
         );
         
         if (!item) {
-          console.warn(`Row ${rowNumber}: Item not found - ${itemName} under head ${headName}`);
+
           skippedCount++;
           continue;
         }
@@ -368,7 +368,7 @@ export default function OpeningStockPage() {
       alert(`Successfully imported ${newDetails.length} items in Excel order. ${skippedCount} rows skipped.`);
       
     } catch (err) {
-      console.error("Bulk import error:", err);
+
       alert("Failed to import Excel file: " + err.message);
     }
   }

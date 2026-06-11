@@ -83,7 +83,7 @@ export default function PurchaseGrnReportPage() {
           setSuppliers(sortedSuppliers);
         }
       } catch (err) {
-        console.error("Error fetching suppliers:", err);
+
       }
     };
     fetchSuppliers();
@@ -102,7 +102,7 @@ export default function PurchaseGrnReportPage() {
       if (selectedSupplier) params.supplier = selectedSupplier;
       if (searchPONo) params.poNo = searchPONo;
       
-      console.log("Fetching with params:", params);
+
       const result = await reportAPI.getReport(params);
       if (result.success) {
         setReportData(result.data || []);
@@ -112,7 +112,7 @@ export default function PurchaseGrnReportPage() {
         setFiltersApplied(false);
       }
     } catch (err) {
-      console.error("Fetch error:", err);
+
       setError(err.message);
       setFiltersApplied(false);
     } finally {

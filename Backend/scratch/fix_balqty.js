@@ -12,7 +12,7 @@ async function fix() {
       SET balQty = indentQty
       WHERE alPoQty = 0 AND balQty = 0 AND indentQty > 0
     `);
-    console.log(`Fixed ${results.affectedRows ?? 'unknown'} rows.`);
+
 
     // Show current state
     const [rows] = await sequelize.query(`
@@ -22,7 +22,7 @@ async function fix() {
 
     process.exit(0);
   } catch (err) {
-    console.error(err);
+
     process.exit(1);
   }
 }

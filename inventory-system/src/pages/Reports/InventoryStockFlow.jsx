@@ -138,7 +138,7 @@ export default function InventoryStockFlow() {
         setReportFetched(false);
       }
     } catch (err) {
-      console.error('Fetch error:', err);
+
       setError(err.message || "An error occurred while fetching data");
       setReportData([]);
       setFilteredData([]);

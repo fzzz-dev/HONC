@@ -73,7 +73,7 @@ const getPurchaseGRNReport = async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error in getPurchaseGRNReport:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -191,7 +191,7 @@ const exportGRNToCSV = async (req, res) => {
     res.send(BOM + csvRows.join('\n'));
     
   } catch (error) {
-    console.error('Error in exportGRNToCSV:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -236,7 +236,7 @@ const getGRNReportSummary = async (req, res) => {
       data: results[0] || {}
     });
   } catch (error) {
-    console.error('Error in getGRNReportSummary:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -316,7 +316,7 @@ const getPurchaseIndentReport = async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -428,7 +428,7 @@ const exportIndentToCSV = async (req, res) => {
     const BOM = '\uFEFF';
     res.send(BOM + csvRows.join('\n'));
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -476,7 +476,7 @@ const getIndentReportSummary = async (req, res) => {
       data: results[0] || {}
     });
   } catch (error) {
-    console.error('Error:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -548,7 +548,7 @@ const getPurchaseOrderReport = async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error('Error in getPurchaseOrderReport:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -657,7 +657,7 @@ const exportOrderToCSV = async (req, res) => {
     const BOM = '\uFEFF';
     res.send(BOM + csvRows.join('\n'));
   } catch (error) {
-    console.error('Error in exportOrderToCSV:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -705,7 +705,7 @@ const getOrderReportSummary = async (req, res) => {
       data: results[0] || {}
     });
   } catch (error) {
-    console.error('Error in getOrderReportSummary:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -46,7 +46,7 @@ async function recalculatePOGRNQuantities() {
       }
     }
   } catch (err) {
-    console.error("recalculatePOGRNQuantities error:", err.message);
+
   }
 }
 

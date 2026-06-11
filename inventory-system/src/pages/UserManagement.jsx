@@ -25,7 +25,7 @@ const UserManagement = () => {
         setFilteredUsers(data);
       }
     } catch (error) {
-      console.error('Failed to fetch users:', error);
+
     } finally {
       setIsLoading(false);
     }
@@ -39,7 +39,7 @@ const UserManagement = () => {
         setRoles(data);
       }
     } catch (error) {
-      console.error('Failed to fetch roles:', error);
+
     }
   };
 
@@ -88,7 +88,7 @@ const UserManagement = () => {
         alert(error.message || 'Operation failed');
       }
     } catch (error) {
-      console.error('Error saving user:', error);
+
     }
   };
 
@@ -106,7 +106,7 @@ const UserManagement = () => {
         setIsRoleModalOpen(false);
       }
     } catch (error) {
-      console.error('Error adding role:', error);
+
     }
   };
 
@@ -116,7 +116,7 @@ const UserManagement = () => {
         await fetch(`${BASE_URL}/roles/${id}`, { method: 'DELETE' });
         fetchRoles();
       } catch (error) {
-        console.error('Error deleting role:', error);
+
       }
     }
   };
@@ -129,7 +129,7 @@ const UserManagement = () => {
           fetchUsers();
         }
       } catch (error) {
-        console.error('Error deleting user:', error);
+
       }
     }
   };

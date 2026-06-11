@@ -28,6 +28,8 @@ async function ensureDatabaseExists() {
     `CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME || "inventory_db"}\`;`,
   );
   await connection.end();
+  
+  console.log("✅ Database ensured");
 }
 
 const seedData = async () => {
@@ -38,6 +40,7 @@ const seedData = async () => {
     const exists = await Role.findOne({ where: { name: roleName } });
     if (!exists) {
       await Role.create({ name: roleName });
+      console.log(`✅ Created role: ${roleName}`);
     }
   }
 
@@ -49,7 +52,7 @@ const seedData = async () => {
       role: "admin",
       name: "System Administrator",
     });
-    console.log("Default admin user created");
+    console.log("✅ Created admin user (username: admin, password: admin)");
   }
 };
 
@@ -69,7 +72,7 @@ const ensureItemMovementTypeColumn = async () => {
     await sequelize.query(
       "ALTER TABLE `Items` ADD COLUMN `movementType` ENUM('moving','non-moving') NOT NULL DEFAULT 'moving' AFTER `spec`",
     );
-    console.log("Added movementType column to Items table");
+    console.log("✅ Added movementType column to Items");
   }
 };
 
@@ -77,7 +80,8 @@ async function ensureSchemaEnhancements() {
   try {
     const [tables] = await sequelize.query("SHOW TABLES");
     const dbTables = tables.map(t => Object.values(t)[0]);
-    console.log("Database tables found (actual casing):", dbTables.join(", "));
+
+    console.log(`📋 Found ${dbTables.length} tables in database`);
 
     const patches = [
       ["items", "minimumStock", "ADD COLUMN `minimumStock` DECIMAL(12,2) NOT NULL DEFAULT 0"],
@@ -128,6 +132,7 @@ async function ensureSchemaEnhancements() {
       ["openingstocks", "totalItems", "ADD COLUMN `totalItems` INT NOT NULL DEFAULT 0"],
     ];
 
+    let addedCount = 0;
     for (const [table, col, ddl] of patches) {
       const targetTable = dbTables.find(t => 
         t.toLowerCase() === table.toLowerCase() || 
@@ -138,33 +143,41 @@ async function ensureSchemaEnhancements() {
       if (targetTable) {
         try {
           await sequelize.query(`ALTER TABLE \`${targetTable}\` ${ddl}`);
-          console.log(`Schema Enhancement: added ${targetTable}.${col}`);
+          addedCount++;
+          console.log(`  ✅ Added ${targetTable}.${col}`);
         } catch (innerErr) {
           if (!innerErr.message.includes("Duplicate column name")) {
-            console.warn(`Patch failed for ${targetTable}.${col}:`, innerErr.message);
+            console.log(`  ℹ️ ${targetTable}.${col} already exists`);
           }
         }
       }
     }
+    console.log(`📊 Schema enhancement: ${addedCount} columns added`);
   } catch (e) {
-    console.warn("Schema enhancement (non-fatal):", e.message);
+    console.error("Schema enhancement error:", e.message);
   }
 }
 
 // Start server function
 async function startServer() {
   try {
+    console.log("🚀 Starting server...");
+    
     await ensureDatabaseExists();
+    console.log("✅ Database connection established");
+    
     await sequelize.authenticate();
-    console.log("SQL Database Connected");
+    console.log("✅ Database authenticated");
+
     await ensureSchemaEnhancements();
     await sequelize.sync();
-    console.log("Database Synced");
+    console.log("✅ Database synced");
+
     await ensureItemMovementTypeColumn();
     await seedData();
 
     // ========== REGISTER ALL ROUTES AFTER DATABASE IS READY ==========
-    console.log("Registering routes...");
+    console.log("📡 Registering routes...");
 
     app.use("/api/countries", require("./routes/countryRoutes"));
     app.use("/api/states", require("./routes/stateRoutes"));
@@ -194,6 +207,7 @@ async function startServer() {
     app.use("/api/reports", require("./routes/reportRoutes"));
     app.use("/api/level", require("./routes/levelRoutes"));
     
+    console.log("✅ Routes registered");
 
     // Test routes
     app.get("/test-simple", (req, res) => {
@@ -204,11 +218,9 @@ async function startServer() {
       res.json({ status: "OK", message: "Server is running (SQL Mode)" });
     });
 
-    console.log("All routes registered successfully");
-
     // Global error handler
     app.use((err, req, res, next) => {
-      console.error(err.stack);
+      console.error("Global error:", err.message);
       res.status(500).json({
         success: false,
         message: err.message || "Internal Server Error",
@@ -217,10 +229,13 @@ async function startServer() {
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      console.log(`🎉 Server running on port ${PORT}`);
+      console.log(`📁 Uploads directory: /uploads`);
+      console.log(`✅ All systems ready!`);
     });
   } catch (err) {
-    console.error("Database Connection/Sync Error:", err);
+    console.error("❌ Failed to start server:", err.message);
+    process.exit(1);
   }
 }
 

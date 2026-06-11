@@ -9,10 +9,10 @@ async function run() {
       ALTER TABLE PurchaseGRNDetails 
       ADD COLUMN IF NOT EXISTS poDetailId INTEGER NULL AFTER poId
     `);
-    console.log('✅ poDetailId column added to PurchaseGRNDetails.');
+
     process.exit(0);
   } catch (err) {
-    console.error('Migration error:', err.message);
+
     process.exit(1);
   }
 }

@@ -216,7 +216,7 @@ const calculateIndentStatus = (indent) => {
       
       setLookupsLoaded(true);
     } catch (e) { 
-      console.error(e); 
+
       setLookupsLoaded(true);
     }
   }
@@ -415,7 +415,7 @@ const calculateIndentStatus = (indent) => {
         setView("list");
       }, 2000);
     } catch (err) { 
-      console.error("Save error:", err);
+
       setFormError(err.message); 
     } finally { 
       setSaving(false); 

@@ -47,7 +47,7 @@ export default function SupplierCreateModal({ onClose, onCreated }) {
       const res = await typesAPI.list();
       setSupplierTypes(res.data || []);
     } catch (e) {
-      console.error(e);
+
     } finally {
       setTypesLoading(false);
     }
@@ -64,7 +64,7 @@ export default function SupplierCreateModal({ onClose, onCreated }) {
         setPaymentTerms(Array.isArray(pt) ? pt : []);
         setMainCategories(Array.isArray(mc) ? mc : []);
       } catch (e) {
-        console.error(e);
+
       }
     })();
   }, []);

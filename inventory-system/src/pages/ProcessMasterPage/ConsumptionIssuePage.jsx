@@ -172,7 +172,7 @@ export default function ConsumptionIssuePage() {
       setItems(itemData?.data || itemData || []);
       setGrns(grnRes?.data || grnRes || []);
     } catch (err) {
-      console.error("Failed to load consumption data", err);
+
     } finally {
       setLoading(false);
     }
@@ -240,7 +240,7 @@ export default function ConsumptionIssuePage() {
       const res = await consumptionIssueApi.getNextNumber();
       nextNo = res?.issNo || "";
     } catch (err) {
-      console.error("Failed to get next ISS number", err);
+
     }
 
     setHeader({
@@ -383,7 +383,7 @@ export default function ConsumptionIssuePage() {
         setView("list");
       }, 2000);
     } catch (err) {
-      console.error("Save error:", err);
+
       setFormError(err.message);
     } finally {
       setSaving(false);

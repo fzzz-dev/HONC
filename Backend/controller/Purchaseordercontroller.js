@@ -306,7 +306,7 @@ exports.create = async (req, res) => {
     await transaction.rollback();
     if (err.name === 'SequelizeUniqueConstraintError')
       return res.status(409).json({ message: "PO number already exists" });
-    console.error("Create PO error:", err);
+
     res.status(500).json({ message: err.message });
   }
 };
@@ -475,7 +475,7 @@ exports.update = async (req, res) => {
     res.json(updatedPo);
   } catch (err) {
     await transaction.rollback();
-    console.error("Update PO error:", err);
+
     res.status(500).json({ message: err.message });
   }
 };

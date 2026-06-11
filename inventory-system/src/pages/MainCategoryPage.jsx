@@ -59,7 +59,7 @@ export default function MainCategoryPage() {
       const data = await inventoryHeadApi.getAll({ active: true });
       setHeads(data.map((h) => ({ ...h, id: h.id || h._id })));
     } catch (err) {
-      console.error("Failed to load heads:", err.message);
+
     }
   }, []);
 

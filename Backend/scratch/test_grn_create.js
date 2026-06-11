@@ -32,11 +32,11 @@ const req = http.request(options, res => {
   let body = '';
   res.on('data', d => body += d);
   res.on('end', () => {
-    console.log('Status:', res.statusCode);
+
     try {
-      console.log('Response:', JSON.parse(body));
+
     } catch(e) {
-      console.log('Raw Response:', body);
+
     }
   });
 });

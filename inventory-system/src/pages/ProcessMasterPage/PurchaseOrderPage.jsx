@@ -1084,6 +1084,35 @@ const formatNumber = (val) => {
   return Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+
+const determineGstType = (supplierId, suppliers, company) => {
+  if (!supplierId) return "local";
+  
+  const supplier = suppliers.find(s => String(s.id) === String(supplierId));
+  if (!supplier) return "local";
+  
+  // ✅ FIRST: Check by GST codes (like GRN page)
+  const compGstCode = (company?.gstin || "").trim().match(/^\d{2}/)?.[0] || "";
+  const suppGstCode = (supplier.gstNo || "").trim().match(/^\d{2}/)?.[0] || "";
+  
+  if (compGstCode && suppGstCode) {
+    return compGstCode === suppGstCode ? "local" : "other";
+  }
+  
+  // SECOND: Check by state (fallback)
+  const compState = (company?.state || company?.address || "").toLowerCase().replace(/\s+/g, '');
+  const parsedAddresses = safeDetails(supplier?.addresses);
+  const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
+  const suppState = (supplier.state || primaryAddr?.stateName || "").toLowerCase().replace(/\s+/g, '');
+  
+  if (compState && suppState && (compState.includes(suppState) || suppState.includes(compState))) {
+    return "local";
+  }
+  
+  // LAST: Use supplier's gstType field
+  return supplier.gstType === "other" ? "other" : "local";
+};
+
   // Force form view when editId is set
 useEffect(() => {
   if (editId) {
@@ -1134,7 +1163,7 @@ useEffect(() => {
         const po = await purchaseOrderApi.getOne(params.id);
         if (po) openEdit(po);
       } catch (err) {
-        console.error(err);
+        
       }
     };
     loadPO();
@@ -1149,7 +1178,7 @@ useEffect(() => {
         const parsed = JSON.parse(d); 
         return Array.isArray(parsed) ? parsed : [];
       } catch (e) { 
-        console.error("Error parsing details:", e);
+        
         return []; 
       }
     }
@@ -1158,10 +1187,10 @@ useEffect(() => {
 
 
   const pendingIndentGroups = useMemo(() => {
-  console.log("=== DEBUG: pendingIndentGroups START ===");
-  console.log("editId:", editId);
-  console.log("details length:", details.length);
-  console.log("indents length:", indents.length);
+  
+  
+  
+  
   
   const groups = {};
   
@@ -1175,14 +1204,14 @@ useEffect(() => {
       }
     });
   }
-  console.log("currentPOOrderedMap:", Object.fromEntries(currentPOOrderedMap));
+  
   
   indents.forEach(ind => {
-    console.log(`\n--- Processing Indent: ${ind.indentNo} ---`);
-    console.log("Indent details from backend:", ind.details);
+    
+    
     
     const details_array = safeDetails(ind.details);
-    console.log("Parsed details_array:", details_array);
+    
     
     const pendingDetails = details_array.filter(d => {
       const indentDetailId = sid(d.id || d._id);
@@ -1195,20 +1224,20 @@ useEffect(() => {
       
       const hasItemId = d.itemId ? true : false;
       
-      console.log(`  Item: ${d.itemName || d.itemDescription}`);
-      console.log(`    indentDetailId: ${indentDetailId}`);
-      console.log(`    originalBalance (balQty): ${originalBalance}`);
-      console.log(`    alreadyInThisPO: ${alreadyInThisPO}`);
-      console.log(`    remainingBalance: ${remainingBalance}`);
-      console.log(`    hasItemId: ${hasItemId}`);
+      
+      
+      
+      
+      
+      
       
       return remainingBalance > 0 && hasItemId;
     });
     
-    console.log(`pendingDetails count for ${ind.indentNo}: ${pendingDetails.length}`);
+    
     
     if (pendingDetails.length === 0) {
-      console.log(`❌ SKIPPING indent ${ind.indentNo} - no pending items`);
+      
       return;
     }
     
@@ -1240,8 +1269,8 @@ useEffect(() => {
     };
   });
   
-  console.log("=== FINAL groups:", Object.keys(groups));
-  console.log("=== DEBUG: pendingIndentGroups END ===");
+  
+  
   
   return groups;
 }, [indents, items, editId, details]);
@@ -1603,7 +1632,7 @@ async function loadLookups() {
     setTerms(Array.isArray(pterms) ? pterms : []);
     setCompany(comp);
   } catch (err) {
-    console.error("Failed to load lookups:", err);
+    
   }
 }
 
@@ -1625,7 +1654,7 @@ async function loadLookups() {
       
       setPos(filteredData);
     } catch (err) {
-      console.error("Failed to load POs:", err);
+      
       if (typeof setListError === "function") {
         setListError(err.message);
       }
@@ -1665,10 +1694,10 @@ async function loadLookups() {
 }
 
 function openEdit(po) {
-  console.log("=== openEdit START ===");
+  
   
   if (!po) {
-    console.error("openEdit received undefined PO!");
+    
     return;
   }
 
@@ -1814,18 +1843,18 @@ function openEdit(po) {
 }
 // Handle editing from pending page - with higher priority
 useEffect(() => {
-  console.log("location.state in PurchaseOrderPage:", location.state);
+  
   
   // Check if we have a PO passed from navigation state
   if (location.state?.po) {
     const poData = location.state.po; // Store in variable
-    console.log("PO received in PurchaseOrderPage:", poData);
+    
     
     setView("form");
     
     // Use a timeout to ensure the component is ready
     setTimeout(() => {
-      console.log("Calling openEdit with:", poData);
+      
       openEdit(poData);
     }, 200);
     
@@ -1839,7 +1868,7 @@ useEffect(() => {
         const po = await purchaseOrderApi.getOne(params.id);
         if (po) openEdit(po);
       } catch (err) {
-        console.error(err);
+        
       }
     };
     loadPO();
@@ -1976,7 +2005,7 @@ async function handleBulkApprove() {
       }
       successCount++;
     } catch (err) {
-      console.error(`Failed to approve PO ${poId}:`, err);
+      
       errorCount++;
     }
   }
@@ -2011,12 +2040,12 @@ async function handleBulkApprove() {
   }
 
 async function handleSave() {
-  console.log("=== handleSave START ===");
-  console.log("Current details array:", details);
+  
+  
   details.forEach((row, idx) => {
-    console.log(`Row ${idx}: itemId =`, row.itemId, "type:", typeof row.itemId);
+    
   });
-  console.log("handleSave called");
+  
   
   if (!header.poNo.trim()) {
     setFormError("PO No is required");
@@ -2035,7 +2064,7 @@ async function handleSave() {
     return true;
   });
   
-  console.log("Valid rows:", validRows.length);
+  
   
   if (validRows.length === 0) {
     setFormError("At least one item is required");
@@ -2125,7 +2154,7 @@ async function performSave() {
       setView("list");
     }, 2000);
   } catch (err) { 
-    console.error("Save error:", err);
+    
     setFormError(err.message); 
   } finally { 
     setSaving(false); 
@@ -2150,7 +2179,7 @@ async function updateIndentBalances(poDetails) {
       await purchaseOrderApi.updateIndentBalance(indentDetailId, poQty);
     }
   } catch (err) {
-    console.error("Error updating indent balances:", err);
+    
   }
 }
 
@@ -2225,7 +2254,7 @@ function addPendingLinesToDetails() {
     });
   });
 
-  console.log("Selected items to add:", selected);
+  
 
   if (selected.length === 0) {
     setPendingModalOpen(false);
@@ -2253,7 +2282,7 @@ function addPendingLinesToDetails() {
         const currentQty = Number(existingRow.poQty) || 0;
         const newQty = currentQty + s.balQty;
         
-        console.log(`Updating existing item ${s.itemName}: ${currentQty} + ${s.balQty} = ${newQty}`);
+        
         
         nonEmptyRows[existingIndex] = calcRow({
           ...existingRow,
@@ -2262,7 +2291,7 @@ function addPendingLinesToDetails() {
         });
       } else {
         // New item - add as new row
-        console.log(`Adding new item ${s.itemName}: ${s.balQty}`);
+        
         
         const newRow = calcRow({
           ...emptyDetail(),
@@ -2708,54 +2737,40 @@ const filteredPosForDisplay = (pos || []).filter(po => {
                 </select>
               </Field>
               
-              <Field label="Supplier *">
-                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  <div style={{ flex: 1 }}>
-                    <SearchSelect tabIndex={4} value={header.supplierId} onChange={val => {
-                      const s = suppliers.find(x => sid(x) === val);
-                      let newGstType = "local";
-                      if (s) {
-                        const compGst = (company?.gstin || "").trim();
-                        const suppGst = (s.gstNo || "").trim();
-                        const compCode = compGst.match(/^\d{2}/)?.[0];
-                        const suppCode = suppGst.match(/^\d{2}/)?.[0];
-                        if (compCode && suppCode) {
-                          newGstType = compCode === suppCode ? "local" : "other";
-                        } else {
-                          const compState = (company?.state || company?.address || "").toLowerCase().replace(/\s+/g, '');
-                          const parsedAddresses = safeDetails(s?.addresses);
-                          const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
-                          const suppState = (s.state || primaryAddr?.stateName || "").toLowerCase().replace(/\s+/g, '');
-                          if (compState && suppState && (compState.includes(suppState) || suppState.includes(compState))) {
-                            newGstType = "local";
-                          } else {
-                            newGstType = s.gstType || "local";
-                          }
-                        }
-                      }
-                      setGstType(newGstType);
-                      const parsedAddresses = safeDetails(s?.addresses);
-                      const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
-                      let addrText = "";
-                      if (primaryAddr) {
-                        const parts = [primaryAddr.address || primaryAddr.line1, primaryAddr.cityName, primaryAddr.stateName, primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""].filter(Boolean);
-                        addrText = parts.join(", ");
-                      }
-                      setHeader(h => ({ ...h, supplierId: val, supplierName: toTitleCase(s?.supplierName || ""), supplierAddress: addrText, supplierGst: s?.gstNo || "" }));
-                      setDetails(prev => prev.map(row => calcRow(row, newGstType)));
-                    }} options={suppliers.map(s => ({ value: sid(s), label: s.supplierName }))} placeholder="Select supplier" />
-                  </div>
-                  <button type="button" className="inv-btn-icon" onClick={() => navigate("/supplier")} style={{ color: "#10b981" }} tabIndex={-1}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                  </button>
-                  {header.supplierId && (
-                    <button type="button" className="inv-btn-icon" onClick={() => { const s = suppliers.find(x => sid(x) === header.supplierId); if (s) setViewingSupplier(s); }} tabIndex={-1}>
-                      <ViewIcon />
-                    </button>
-                  )}
-                </div>
-              </Field>
-              
+<Field label="Supplier *">
+  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+    <div style={{ flex: 1 }}>
+      <SearchSelect tabIndex={4} value={header.supplierId} onChange={val => {
+        const s = suppliers.find(x => sid(x) === val);
+        const newGstType = determineGstType(val, suppliers, company);  // ✅ Fixed function name
+        
+        // Debug log (remove after testing)
+
+
+        
+        setGstType(newGstType);
+        const parsedAddresses = safeDetails(s?.addresses);
+        const primaryAddr = parsedAddresses.find(a => a.isPrimary) || parsedAddresses[0];
+        let addrText = "";
+        if (primaryAddr) {
+          const parts = [primaryAddr.address || primaryAddr.line1, primaryAddr.cityName, primaryAddr.stateName, primaryAddr.pinCode ? `PIN: ${primaryAddr.pinCode}` : ""].filter(Boolean);
+          addrText = parts.join(", ");
+        }
+        setHeader(h => ({ ...h, supplierId: val, supplierName: toTitleCase(s?.supplierName || ""), supplierAddress: addrText, supplierGst: s?.gstNo || "" }));
+        setDetails(prev => prev.map(row => calcRow(row, newGstType)));
+      }} options={suppliers.map(s => ({ value: sid(s), label: s.supplierName }))} placeholder="Select supplier" />
+    </div>
+    <button type="button" className="inv-btn-icon" onClick={() => navigate("/supplier")} style={{ color: "#10b981" }} tabIndex={-1}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    </button>
+    {header.supplierId && (
+      <button type="button" className="inv-btn-icon" onClick={() => { const s = suppliers.find(x => sid(x) === header.supplierId); if (s) setViewingSupplier(s); }} tabIndex={-1}>
+        <ViewIcon />
+      </button>
+    )}
+  </div>
+</Field>
+                            
               <Field label="Reference No">
                 <input tabIndex={5} className="inv-input" value={header.refNo} onChange={e => setHeader(h => ({ ...h, refNo: e.target.value }))} placeholder="e.g. Quote #123" />
               </Field>

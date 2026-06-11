@@ -3,7 +3,7 @@ const { sequelize } = require('../model/index');
 async function aggressiveFix() {
   const dbName = sequelize.config.database;
   try {
-    console.log(`Aggressively fixing IDs for all procurement tables in ${dbName}...`);
+
 
     const tables = ['purchaseorderdetails', 'purchasegrndetails', 'purchaseindentdetails', 'openingstockdetails', 'consumptionissuedetails'];
     
@@ -20,7 +20,7 @@ async function aggressiveFix() {
         for (const c of constraints) {
             try {
                 await sequelize.query(`ALTER TABLE ${table} DROP FOREIGN KEY ${c.CONSTRAINT_NAME}`);
-                console.log(`  Dropped ${c.CONSTRAINT_NAME} from ${table}`);
+
             } catch(e) {}
         }
     }
@@ -30,7 +30,7 @@ async function aggressiveFix() {
     for (const p of parents) {
         try {
             await sequelize.query(`ALTER TABLE ${p} MODIFY COLUMN id BIGINT NOT NULL AUTO_INCREMENT`);
-            console.log(`  Upgraded ${p}.id to BIGINT`);
+
         } catch(e) { console.error(`Failed ${p}: ${e.message}`); }
     }
 
@@ -52,14 +52,14 @@ async function aggressiveFix() {
             if (col) {
                 await sequelize.query(`ALTER TABLE ${table} MODIFY COLUMN ${col} BIGINT NOT NULL`);
             }
-            console.log(`  Upgraded ${table} columns`);
+
         } catch(e) { console.error(`Failed ${table}: ${e.message}`); }
     }
 
-    console.log("✅ Aggressive ID fix complete.");
+
     process.exit(0);
   } catch (e) {
-    console.error("❌ Aggressive Migration failed:", e.message);
+
     process.exit(1);
   }
 }

@@ -139,7 +139,7 @@ export default function POLevel1Pending() {
         setReportData(sortedData);
       }
     } catch (err) {
-      console.error(err);
+
       setError(err.message);
     } finally {
       setLoading(false);

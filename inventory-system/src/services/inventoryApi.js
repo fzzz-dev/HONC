@@ -195,7 +195,7 @@ getIndentsForPicking: async () => {
     const allIndents = [...(openIndents.data?.data || []), ...(partialIndents.data?.data || [])];
     return { success: true, data: allIndents };
   } catch (err) {
-    console.error("Error fetching indents for picking:", err);
+
     return { success: false, data: [] };
   }
 },

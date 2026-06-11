@@ -77,7 +77,7 @@ const RolePermissions = () => {
       setRoles(rolesData);
       setPermissions(permsData);
     } catch (error) {
-      console.error('Failed to fetch data:', error);
+
     }
   };
 
@@ -103,7 +103,7 @@ const RolePermissions = () => {
         body: JSON.stringify({ roleName, resourcePath, canAccess: newValue }),
       });
     } catch (error) {
-      console.error('Error updating permission:', error);
+
     }
   };
 

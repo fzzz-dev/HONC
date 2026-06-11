@@ -9,10 +9,10 @@ async function run() {
       ALTER TABLE PurchaseOrderDetails 
       ADD COLUMN IF NOT EXISTS alGrnQty DECIMAL(10,2) NOT NULL DEFAULT 0
     `);
-    console.log('✅ alGrnQty column added (or already exists).');
+
     process.exit(0);
   } catch (err) {
-    console.error('Migration error:', err.message);
+
     process.exit(1);
   }
 }

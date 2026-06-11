@@ -270,7 +270,7 @@ export function AddressFormPage({ address, onSave, onCancel, countries = [], sta
         active: newCountry.active
       };
       
-      console.log("Adding country with payload:", payload);
+
       
       const result = await dispatch(addCountry(payload));
       
@@ -284,11 +284,11 @@ export function AddressFormPage({ address, onSave, onCancel, countries = [], sta
         setShowCountryModal(false);
         setNewCountry({ name: "", code: "", active: true });
       } else {
-        console.error("Add country error:", result.error);
+
         alert(result.error?.message || "Failed to add country");
       }
     } catch (err) {
-      console.error("Add country exception:", err);
+
       alert(err.message);
     } finally {
       setAdding(false);
@@ -308,7 +308,7 @@ export function AddressFormPage({ address, onSave, onCancel, countries = [], sta
         active: newState.active
       };
       
-      console.log("Adding state with payload:", payload);
+
       
       const result = await dispatch(addState(payload));
       
@@ -322,11 +322,11 @@ export function AddressFormPage({ address, onSave, onCancel, countries = [], sta
         setShowStateModal(false);
         setNewState({ name: "", code: "", active: true, countryId: "" });
       } else {
-        console.error("Add state error:", result.error);
+
         alert(result.error?.message || "Failed to add state");
       }
     } catch (err) {
-      console.error("Add state exception:", err);
+
       alert(err.message);
     } finally {
       setAdding(false);
@@ -354,7 +354,7 @@ export function AddressFormPage({ address, onSave, onCancel, countries = [], sta
         active: newCity.active
       };
       
-      console.log("Adding city with payload:", payload);
+
       
       const result = await dispatch(createCity(payload));
       
@@ -368,11 +368,11 @@ export function AddressFormPage({ address, onSave, onCancel, countries = [], sta
         setShowCityModal(false);
         setNewCity({ name: "", active: true, stateId: "" });
       } else {
-        console.error("Add city error:", result.error);
+
         alert(result.error?.message || "Failed to add city");
       }
     } catch (err) {
-      console.error("Add city exception:", err);
+
       alert(err.message);
     } finally {
       setAdding(false);
@@ -983,7 +983,7 @@ export default function SupplierPage() {
         setPaymentTerms(Array.isArray(pt) ? pt : []);
         setMainCategories(Array.isArray(mc) ? mc : []);
       } catch (e) {
-        console.error(e);
+
       }
     })();
   }, []);
@@ -996,7 +996,7 @@ export default function SupplierPage() {
 
   // Add this after your useState declarations
 useEffect(() => {
-  console.log("Form addresses updated:", form.addresses);
+
 }, [form.addresses]);
 
   const typeOptions = supplierTypes.map((t) => ({
@@ -1046,7 +1046,7 @@ function openEdit(row) {
         const parsed = JSON.parse(row.addresses);
         existingAddresses = Array.isArray(parsed) ? parsed : [];
       } catch (e) {
-        console.error("Failed to parse addresses:", e);
+
         existingAddresses = [];
       }
     }
@@ -1130,25 +1130,25 @@ function openEdit(row) {
 
   // ── Save supplier ────────────────────────────────────────────────────────────
 async function handleSave() {
-  console.log("=== SAVE STARTED ===");
-  console.log("Form data:", form);
+
+
   
   if (!form.supplierName.trim()) {
-    console.log("Validation failed: Party name missing");
+
     return alert("Party name is required");
   }
   if (!form.type) {
-    console.log("Validation failed: Party category missing");
+
     return alert("Party category is required");
   }
   
   const sc = String(form.shortCode || "").trim().toUpperCase();
   if (sc.length < 1 || sc.length > 5) {
-    console.log("Validation failed: Short code invalid");
+
     return alert("Short code is required (1–5 characters)");
   }
   
-  console.log("Validations passed");
+
   setSaving(true);
   
   try {
@@ -1156,7 +1156,7 @@ async function handleSave() {
       .filter((a) => (a.line1 || a.address) && a.cityId && a.stateId && a.countryId)
       .map(({ _id, ...rest }) => rest);
     
-    console.log("Clean addresses:", cleanAddresses);
+
     
     const payload = {
       ...form,
@@ -1166,22 +1166,22 @@ async function handleSave() {
       addresses: cleanAddresses,
     };
     
-    console.log("Payload being sent:", payload);
+
     
     if (modal.mode === "add") {
-      console.log("Creating new supplier...");
+
       await suppliersAPI.create(payload);
       setForm(EMPTY_FORM);
     } else {
-      console.log("Updating supplier with ID:", modal.id);
+
       await suppliersAPI.update(modal.id, payload);
     }
     
-    console.log("Save successful!");
+
     setSaveSuccess(true);
     fetchSuppliers();
   } catch (e) {
-    console.error("Save error:", e);
+
     showToast(e.message, "error");
   } finally {
     setSaving(false);

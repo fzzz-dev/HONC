@@ -1,13 +1,15 @@
 const { sequelize } = require('./model/index.js');
+
 async function run() {
   try {
-    console.log("Syncing database with alter: true...");
+    console.log("🔄 Running database sync...");
     await sequelize.sync({ alter: true });
-    console.log("Database synced successfully.");
+    console.log("✅ Database sync completed successfully!");
     process.exit(0);
   } catch (err) {
-    console.error("Sync error:", err);
+    console.error("❌ Database sync failed:", err.message);
     process.exit(1);
   }
 }
+
 run();

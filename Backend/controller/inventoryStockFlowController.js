@@ -83,7 +83,7 @@ const getInventoryStockFlowReport = async (req, res) => {
       count: mappedResults.length
     });
   } catch (error) {
-    console.error('Error in getInventoryStockFlowReport:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -180,7 +180,7 @@ const exportToCSV = async (req, res) => {
     const BOM = '\uFEFF';
     res.send(BOM + csvRows.join('\n'));
   } catch (error) {
-    console.error('Error in exportToCSV:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -261,7 +261,7 @@ const getReportSummary = async (req, res) => {
       data: summary
     });
   } catch (error) {
-    console.error('Error in getReportSummary:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -286,7 +286,7 @@ const getDateRange = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in getDateRange:', error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
