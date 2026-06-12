@@ -55,6 +55,7 @@ const safeDetails = (details) => {
 const emptyDetail = () => ({
   _rowId: Date.now() + Math.random(),
   itemName: "",
+  itemId:"",
   stkQty: "0.000",
   issueQty: "0.000",
   uom: "",
@@ -144,7 +145,8 @@ export default function ConsumptionIssuePage() {
     items
       .map(it => ({ 
         value: it.itemDescription || it.itemName, 
-        label: it.itemDescription || it.itemName 
+        label: it.itemDescription || it.itemName, 
+        id: it.id
       }))
       .sort((a, b) => a.label.localeCompare(b.label)),
     [items]
@@ -292,6 +294,7 @@ const loadData = useCallback(async () => {
     const processedDetails = safeDetailsList.map((d, index) => ({
       ...d,
       _rowId: Date.now() + Math.random() + index,
+      itemId: d.itemId || "",
       stkQty: d.stkQty || "0.000",
       issueQty: d.issueQty || "0.000",
       uom: d.uom || "",
@@ -306,25 +309,29 @@ const loadData = useCallback(async () => {
   }
 
   function updateDetail(idx, field, val) {
-    setDetails((prev) => {
-      const rows = [...prev];
-      const row = { ...rows[idx], [field]: val };
+  setDetails((prev) => {
+    const rows = [...prev];
+    const row = { ...rows[idx], [field]: val };
 
-      // When item changes, reset UOM
-      if (field === "itemName") {
-        row.uom = "";
-      }
+    // When item changes, find and store the itemId
+    if (field === "itemName") {
+      const selectedItem = items.find(it => 
+        (it.itemDescription || it.itemName) === val
+      );
+      row.itemId = selectedItem?.id || "";  // 👈 STORE THE ID
+      row.uom = ""; // Reset UOM when item changes
+    }
 
-      if (field === "issueQty") {
-        const issueQty = Number(val || 0);
-        const stkQty = Number(row.stkQty || 0);
-        row.balQty = (stkQty - issueQty).toFixed(3);
-      }
+    if (field === "issueQty") {
+      const issueQty = Number(val || 0);
+      const stkQty = Number(row.stkQty || 0);
+      row.balQty = (stkQty - issueQty).toFixed(3);
+    }
 
-      rows[idx] = row;
-      return rows;
-    });
-  }
+    rows[idx] = row;
+    return rows;
+  });
+}
 
   function addRow() {
     setDetails(prev => [...prev, emptyDetail()]);
