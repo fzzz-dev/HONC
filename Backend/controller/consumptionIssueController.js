@@ -30,7 +30,6 @@ async function generateIssNo() {
   return `${prefix}${String(next).padStart(4, "0")}/${fy}`;
 }
 
-
 exports.getAllConsumptionIssues = async (req, res) => {
   try {
     const issues = await ConsumptionIssue.findAll({
@@ -71,10 +70,14 @@ exports.createConsumptionIssue = async (req, res) => {
     
     let totalQty = 0;
     let totalAmount = 0;
+    
     if (body.details && Array.isArray(body.details)) {
       body.details.forEach(d => {
         totalQty += Number(d.issueQty || 0);
-        totalAmount += Number(d.amount || 0);
+        // Amount is no longer sent from frontend, so we calculate rate * qty if needed
+        // For backward compatibility, set amount to 0 or calculate from rate if rate exists
+        const amount = (d.rate && d.issueQty) ? Number(d.rate) * Number(d.issueQty) : 0;
+        totalAmount += amount;
       });
       body.totalItems = body.details.length;
     }
@@ -84,7 +87,15 @@ exports.createConsumptionIssue = async (req, res) => {
     if (body.details && Array.isArray(body.details)) {
       body.details = body.details.map(d => {
         const { id, _id, ...rest } = d;
-        return rest;
+        // Ensure all fields are present
+        return {
+          ...rest,
+          stkQty: rest.stkQty || 0,
+          issueQty: rest.issueQty || 0,
+          uom: rest.uom || "",
+          balQty: rest.balQty || 0,
+          issueRemarks: rest.issueRemarks || ""
+        };
       });
     }
 
@@ -103,10 +114,13 @@ exports.updateConsumptionIssue = async (req, res) => {
     const body = { ...req.body };
     let totalQty = 0;
     let totalAmount = 0;
+    
     if (body.details && Array.isArray(body.details)) {
       body.details.forEach(d => {
         totalQty += Number(d.issueQty || 0);
-        totalAmount += Number(d.amount || 0);
+        // Amount is no longer sent from frontend
+        const amount = (d.rate && d.issueQty) ? Number(d.rate) * Number(d.issueQty) : 0;
+        totalAmount += amount;
       });
       body.totalItems = body.details.length;
     }
@@ -119,7 +133,15 @@ exports.updateConsumptionIssue = async (req, res) => {
       await ConsumptionIssueDetail.destroy({ where: { consumptionIssueId: issue.id } });
       const detailsToCreate = body.details.map(d => {
         const { id, _id, ...rest } = d;
-        return { ...rest, consumptionIssueId: issue.id };
+        return {
+          ...rest,
+          consumptionIssueId: issue.id,
+          stkQty: rest.stkQty || 0,
+          issueQty: rest.issueQty || 0,
+          uom: rest.uom || "",
+          balQty: rest.balQty || 0,
+          issueRemarks: rest.issueRemarks || ""
+        };
       });
       if (detailsToCreate.length > 0) {
         await ConsumptionIssueDetail.bulkCreate(detailsToCreate);
@@ -143,4 +165,3 @@ exports.deleteConsumptionIssue = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-

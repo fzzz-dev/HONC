@@ -18,12 +18,10 @@ const ConsumptionIssueDetail = sequelize.define("ConsumptionIssueDetail", {
   },
   itemId: { type: DataTypes.INTEGER, allowNull: true },
   itemName: { type: DataTypes.STRING, defaultValue: "" },
-  grnNo: { type: DataTypes.STRING, defaultValue: "" },
-  stkQty: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
-  stkRate: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
-  issueQty: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
-  rate: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
-  amount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  stkQty: { type: DataTypes.DECIMAL(10, 3), defaultValue: 0 },
+  issueQty: { type: DataTypes.DECIMAL(10, 3), defaultValue: 0 },
+  uom: { type: DataTypes.STRING, defaultValue: "" },
+  balQty: { type: DataTypes.DECIMAL(10, 3), defaultValue: 0 },
   issueRemarks: { type: DataTypes.STRING, defaultValue: "" }
 }, {
   timestamps: true,

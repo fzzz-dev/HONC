@@ -40,8 +40,8 @@ const ConsumptionIssue = sequelize.define("ConsumptionIssue", {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  totalQty: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
-  totalAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 },
+  totalQty: { type: DataTypes.DECIMAL(10, 3), defaultValue: 0 },
+  totalAmount: { type: DataTypes.DECIMAL(15, 2), defaultValue: 0 }, // Keep for backward compatibility
   totalItems: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, {
   timestamps: true,

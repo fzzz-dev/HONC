@@ -6,6 +6,7 @@ import {
   storeApi,
   itemApi,
   grnApi,
+  uomApi,
 } from "../../services/inventoryApi";
 import { SearchSelect } from "../../components/FormFields";
 import Modal from "../../components/Modal";
@@ -54,12 +55,10 @@ const safeDetails = (details) => {
 const emptyDetail = () => ({
   _rowId: Date.now() + Math.random(),
   itemName: "",
-  grnNo: "",
   stkQty: "0.000",
-  stkRate: "0.00",
   issueQty: "0.000",
-  rate: "0.00",
-  amount: "0.00",
+  uom: "",
+  balQty: "0.000",
   issueRemarks: "",
 });
 
@@ -92,6 +91,7 @@ export default function ConsumptionIssuePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [formError, setFormError] = useState(null);
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
+  const [uoms, setUoms] = useState([]);
   
   // Refs for tab flow
   const addButtonRef = useRef(null);
@@ -109,6 +109,7 @@ export default function ConsumptionIssuePage() {
     departmentName: "",
     storeId: "",
     storeName: "",
+    requestedBy: "",
     remarks: "",
     preparedBy: "",
   });
@@ -149,34 +150,41 @@ export default function ConsumptionIssuePage() {
     [items]
   );
 
-  const sortedGrnOptions = useMemo(() => 
-    grns
-      .map(g => ({ value: g.grnNo, label: g.grnNo }))
-      .sort((a, b) => a.label.localeCompare(b.label)),
-    [grns]
-  );
+  const sortedUomOptions = useMemo(() => 
+  uoms
+    .map(u => ({ value: u.uom || u.name || u, label: u.uom || u.name || u }))
+    .sort((a, b) => a.label.localeCompare(b.label)),
+  [uoms]
+);
 
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const [issData, deptData, storeData, itemData, grnRes] = await Promise.all([
-        consumptionIssueApi.getAll(),
-        departmentApi.getAll(),
-        storeApi.getAll(),
-        itemApi.getAll(),
-        grnApi.getAll(),
-      ]);
-      setIssues(issData?.data || issData || []);
-      setDepartments(deptData?.data || deptData || []);
-      setStores(storeData?.data || storeData || []);
-      setItems(itemData?.data || itemData || []);
-      setGrns(grnRes?.data || grnRes || []);
-    } catch (err) {
+  // UOM options based on selected item
+const getUomOptions = () => {
+  return sortedUomOptions;
+};
 
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+const loadData = useCallback(async () => {
+  try {
+    setLoading(true);
+    const [issData, deptData, storeData, itemData, grnRes, uomData] = await Promise.all([
+      consumptionIssueApi.getAll(),
+      departmentApi.getAll(),
+      storeApi.getAll(),
+      itemApi.getAll(),
+      grnApi.getAll(),
+      uomApi.getAll(),
+    ]);
+    setIssues(issData?.data || issData || []);
+    setDepartments(deptData?.data || deptData || []);
+    setStores(storeData?.data || storeData || []);
+    setItems(itemData?.data || itemData || []);
+    setGrns(grnRes?.data || grnRes || []);
+    setUoms(uomData?.data || uomData || []);
+  } catch (err) {
+    console.error("Failed to load consumption data", err);
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   useEffect(() => {
     loadData();
@@ -240,7 +248,7 @@ export default function ConsumptionIssuePage() {
       const res = await consumptionIssueApi.getNextNumber();
       nextNo = res?.issNo || "";
     } catch (err) {
-
+      console.error("Failed to get next ISS number", err);
     }
 
     setHeader({
@@ -253,6 +261,7 @@ export default function ConsumptionIssuePage() {
       departmentName: "",
       storeId: "",
       storeName: "",
+      requestedBy: "",
       remarks: "",
       preparedBy: user?.name || "Admin",
     });
@@ -274,6 +283,7 @@ export default function ConsumptionIssuePage() {
       departmentName: rec.departmentName,
       storeId: sid(rec.storeId),
       storeName: rec.storeName,
+      requestedBy: rec.requestedBy || "",
       remarks: rec.remarks || "",
       preparedBy: rec.preparedBy || user?.name || "Admin",
     });
@@ -283,10 +293,9 @@ export default function ConsumptionIssuePage() {
       ...d,
       _rowId: Date.now() + Math.random() + index,
       stkQty: d.stkQty || "0.000",
-      stkRate: d.stkRate || "0.00",
       issueQty: d.issueQty || "0.000",
-      rate: d.rate || "0.00",
-      amount: d.amount || "0.00",
+      uom: d.uom || "",
+      balQty: d.balQty || "0.000",
     }));
     
     setDetails(processedDetails);
@@ -301,33 +310,16 @@ export default function ConsumptionIssuePage() {
       const rows = [...prev];
       const row = { ...rows[idx], [field]: val };
 
-      if (field === "itemName" || field === "grnNo") {
-        const targetItem = field === "itemName" ? val : row.itemName;
-        const targetGrn = field === "grnNo" ? val : row.grnNo;
-
-        if (targetItem && targetGrn) {
-          const g = grns.find(x => x.grnNo === targetGrn);
-          if (g) {
-            let gDetails = g.details || [];
-            if (typeof gDetails === 'string') {
-              try { gDetails = JSON.parse(gDetails); } catch (e) { gDetails = []; }
-            }
-            const gd = gDetails.find(d => 
-              String(d.itemDescription || d.itemName).toLowerCase() === String(targetItem).toLowerCase() || 
-              String(d.itemName).toLowerCase() === String(targetItem).toLowerCase()
-            );
-            if (gd) {
-              row.stkQty = gd.grnQty || 0;
-              row.stkRate = gd.grnRate || 0;
-              row.rate = gd.grnRate || 0;
-            }
-          }
-        }
+      // When item changes, reset UOM
+      if (field === "itemName") {
+        row.uom = "";
       }
 
-      const issQty = field === "issueQty" ? +val : +row.issueQty;
-      const rate = field === "rate" ? +val : +row.rate;
-      row.amount = +(issQty * rate).toFixed(2);
+      if (field === "issueQty") {
+        const issueQty = Number(val || 0);
+        const stkQty = Number(row.stkQty || 0);
+        row.balQty = (stkQty - issueQty).toFixed(3);
+      }
 
       rows[idx] = row;
       return rows;
@@ -383,7 +375,7 @@ export default function ConsumptionIssuePage() {
         setView("list");
       }, 2000);
     } catch (err) {
-
+      console.error("Save error:", err);
       setFormError(err.message);
     } finally {
       setSaving(false);
@@ -397,9 +389,8 @@ export default function ConsumptionIssuePage() {
     const totals = details.reduce(
       (acc, r) => ({
         issueQty: acc.issueQty + Number(r.issueQty || 0),
-        amount: acc.amount + Number(r.amount || 0),
       }),
-      { issueQty: 0, amount: 0 },
+      { issueQty: 0 },
     );
 
     const html = `<!DOCTYPE html>
@@ -454,15 +445,40 @@ export default function ConsumptionIssuePage() {
         <td colspan="2"><div class="label">Issued To (Department)</div><div class="value">${esc(header.departmentName)}</div></td>
         <td colspan="2"><div class="label">Issued From (Store)</div><div class="value">${esc(header.storeName)}</div></td>
       </tr>
+      ${header.requestedBy ? `<tr><td colspan="4"><div class="label">Requested By</div><div class="value">${esc(header.requestedBy)}</div></td></tr>` : ''}
     </table>
     <table class="items-table">
-      <thead><tr><th style="width: 50px;">S.No</th><th>Item Description</th><th>GRN No</th><th style="width: 80px;">Qty</th><th style="width: 80px;">Rate</th><th style="width: 100px;">Amount</th></tr></thead>
+      <thead>
+        <tr>
+          <th style="width: 40px;">S.No</th>
+          <th>Item Description</th>
+          <th style="width: 80px;">Stk Qty</th>
+          <th style="width: 80px;">Issue Qty</th>
+          <th style="width: 80px;">UOM</th>
+          <th style="width: 80px;">Bal Qty</th>
+        </tr>
+      </thead>
       <tbody>
-        ${details.map((d, i) => `<tr><td class="text-center">${i + 1}</td><td class="text-center">${esc(d.itemName)}</td><td class="text-center">${esc(d.grnNo)}</td><td class="text-right">${Number(d.issueQty).toFixed(2)}</td><td class="text-right">${Number(d.rate).toFixed(2)}</td><td class="text-right">${Number(d.amount).toFixed(2)}</td>`).join("")}
+        ${details.map((d, i) => {
+          return `<tr>
+            <td class="text-center">${i + 1}</td>
+            <td class="text-center">${esc(d.itemName)}</td>
+            <td class="text-right">${Number(d.stkQty).toFixed(3)}</td>
+            <td class="text-right">${Number(d.issueQty).toFixed(3)}</td>
+            <td class="text-center">${esc(d.uom)}</td>
+            <td class="text-right">${Number(d.balQty).toFixed(3)}</td>
+          </tr>`;
+        }).join("")}
       </tbody>
-      <tfoot><tr class="bold"><td colspan="3" class="text-right">TOTAL</td><td class="text-right">${totals.issueQty.toFixed(2)}</td><td class="text-right"></td><td class="text-right">₹${totals.amount.toFixed(2)}</td></tr></tfoot>
+      <tfoot>
+        <tr class="bold">
+          <td colspan="3" class="text-right">TOTAL</td>
+          <td class="text-right">${totals.issueQty.toFixed(3)}</td>
+          <td colspan="2" class="text-right"></td>
+        </tr>
+      </tfoot>
     </table>
-    <div class="remarks-box"><div class="label">General Remarks:</div><div style="font-size: 10px;">${esc(header.remarks || "No remarks")}</div></div>
+    <div class="remarks-box"><div class="label">Remarks:</div><div style="font-size: 10px;">${esc(header.remarks || "No remarks")}</div></div>
     <div class="footer-signatures">
       <div class="sig-box"><div style="font-size: 9px; font-weight: normal; margin-bottom: 2px;">Prepared By</div>${esc(header.preparedBy || user?.name || "Admin")}</div>
       <div class="sig-box"><div style="font-size: 9px; font-weight: normal; margin-bottom: 2px;">Dept. Receiver</div>&nbsp;</div>
@@ -490,21 +506,25 @@ export default function ConsumptionIssuePage() {
   const totals = details.reduce(
     (acc, r) => ({
       issueQty: acc.issueQty + Number(r.issueQty || 0),
-      amount: acc.amount + Number(r.amount || 0),
     }),
-    { issueQty: 0, amount: 0 },
+    { issueQty: 0 },
   );
 
   // ─── Tab Index Calculation ───────────────────────────────────────────────────
+  const getFieldsPerRow = () => {
+    return 5; // Item, Stk Qty, Issue Qty, UOM, Bal Qty, Remove button
+  };
+
   const getTabIndex = (rowIndex, fieldOffset, totalRows) => {
-    const headerFieldsCount = 6;  // tabs 1-6 for header
-    const fieldsPerRow = 8;       // Item, GRN, StkQty, StkRate, IssueQty, Rate, Remarks, Delete
+    const headerFieldsCount = 8; // ISS No, Date, Issue Type, Department, Store, Requested By, Remarks, Prepared By
+    const fieldsPerRow = getFieldsPerRow();
     const rowStartTab = headerFieldsCount + (rowIndex * fieldsPerRow) + 1;
     return rowStartTab + fieldOffset;
   };
 
   const getAddButtonTabIndex = (totalRows) => {
-    return 6 + (totalRows * 8) + 1;
+    const headerFieldsCount = 8;
+    return headerFieldsCount + (totalRows * getFieldsPerRow()) + 1;
   };
 
   const getViewListTabIndex = (totalRows) => {
@@ -559,13 +579,12 @@ export default function ConsumptionIssuePage() {
     );
 
     const exportToExcel = () => {
-      const headers = ["ISS No", "Date", "Department", "Store", "Total Items", "Total Qty", "Total Amount"];
+      const headers = ["ISS No", "Date", "Department", "Store", "Requested By", "Total Items", "Total Qty"];
       const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
       const rows = filteredIssues.map(rec => {
         let sd = safeDetails(rec.details);
         const qty = sd.reduce((s, d) => s + Number(d.issueQty || 0), 0);
-        const amt = sd.reduce((s, d) => s + Number(d.amount || 0), 0);
-        return [rec.issNo, rec.date, rec.departmentName, rec.storeName, sd.length, qty, amt].map(escapeCsv).join(",");
+        return [rec.issNo, rec.date, rec.departmentName, rec.storeName, rec.requestedBy || "", sd.length, qty].map(escapeCsv).join(",");
       });
       const csvContent = [headers.join(","), ...rows].join("\n");
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -615,9 +634,9 @@ export default function ConsumptionIssuePage() {
                     <th>Date</th>
                     <th>Department</th>
                     <th>Store</th>
+                    <th>Requested By</th>
                     <th>Items</th>
                     <th>Total Qty</th>
-                    <th>Total Amt</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -630,7 +649,6 @@ export default function ConsumptionIssuePage() {
                   {filteredIssues.map((rec, i) => {
                     let safeDetailsList = safeDetails(rec.details);
                     const qty = safeDetailsList.reduce((s, d) => s + Number(d.issueQty || 0), 0);
-                    const amt = safeDetailsList.reduce((s, d) => s + Number(d.amount || 0), 0);
                     return (
                       <tr key={rec.id}>
                         <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
@@ -638,9 +656,9 @@ export default function ConsumptionIssuePage() {
                         <td>{rec.date}</td>
                         <td>{rec.departmentName}</td>
                         <td>{rec.storeName}</td>
+                        <td>{rec.requestedBy || "-"}</td>
                         <td className="inv-muted-sm">{safeDetailsList.length} items</td>
                         <td>{fmtQty(qty)}</td>
-                        <td>₹{fmt(amt)}</td>
                         <td>
                           <div className="inv-actions">
                             <button className="inv-btn-icon" onClick={() => openEdit(rec)}>Edit</button>
@@ -736,25 +754,6 @@ export default function ConsumptionIssuePage() {
                   <option value="Product">Product</option>
                 </select>
               </Field>
-
-              {header.issueType === "Product" && (
-                <Field label="Item Description *">
-                  <SearchSelect 
-                    value={header.itemId}
-                    onChange={(val) => {
-                      const selectedItem = items.find(x => String(x.id) === val);
-                      setHeader(h => ({ 
-                        ...h, 
-                        itemId: val,
-                        itemName: selectedItem?.itemName || "",
-                      }));
-                    }}
-                    options={sortedItemOptions}
-                    placeholder="Search or select item description..."
-                    tabIndex={4}
-                  />
-                </Field>
-              )}
               
               <Field label="Department *">
                 <SearchSelect 
@@ -765,7 +764,7 @@ export default function ConsumptionIssuePage() {
                   }}
                   options={sortedDepartmentOptions}
                   placeholder="Select department"
-                  tabIndex={5}
+                  tabIndex={4}
                 />
               </Field>
               <Field label="Store *">
@@ -777,7 +776,27 @@ export default function ConsumptionIssuePage() {
                   }}
                   options={sortedStoreOptions}
                   placeholder="Select store"
+                  tabIndex={5}
+                />
+              </Field>
+
+              <Field label="Requested By">
+                <input 
+                  className="inv-input" 
+                  value={header.requestedBy} 
+                  onChange={(e) => setHeader(h => ({ ...h, requestedBy: e.target.value }))} 
+                  placeholder="Person requesting"
                   tabIndex={6}
+                />
+              </Field>
+
+              <Field label="Remarks">
+                <input 
+                  className="inv-input" 
+                  value={header.remarks} 
+                  onChange={(e) => setHeader(h => ({ ...h, remarks: e.target.value }))} 
+                  placeholder="Remarks..."
+                  tabIndex={7}
                 />
               </Field>
             </FormGrid>
@@ -804,13 +823,10 @@ export default function ConsumptionIssuePage() {
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
                     <th style={{ minWidth: 180, textAlign: "left" }}>Item *</th>
-                    <th style={{ minWidth: 120, textAlign: "left" }}>GRN No</th>
                     <th style={{ width: 100, textAlign: "right" }}>Stk Qty</th>
-                    <th style={{ width: 120, textAlign: "right" }}>Stk Unit Price</th>
                     <th style={{ width: 100, textAlign: "right" }}>Issue Qty *</th>
-                    <th style={{ width: 100, textAlign: "right" }}>Unit Price</th>
-                    <th style={{ width: 100, textAlign: "right" }}>Amount</th>
-                    <th style={{ minWidth: 150, textAlign: "left" }}>Remarks</th>
+                    <th style={{ width: 100, textAlign: "left" }}>UOM</th>
+                    <th style={{ width: 100, textAlign: "right" }}>Bal Qty</th>
                     <th style={{ width: 40 }}></th>
                   </tr>
                 </thead>
@@ -832,41 +848,17 @@ export default function ConsumptionIssuePage() {
                         />
                       </td>
                       
-                      {/* GRN No - SearchSelect */}
-                      <td>
-                        <SearchSelect 
-                          style={{ minWidth: 120, width: "100%" }}
-                          value={row.grnNo} 
-                          onChange={val => updateDetail(idx, "grnNo", val)}
-                          options={sortedGrnOptions}
-                          placeholder="Select GRN"
-                          tabIndex={getTabIndex(idx, 1, totalRows)}
-                        />
-                      </td>
-                      
                       {/* Stk Qty */}
                       <td>
                         <input 
                           type="number" 
-                          step="1.00" 
+                          step="0.001" 
                           className="inv-input-cell" 
                           style={{ width: "100%", textAlign: "right" }} 
                           value={row.stkQty} 
                           onChange={e => updateDetail(idx, "stkQty", e.target.value)}
                           onBlur={e => updateDetail(idx, "stkQty", Number(e.target.value || 0).toFixed(3))}
-                          tabIndex={getTabIndex(idx, 2, totalRows)}
-                        />
-                      </td>
-                      
-                      {/* Stk Rate */}
-                      <td>
-                        <input 
-                          type="number" 
-                          className="inv-input-cell" 
-                          style={{ width: "100%", textAlign: "right" }} 
-                          value={row.stkRate} 
-                          onChange={e => updateDetail(idx, "stkRate", e.target.value)}
-                          tabIndex={getTabIndex(idx, 3, totalRows)}
+                          tabIndex={getTabIndex(idx, 1, totalRows)}
                         />
                       </td>
                       
@@ -874,42 +866,38 @@ export default function ConsumptionIssuePage() {
                       <td>
                         <input 
                           type="number" 
-                          step="1.00" 
+                          step="0.001" 
                           className="inv-input-cell" 
                           style={{ width: "100%", textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} 
                           value={row.issueQty} 
                           onChange={e => updateDetail(idx, "issueQty", e.target.value)} 
                           onBlur={e => updateDetail(idx, "issueQty", Number(e.target.value || 0).toFixed(3))}
-                          tabIndex={getTabIndex(idx, 4, totalRows)}
+                          tabIndex={getTabIndex(idx, 2, totalRows)}
                         />
                       </td>
                       
-                      {/* Unit Price */}
+                      {/* UOM - SearchSelect */}
                       <td>
-                        <input 
-                          type="number" 
-                          className="inv-input-cell" 
-                          style={{ width: "100%", textAlign: "right" }} 
-                          value={row.rate} 
-                          onChange={e => updateDetail(idx, "rate", e.target.value)}
-                          tabIndex={getTabIndex(idx, 5, totalRows)}
+                        <SearchSelect 
+                          className="inv-select-cell"
+                          style={{ minWidth: 100, width: "100%" }}
+                          value={row.uom} 
+                          onChange={val => updateDetail(idx, "uom", val)}
+                          options={getUomOptions()}
+                          placeholder="Select UOM"
+                          tabIndex={getTabIndex(idx, 3, totalRows)}
                         />
                       </td>
                       
-                      {/* Amount */}
-                      <td style={{ textAlign: "right", fontWeight: 600 }}>
-                        {fmt(row.amount)}
-                      </td>
-                      
-                      {/* Remarks */}
+                      {/* Bal Qty - Read only */}
                       <td>
                         <input 
+                          type="text" 
                           className="inv-input-cell" 
-                          style={{ width: "100%" }} 
-                          value={row.issueRemarks} 
-                          onChange={e => updateDetail(idx, "issueRemarks", e.target.value)} 
-                          placeholder="Notes..."
-                          tabIndex={getTabIndex(idx, 6, totalRows)}
+                          style={{ width: "100%", textAlign: "right", background: "#f8f9fa", color: "#666" }} 
+                          value={row.balQty} 
+                          readOnly
+                          tabIndex={-1}
                         />
                       </td>
                       
@@ -919,7 +907,7 @@ export default function ConsumptionIssuePage() {
                           className="inv-btn-icon inv-btn-danger" 
                           onClick={() => removeRow(idx)} 
                           style={{ border: "none", background: "transparent", cursor: "pointer", color: "#ef4444", padding: "4px" }}
-                          tabIndex={getTabIndex(idx, 7, totalRows)}
+                          tabIndex={getTabIndex(idx, 4, totalRows)}
                         >
                           ✕
                         </button>
@@ -927,16 +915,6 @@ export default function ConsumptionIssuePage() {
                     </tr>
                   ))}
                 </tbody>
-                <tfoot>
-                  <tr style={{ background: "#f8fafc", fontWeight: 600 }}>
-                    <td colSpan={5} style={{ textAlign: "right", padding: "10px" }}>Total</td>
-                    <td style={{ textAlign: "right", padding: "10px" }}>{fmtQty(totals.issueQty)}</td>
-                    <td style={{ textAlign: "right", padding: "10px" }}></td>
-                    <td style={{ textAlign: "right", padding: "10px", fontWeight: 700, color: "#3b6ef8" }}>₹{fmt(totals.amount)}</td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
           </div>
@@ -954,10 +932,6 @@ export default function ConsumptionIssuePage() {
                 <div style={{ fontSize: 11, color: "#64748b" }}>Total Issue Qty</div>
                 <div style={{ fontSize: 24, fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(totals.issueQty)}</div>
               </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>Total Amount</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#10b981" }}>₹{fmt(totals.amount)}</div>
-              </div>
             </div>
 
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
@@ -969,16 +943,7 @@ export default function ConsumptionIssuePage() {
                     value={header.preparedBy}
                     onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
                     placeholder="Preparer name"
-                  />
-                </div>
-                <div className="inv-field-v">
-                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>General Remarks</label>
-                  <textarea
-                    className="inv-input"
-                    style={{ height: 40, resize: "none", fontSize: "13px", padding: "12px" }}
-                    value={header.remarks}
-                    onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))}
-                    placeholder="Enter any remarks..."
+                    tabIndex={-1}
                   />
                 </div>
               </div>

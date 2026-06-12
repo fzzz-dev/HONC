@@ -41,6 +41,13 @@ import ConsumptionIssuePage from "./pages/ProcessMasterPage/ConsumptionIssuePage
 import OpeningStockPage from "./pages/ProcessMasterPage/OpeningStockPage";
 import PurchaseIndentRegister from "./pages/RegisterPage/PurchaseIndentRegister";
 
+// HRMS Pages
+import HrDepartment from "./pages/hrms/HrDepartment";
+import HrSubDepartment from "./pages/hrms/HrSubDepartment";
+import HrDesignation from "./pages/hrms/HrDesignation";
+import HrShift from "./pages/hrms/HrShift";
+import HrEmployee from "./pages/hrms/HrEmployee";
+
 import "./index.css";
 
 function AuthenticatedLayout({ children }) {
@@ -112,6 +119,13 @@ export default function App() {
                 <Route path="/inventory-report" element={<InventoryStockFlow />} />
                 <Route path="/po-level1-pending" element={<POLevel1Pending />} />
                 <Route path="/po-level2-pending" element={<POLevel2Pending />} />
+
+                {/* ── HRMS ── */}
+                <Route path="/hr/department" element={<HrDepartment />} />
+                <Route path="/hr/sub-department" element={<HrSubDepartment />} />
+                <Route path="/hr/designation" element={<HrDesignation />} />
+                <Route path="/hr/shift" element={<HrShift />} />
+                <Route path="/hr/employee" element={<HrEmployee />} />
 
                 <Route path="*" element={<Navigate to="/inv-head" replace />} />
               </Routes>

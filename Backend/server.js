@@ -152,7 +152,7 @@ async function ensureSchemaEnhancements() {
         }
       }
     }
-    console.log(`📊 Schema enhancement: ${addedCount} columns added`);
+    console.log(`Schema enhancement: ${addedCount} columns added`);
   } catch (e) {
     console.error("Schema enhancement error:", e.message);
   }
@@ -167,7 +167,6 @@ async function startServer() {
     console.log("✅ Database connection established");
     
     await sequelize.authenticate();
-    console.log("✅ Database authenticated");
 
     await ensureSchemaEnhancements();
     await sequelize.sync();
@@ -206,8 +205,13 @@ async function startServer() {
     app.use("/api/factories", require("./routes/factoryRoutes"));
     app.use("/api/reports", require("./routes/reportRoutes"));
     app.use("/api/level", require("./routes/levelRoutes"));
+    app.use("/api/hr/departments", require("./routes/hrms/hrDepartmentRoutes"));
+    app.use("/api/hr/sub-departments", require("./routes/hrms/hrSubDepartmentRoutes"));
+    app.use("/api/hr/designations", require("./routes/hrms/hrDesignationRoutes"));
+    app.use("/api/hr/shifts", require("./routes/hrms/hrShiftRoutes"));  
+    app.use("/api/hr/employees", require("./routes/hrms/hrEmployeeRoutes"));
     
-    console.log("✅ Routes registered");
+        console.log("✅ Routes registered");
 
     // Test routes
     app.get("/test-simple", (req, res) => {

@@ -237,3 +237,78 @@ export const openingStockApi = {
   remove: (id) => request(`/opening-stocks/${id}`, { method: "DELETE" }),
 };
 
+// ── HR Masters ──────────────────────────────────────────────────────────────────
+
+export const hrDepartmentApi = {
+  getAll: (p = {}) => request(`/hr/departments${qs(p)}`),
+  getOne: (id) => request(`/hr/departments/${id}`),
+  getActive: () => request("/hr/departments/active"),
+  create: (body) => request("/hr/departments", { method: "POST", body: j(body) }),
+  update: (id, b) => request(`/hr/departments/${id}`, { method: "PUT", body: j(b) }),
+  remove: (id) => request(`/hr/departments/${id}`, { method: "DELETE" }),
+  hardDelete: (id) => request(`/hr/departments/${id}/permanent`, { method: "DELETE" }),
+  exportToCSV: (params = {}) => {
+    const queryString = qs(params);
+    window.open(`${BASE}/hr/departments/export/csv${queryString}`, '_blank');
+  },
+};
+
+export const hrSubDepartmentApi = {
+  getAll: (p = {}) => request(`/hr/sub-departments${qs(p)}`),
+  getOne: (id) => request(`/hr/sub-departments/${id}`),
+  getByDepartment: (departmentId, onlyActive = true) => 
+    request(`/hr/sub-departments/by-department/${departmentId}?onlyActive=${onlyActive}`),
+  create: (body) => request("/hr/sub-departments", { method: "POST", body: j(body) }),
+  update: (id, b) => request(`/hr/sub-departments/${id}`, { method: "PUT", body: j(b) }),
+  remove: (id) => request(`/hr/sub-departments/${id}`, { method: "DELETE" }),
+  hardDelete: (id) => request(`/hr/sub-departments/${id}/permanent`, { method: "DELETE" }),
+  exportToCSV: (params = {}) => {
+    const queryString = qs(params);
+    window.open(`${BASE}/hr/sub-departments/export/csv${queryString}`, '_blank');
+  },
+};
+
+export const hrShiftApi = {
+  getAll: (p = {}) => request(`/hr/shifts${qs(p)}`),
+  getOne: (id) => request(`/hr/shifts/${id}`),
+  getActive: () => request("/hr/shifts/active"),
+  create: (body) => request("/hr/shifts", { method: "POST", body: j(body) }),
+  update: (id, b) => request(`/hr/shifts/${id}`, { method: "PUT", body: j(b) }),
+  remove: (id) => request(`/hr/shifts/${id}`, { method: "DELETE" }),
+  hardDelete: (id) => request(`/hr/shifts/${id}/permanent`, { method: "DELETE" }),
+  exportToCSV: (params = {}) => {
+    const queryString = qs(params);
+    window.open(`${BASE}/hr/shifts/export/csv${queryString}`, '_blank');
+  },
+};
+
+export const hrDesignationApi = {
+  getAll: (p = {}) => request(`/hr/designations${qs(p)}`),
+  getOne: (id) => request(`/hr/designations/${id}`),
+  getBySubDepartment: (subDepartmentId, onlyActive = true) => 
+    request(`/hr/designations/by-sub-department/${subDepartmentId}?onlyActive=${onlyActive}`),
+  getByDepartment: (departmentId, onlyActive = true) =>   // ← ADD THIS LINE
+    request(`/hr/designations/by-department/${departmentId}?onlyActive=${onlyActive}`),  // ← ADD THIS LINE
+  create: (body) => request("/hr/designations", { method: "POST", body: j(body) }),
+  update: (id, b) => request(`/hr/designations/${id}`, { method: "PUT", body: j(b) }),
+  remove: (id) => request(`/hr/designations/${id}`, { method: "DELETE" }),
+  hardDelete: (id) => request(`/hr/designations/${id}/permanent`, { method: "DELETE" }),
+  exportToCSV: (params = {}) => {
+    const queryString = qs(params);
+    window.open(`${BASE}/hr/designations/export/csv${queryString}`, '_blank');
+  },
+};  
+
+// HR Employee API
+export const hrEmployeeApi = {
+  getAll: (p = {}) => request(`/hr/employees${qs(p)}`),
+  getOne: (id) => request(`/hr/employees/${id}`),
+  getNextCode: () => request("/hr/employees/next-code"),
+  create: (body) => request("/hr/employees", { method: "POST", body: j(body) }),
+  update: (id, b) => request(`/hr/employees/${id}`, { method: "PUT", body: j(b) }),
+  remove: (id) => request(`/hr/employees/${id}`, { method: "DELETE" }),
+  exportToCSV: (params = {}) => {
+    const queryString = qs(params);
+    window.open(`${BASE}/hr/employees/export/csv${queryString}`, '_blank');
+  },
+};
