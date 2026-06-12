@@ -23,6 +23,7 @@ import PurchaseIndentReportPage from "./pages/Reports/purchaseIndentReportPage";
 import PurchaseOrderReportPage from "./pages/Reports/PurchaseOrderResult";
 import PurchaseGrnReportPage from "./pages/Reports/PurchaseGrnReportPage";
 import InventoryStockFlow from "./pages/Reports/InventoryStockFlow";
+import ConsumptionIssueReportPage from "./pages/Reports/ConsumptionIssueReportPage";
 import POLevel1Pending from "./pages/Reports/POLevel1Pending";
 import POLevel2Pending from "./pages/Reports/POLevel2Pending";
 import {
@@ -119,6 +120,7 @@ export default function App() {
                 <Route path="/inventory-report" element={<InventoryStockFlow />} />
                 <Route path="/po-level1-pending" element={<POLevel1Pending />} />
                 <Route path="/po-level2-pending" element={<POLevel2Pending />} />
+                <Route path="/consumption-issue-report" element={<ConsumptionIssueReportPage />} />
 
                 {/* ── HRMS ── */}
                 <Route path="/hr/department" element={<HrDepartment />} />

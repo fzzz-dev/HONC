@@ -2,6 +2,12 @@
 const { HrEmployee, HrDepartment, HrDesignation } = require('../../model');
 const { Op } = require('sequelize');
 
+// Helper function to calculate total salary
+const calculateTotalSalary = (basicSalary, hra, allowances) => {
+  const total = (parseFloat(basicSalary) || 0) + (parseFloat(hra) || 0) + (parseFloat(allowances) || 0);
+  return total.toFixed(2);
+};
+
 // Get all employees
 exports.getAll = async (req, res) => {
   try {
@@ -48,12 +54,15 @@ exports.getAll = async (req, res) => {
       basicSalary: emp.basicSalary,
       hra: emp.hra,
       allowances: emp.allowances,
+      totalSalary: calculateTotalSalary(emp.basicSalary, emp.hra, emp.allowances), // 👈 ADD THIS
       panNumber: emp.panNumber,
       aadharNumber: emp.aadharNumber,
       pfNumber: emp.pfNumber,
       bankName: emp.bankName,
       bankAccountNo: emp.bankAccountNo,
       ifscCode: emp.ifscCode,
+      accountHolderName: emp.accountHolderName,  // 👈 ADD THIS
+      bankBranch: emp.bankBranch,               // 👈 ADD THIS
       presentAddress: emp.presentAddress,
       permanentAddress: emp.permanentAddress,
       remarks: emp.remarks,
@@ -84,7 +93,10 @@ exports.getById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
     
-    res.json({ success: true, data: employee });
+    const employeeData = employee.toJSON();
+    employeeData.totalSalary = calculateTotalSalary(employee.basicSalary, employee.hra, employee.allowances);
+    
+    res.json({ success: true, data: employeeData });
   } catch (error) {
     console.error('Error fetching employee:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch employee', error: error.message });
@@ -118,10 +130,12 @@ exports.getNextCode = async (req, res) => {
 // Create employee
 exports.create = async (req, res) => {
   try {
-    const { employeeCode, firstName, lastName, dateOfBirth, gender, contactPhone, contactEmail,
-            dateOfJoining, designationId, departmentId, employmentType, basicSalary, hra,
-            allowances, panNumber, aadharNumber, pfNumber, bankName, bankAccountNo,
-            ifscCode, presentAddress, permanentAddress, remarks, isActive } = req.body;
+    const { 
+      employeeCode, firstName, lastName, dateOfBirth, gender, contactPhone, contactEmail,
+      dateOfJoining, designationId, departmentId, employmentType, basicSalary, hra,
+      allowances, panNumber, aadharNumber, pfNumber, bankName, bankAccountNo,
+      ifscCode, accountHolderName, bankBranch, presentAddress, permanentAddress, remarks, isActive 
+    } = req.body;
     
     if (!employeeCode || !firstName) {
       return res.status(400).json({ success: false, message: 'Employee code and first name are required' });
@@ -136,7 +150,8 @@ exports.create = async (req, res) => {
       employeeCode, firstName, lastName, dateOfBirth, gender, contactPhone, contactEmail,
       dateOfJoining, designationId, departmentId, employmentType, basicSalary, hra,
       allowances, panNumber, aadharNumber, pfNumber, bankName, bankAccountNo,
-      ifscCode, presentAddress, permanentAddress, remarks, isActive: isActive !== undefined ? isActive : true
+      ifscCode, accountHolderName, bankBranch, presentAddress, permanentAddress, remarks, 
+      isActive: isActive !== undefined ? isActive : true
     });
     
     // Fetch the created employee with department and designation joins
@@ -165,12 +180,15 @@ exports.create = async (req, res) => {
       basicSalary: savedEmployee.basicSalary,
       hra: savedEmployee.hra,
       allowances: savedEmployee.allowances,
+      totalSalary: calculateTotalSalary(savedEmployee.basicSalary, savedEmployee.hra, savedEmployee.allowances),
       panNumber: savedEmployee.panNumber,
       aadharNumber: savedEmployee.aadharNumber,
       pfNumber: savedEmployee.pfNumber,
       bankName: savedEmployee.bankName,
       bankAccountNo: savedEmployee.bankAccountNo,
       ifscCode: savedEmployee.ifscCode,
+      accountHolderName: savedEmployee.accountHolderName,
+      bankBranch: savedEmployee.bankBranch,
       presentAddress: savedEmployee.presentAddress,
       permanentAddress: savedEmployee.permanentAddress,
       remarks: savedEmployee.remarks,
@@ -237,12 +255,15 @@ exports.update = async (req, res) => {
       basicSalary: updatedEmployee.basicSalary,
       hra: updatedEmployee.hra,
       allowances: updatedEmployee.allowances,
+      totalSalary: calculateTotalSalary(updatedEmployee.basicSalary, updatedEmployee.hra, updatedEmployee.allowances),
       panNumber: updatedEmployee.panNumber,
       aadharNumber: updatedEmployee.aadharNumber,
       pfNumber: updatedEmployee.pfNumber,
       bankName: updatedEmployee.bankName,
       bankAccountNo: updatedEmployee.bankAccountNo,
       ifscCode: updatedEmployee.ifscCode,
+      accountHolderName: updatedEmployee.accountHolderName,
+      bankBranch: updatedEmployee.bankBranch,
       presentAddress: updatedEmployee.presentAddress,
       permanentAddress: updatedEmployee.permanentAddress,
       remarks: updatedEmployee.remarks,
@@ -316,7 +337,7 @@ exports.exportToCSV = async (req, res) => {
       ]
     });
     
-    const csvRows = [['Employee Code', 'First Name', 'Last Name', 'Department', 'Designation', 'Phone', 'Email', 'Status']];
+    const csvRows = [['Employee Code', 'First Name', 'Last Name', 'Department', 'Designation', 'Phone', 'Email', 'Total Salary', 'Status']];
     
     employees.forEach(emp => {
       csvRows.push([
@@ -327,6 +348,7 @@ exports.exportToCSV = async (req, res) => {
         emp.designation?.name || '',
         emp.contactPhone || '',
         emp.contactEmail || '',
+        calculateTotalSalary(emp.basicSalary, emp.hra, emp.allowances),
         emp.isActive ? 'Active' : 'Inactive'
       ]);
     });

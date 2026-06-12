@@ -69,6 +69,16 @@ const HrEmployee = sequelize.define('HrEmployee', {
     type: DataTypes.DECIMAL(12, 2),
     defaultValue: 0
   },
+  // 👇 NEW FIELDS 👇
+  accountHolderName: {
+    type: DataTypes.STRING(100),
+    field: 'account_holder_name'
+  },
+  bankBranch: {
+    type: DataTypes.STRING(100),
+    field: 'bank_branch'
+  },
+  // 👆 NEW FIELDS 👆
   panNumber: {
     type: DataTypes.STRING(20),
     field: 'pan_number'

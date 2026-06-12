@@ -30,7 +30,7 @@ async function generateIssNo() {
   return `${prefix}${String(next).padStart(4, "0")}/${fy}`;
 }
 
-exports.getAllConsumptionIssues = async (req, res) => {
+const getAllConsumptionIssues = async (req, res) => {
   try {
     const issues = await ConsumptionIssue.findAll({
       include: ["details"],
@@ -42,7 +42,7 @@ exports.getAllConsumptionIssues = async (req, res) => {
   }
 };
 
-exports.getNextNumber = async (req, res) => {
+const getNextNumber = async (req, res) => {
   try {
     const nextNo = await generateIssNo();
     res.json({ success: true, data: { issNo: nextNo } });
@@ -51,7 +51,7 @@ exports.getNextNumber = async (req, res) => {
   }
 };
 
-exports.getConsumptionIssueById = async (req, res) => {
+const getConsumptionIssueById = async (req, res) => {
   try {
     const issue = await ConsumptionIssue.findByPk(req.params.id, {
       include: ["details"]
@@ -63,7 +63,7 @@ exports.getConsumptionIssueById = async (req, res) => {
   }
 };
 
-exports.createConsumptionIssue = async (req, res) => {
+const createConsumptionIssue = async (req, res) => {
   try {
     const body = { ...req.body };
     if (!body.issNo) body.issNo = await generateIssNo();
@@ -74,8 +74,6 @@ exports.createConsumptionIssue = async (req, res) => {
     if (body.details && Array.isArray(body.details)) {
       body.details.forEach(d => {
         totalQty += Number(d.issueQty || 0);
-        // Amount is no longer sent from frontend, so we calculate rate * qty if needed
-        // For backward compatibility, set amount to 0 or calculate from rate if rate exists
         const amount = (d.rate && d.issueQty) ? Number(d.rate) * Number(d.issueQty) : 0;
         totalAmount += amount;
       });
@@ -87,7 +85,6 @@ exports.createConsumptionIssue = async (req, res) => {
     if (body.details && Array.isArray(body.details)) {
       body.details = body.details.map(d => {
         const { id, _id, ...rest } = d;
-        // Ensure all fields are present
         return {
           ...rest,
           stkQty: rest.stkQty || 0,
@@ -106,7 +103,7 @@ exports.createConsumptionIssue = async (req, res) => {
   }
 };
 
-exports.updateConsumptionIssue = async (req, res) => {
+const updateConsumptionIssue = async (req, res) => {
   try {
     const issue = await ConsumptionIssue.findByPk(req.params.id);
     if (!issue) return res.status(404).json({ success: false, message: "Issue not found" });
@@ -118,7 +115,6 @@ exports.updateConsumptionIssue = async (req, res) => {
     if (body.details && Array.isArray(body.details)) {
       body.details.forEach(d => {
         totalQty += Number(d.issueQty || 0);
-        // Amount is no longer sent from frontend
         const amount = (d.rate && d.issueQty) ? Number(d.rate) * Number(d.issueQty) : 0;
         totalAmount += amount;
       });
@@ -155,7 +151,7 @@ exports.updateConsumptionIssue = async (req, res) => {
   }
 };
 
-exports.deleteConsumptionIssue = async (req, res) => {
+const deleteConsumptionIssue = async (req, res) => {
   try {
     const issue = await ConsumptionIssue.findByPk(req.params.id);
     if (!issue) return res.status(404).json({ success: false, message: "Issue not found" });
@@ -164,4 +160,13 @@ exports.deleteConsumptionIssue = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
+};
+
+module.exports = {
+  getAllConsumptionIssues,
+  getNextNumber,
+  getConsumptionIssueById,
+  createConsumptionIssue,
+  updateConsumptionIssue,
+  deleteConsumptionIssue
 };

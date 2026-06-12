@@ -4,9 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const API = import.meta.env.VITE_API_URL || "/api";
 
-// Helper function to get today's date in YYYY-MM-DD format
 const getTodayDate = () => {
   const today = new Date();
   const year = today.getFullYear();
@@ -15,41 +13,51 @@ const getTodayDate = () => {
   return `${year}-${month}-${day}`;
 };
 
-// ─── API Calls ────────────────────────────────────────────────────────────────
-const reportAPI = {
+const API = import.meta.env.VITE_API_URL || "/api";
+
+const consumptionIssueReportAPI = {
   getReport: async (params = {}) => {
     const queryParams = new URLSearchParams();
     if (params.fromDate) queryParams.append('fromDate', params.fromDate);
     if (params.toDate) queryParams.append('toDate', params.toDate);
-    if (params.searchTerm) queryParams.append('searchTerm', params.searchTerm);
-    if (params.searchPONo) queryParams.append('searchPONo', params.searchPONo);
-    if (params.supplier) queryParams.append('supplier', params.supplier);
+    if (params.searchISSNo) queryParams.append('searchISSNo', params.searchISSNo);
+    if (params.searchItem) queryParams.append('searchItem', params.searchItem);
+    if (params.department) queryParams.append('department', params.department);
+    if (params.store) queryParams.append('store', params.store);
     
-    const url = `${API}/reports/purchase-order-report${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const url = `${API}/consumption-issues/consumption-issue-report${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     const response = await fetch(url);
     const data = await response.json();
     return data;
   },
+  
   exportToExcel: async (params = {}) => {
     const queryParams = new URLSearchParams();
     if (params.fromDate) queryParams.append('fromDate', params.fromDate);
     if (params.toDate) queryParams.append('toDate', params.toDate);
-    if (params.searchTerm) queryParams.append('searchTerm', params.searchTerm);
-    if (params.searchPONo) queryParams.append('searchPONo', params.searchPONo);
-    if (params.supplier) queryParams.append('supplier', params.supplier);
+    if (params.searchISSNo) queryParams.append('searchISSNo', params.searchISSNo);
+    if (params.searchItem) queryParams.append('searchItem', params.searchItem);
+    if (params.department) queryParams.append('department', params.department);
+    if (params.store) queryParams.append('store', params.store);
     
-    window.open(`${API}/reports/purchase-order-report/export/csv?${queryParams.toString()}`, '_blank');
+    window.open(`${API}/consumption-issues/consumption-issue-report/export/csv?${queryParams.toString()}`, '_blank');
   },
-  // Fetch ALL suppliers (not filtered by report results)
-  getAllSuppliers: async () => {
-    const response = await fetch(`${API}/reports/purchase-order-report/suppliers`);
+  
+  getDepartments: async () => {
+    const response = await fetch(`${API}/consumption-issues/consumption-issue-report/departments`);
+    const data = await response.json();
+    return data;
+  },
+  
+  getStores: async () => {
+    const response = await fetch(`${API}/consumption-issues/consumption-issue-report/stores`);
     const data = await response.json();
     return data;
   }
 };
 
 // ─── Main Component ──────────────────────────────────────────────────────────
-export default function PurchaseOrderReportPage() {
+export default function ConsumptionIssueReportPage() {
   const { user } = useAuth();
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,35 +65,40 @@ export default function PurchaseOrderReportPage() {
   const [expandedRows, setExpandedRows] = useState({});
   const tableBodyRef = useRef(null);
   
-  // Filter states - with fromDate and toDate set to today's date
+  // Filter states
   const [fromDate, setFromDate] = useState(getTodayDate);
   const [toDate, setToDate] = useState(getTodayDate);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchPONo, setSearchPONo] = useState("");
-  const [selectedSupplier, setSelectedSupplier] = useState("");
+  const [searchISSNo, setSearchISSNo] = useState("");
+  const [searchItem, setSearchItem] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedStore, setSelectedStore] = useState("");
   
-  // Dropdown options - ALWAYS show all suppliers alphabetically
-  const [allSuppliers, setAllSuppliers] = useState([]);
+  // Dropdown options
+  const [departments, setDepartments] = useState([]);
+  const [stores, setStores] = useState([]);
   const [filtersApplied, setFiltersApplied] = useState(false);
 
-  // Fetch ALL suppliers on component mount (only once)
+  // Fetch departments and stores on component mount
   useEffect(() => {
-    const fetchSuppliers = async () => {
+    const fetchFilters = async () => {
       try {
-        const result = await reportAPI.getAllSuppliers();
-        if (result.success) {
-          // Sort alphabetically
-          const sortedSuppliers = [...result.data].sort((a, b) => 
-            a.localeCompare(b, 'en', { sensitivity: 'base' })
-          );
-          setAllSuppliers(sortedSuppliers);
+        const [deptResult, storeResult] = await Promise.all([
+          consumptionIssueReportAPI.getDepartments(),
+          consumptionIssueReportAPI.getStores()
+        ]);
+        
+        if (deptResult.success) {
+          setDepartments(deptResult.data || []);
+        }
+        if (storeResult.success) {
+          setStores(storeResult.data || []);
         }
       } catch (err) {
-
+        console.error("Failed to load filter options:", err);
       }
     };
     
-    fetchSuppliers();
+    fetchFilters();
   }, []);
 
   // Fetch report data
@@ -96,12 +109,12 @@ export default function PurchaseOrderReportPage() {
       const params = {};
       if (fromDate) params.fromDate = fromDate;
       if (toDate) params.toDate = toDate;
-      if (searchTerm) params.searchTerm = searchTerm;
-      if (searchPONo) params.searchPONo = searchPONo;
-      if (selectedSupplier) params.supplier = selectedSupplier;
+      if (searchISSNo) params.searchISSNo = searchISSNo;
+      if (searchItem) params.searchItem = searchItem;
+      if (selectedDepartment) params.department = selectedDepartment;
+      if (selectedStore) params.store = selectedStore;
       
-
-      const result = await reportAPI.getReport(params);
+      const result = await consumptionIssueReportAPI.getReport(params);
       if (result.success) {
         setReportData(result.data || []);
         setFiltersApplied(true);
@@ -110,22 +123,22 @@ export default function PurchaseOrderReportPage() {
         setFiltersApplied(false);
       }
     } catch (err) {
-
+      console.error("Error fetching report:", err);
       setError(err.message);
       setFiltersApplied(false);
     } finally {
       setLoading(false);
     }
-  }, [fromDate, toDate, searchTerm, searchPONo, selectedSupplier]);
+  }, [fromDate, toDate, searchISSNo, searchItem, selectedDepartment, selectedStore]);
 
   // Auto-fetch on component mount with today's date filters
   useEffect(() => {
     fetchReport();
-  }, []);
+  }, [fetchReport]);
 
-  // Toggle expand/collapse for PO row
-  const toggleExpand = (poNo) => {
-    setExpandedRows(prev => ({ ...prev, [poNo]: !prev[poNo] }));
+  // Toggle expand/collapse for ISS row
+  const toggleExpand = (issNo) => {
+    setExpandedRows(prev => ({ ...prev, [issNo]: !prev[issNo] }));
   };
 
   // Export to Excel
@@ -133,15 +146,15 @@ export default function PurchaseOrderReportPage() {
     const params = {};
     if (fromDate) params.fromDate = fromDate;
     if (toDate) params.toDate = toDate;
-    if (searchTerm) params.searchTerm = searchTerm;
-    if (searchPONo) params.searchPONo = searchPONo;
-    if (selectedSupplier) params.supplier = selectedSupplier;
-    reportAPI.exportToExcel(params);
+    if (searchISSNo) params.searchISSNo = searchISSNo;
+    if (searchItem) params.searchItem = searchItem;
+    if (selectedDepartment) params.department = selectedDepartment;
+    if (selectedStore) params.store = selectedStore;
+    consumptionIssueReportAPI.exportToExcel(params);
   };
   
   // Handle Result button click
   const handleResult = () => {
-    // Validate dates
     if (fromDate && toDate) {
       if (new Date(fromDate) > new Date(toDate)) {
         setError("From Date cannot be greater than To Date");
@@ -156,97 +169,59 @@ export default function PurchaseOrderReportPage() {
   const handleReset = () => {
     setFromDate(getTodayDate());
     setToDate(getTodayDate());
-    setSearchTerm("");
-    setSearchPONo("");
-    setSelectedSupplier("");
-    // Fetch with reset filters after state updates
+    setSearchISSNo("");
+    setSearchItem("");
+    setSelectedDepartment("");
+    setSelectedStore("");
     setTimeout(() => {
       fetchReport();
     }, 0);
   };
   
+  // Group data by ISS No
   const groupedData = useMemo(() => {
     const groups = {};
     reportData.forEach(item => {
-
-      
-      if (!groups[item.ponumber]) {
-        groups[item.ponumber] = {
-          poNo: item.ponumber,
-          poDate: item.podate,
-          supplier: item.supplier,
-          deliveryDate: item.deliverydate,
-          poType: item.potype,
-          transportCharges: Number(item.transportCharges) || 0,
-          totalAmount: Number(item.totalAmount) || 0,
+      if (!groups[item.issno]) {
+        groups[item.issno] = {
+          issNo: item.issno,
+          issueDate: item.issuedate,
+          department: item.department,
+          store: item.store,
+          requestedBy: item.requestedby,
+          remarks: item.remarks,
           totalQty: 0,
           totalItems: 0,
           items: []
         };
-
       }
       
-      groups[item.ponumber].items.push({
-        indentNo: item.indentNo,
-        itemName: item.itemName,
+      groups[item.issno].items.push({
+        itemName: item.itemname,
+        stkQty: item.stkqty,
+        issueQty: item.issueqty,
         uom: item.uom,
-        poQty: item.poQty,
-        poRate: item.porate,
-        discPrice: item.discPrice,
-        totGst: item.totGst,
-        totalAmount: item.itemTotalAmount || item.totalAmount
+        balQty: item.balqty,
+        itemRemarks: item.itemremarks
       });
       
-      groups[item.ponumber].totalQty += Number(item.poQty) || 0;
-      groups[item.ponumber].totalItems += 1;
+      groups[item.issno].totalQty += Number(item.issueqty) || 0;
+      groups[item.issno].totalItems += 1;
     });
     
-
-    
     return Object.values(groups).sort((a, b) => {
-      if (!a.poDate && !b.poDate) return 0;
-      if (!a.poDate) return 1;
-      if (!b.poDate) return -1;
-      return new Date(b.poDate) - new Date(a.poDate);
+      if (!a.issueDate && !b.issueDate) return 0;
+      if (!a.issueDate) return 1;
+      if (!b.issueDate) return -1;
+      return new Date(b.issueDate) - new Date(a.issueDate);
     });
   }, [reportData]);
 
-  // Keyboard navigation for Arrow keys on PO rows
-  {/*useEffect(() => {
-    const handleKeyNavigation = (e) => {
-      const mainRows = document.querySelectorAll('.po-main-row');
-      const currentElement = document.activeElement;
-      const currentIndex = Array.from(mainRows).indexOf(currentElement);
-      
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (currentIndex < mainRows.length - 1) {
-          mainRows[currentIndex + 1].focus();
-        } else {
-          mainRows[0].focus();
-        }
-      }
-      
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (currentIndex > 0) {
-          mainRows[currentIndex - 1].focus();
-        } else {
-          mainRows[mainRows.length - 1].focus();
-        }
-      }
-    };
-    
-    document.addEventListener('keydown', handleKeyNavigation);
-    return () => document.removeEventListener('keydown', handleKeyNavigation);
-  }, [groupedData]);*/}
-
-  // Tab index navigation - CYCLES BACK TO FIRST
+  // Tab index navigation - cycles back to first
   useEffect(() => {
     const handleTabKey = (e) => {
       if (e.key !== 'Tab') return;
       
-      // Get all focusable elements with tabIndex (1 to 999)
       const focusableElements = Array.from(
         document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
       ).filter(el => {
@@ -263,17 +238,12 @@ export default function PurchaseOrderReportPage() {
       const currentElement = document.activeElement;
       const currentIndex = focusableElements.indexOf(currentElement);
       
-      // Tab key (forward) - NO SHIFT
       if (!e.shiftKey) {
-        // If at the last element or not found, go to first
         if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
           e.preventDefault();
           focusableElements[0]?.focus();
         }
-      } 
-      // Shift+Tab key (backward)
-      else {
-        // If at the first element or not found, go to last
+      } else {
         if (currentIndex === 0 || currentIndex === -1) {
           e.preventDefault();
           focusableElements[focusableElements.length - 1]?.focus();
@@ -285,12 +255,17 @@ export default function PurchaseOrderReportPage() {
     return () => document.removeEventListener('keydown', handleTabKey);
   }, []);
 
+  // Calculate totals for summary
+  const totalIssues = groupedData.length;
+  const totalItems = groupedData.reduce((sum, g) => sum + g.totalItems, 0);
+  const totalQuantity = groupedData.reduce((sum, g) => sum + g.totalQty, 0);
+
   return (
     <div className="inv-page">
       <div className="inv-page-header">
         <div>
-          <h1 className="inv-page-title">Purchase Order Report</h1>
-          <p className="inv-page-sub">View and analyze purchase order details</p>
+          <h1 className="inv-page-title">Consumption Issue Report</h1>
+          <p className="inv-page-sub">View and analyze consumption issue details</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="inv-btn-primary" onClick={handleExport} tabIndex={8}>
@@ -342,40 +317,55 @@ export default function PurchaseOrderReportPage() {
             </div>
             
             <div className="inv-field">
-              <label className="inv-label">Search PO No</label>
+              <label className="inv-label">Search ISS No</label>
               <input
                 type="text"
                 className="inv-input"
                 tabIndex={3}
-                placeholder="Search by PO number..."
-                value={searchPONo}
-                onChange={(e) => setSearchPONo(e.target.value)}
+                placeholder="Search by ISS number..."
+                value={searchISSNo}
+                onChange={(e) => setSearchISSNo(e.target.value)}
               />
             </div>
             
             <div className="inv-field">
-              <label className="inv-label">Search Item/Indent</label>
+              <label className="inv-label">Search Item</label>
               <input
                 type="text"
                 className="inv-input"
                 tabIndex={4}
-                placeholder="Search by item or indent no..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by item name..."
+                value={searchItem}
+                onChange={(e) => setSearchItem(e.target.value)}
               />
             </div>
             
             <div className="inv-field">
-              <label className="inv-label">Supplier</label>
+              <label className="inv-label">Department</label>
               <select 
                 className="inv-input" 
                 tabIndex={5} 
-                value={selectedSupplier} 
-                onChange={(e) => setSelectedSupplier(e.target.value)}
+                value={selectedDepartment} 
+                onChange={(e) => setSelectedDepartment(e.target.value)}
               >
-                <option value="">All Suppliers</option>
-                {allSuppliers.map(sup => (
-                  <option key={sup} value={sup}>{sup}</option>
+                <option value="">All Departments</option>
+                {departments.map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="inv-field">
+              <label className="inv-label">Store</label>
+              <select 
+                className="inv-input" 
+                tabIndex={6} 
+                value={selectedStore} 
+                onChange={(e) => setSelectedStore(e.target.value)}
+              >
+                <option value="">All Stores</option>
+                {stores.map(store => (
+                  <option key={store} value={store}>{store}</option>
                 ))}
               </select>
             </div>
@@ -383,10 +373,10 @@ export default function PurchaseOrderReportPage() {
           
           {/* Filter Action Buttons */}
           <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
-            <button className="inv-btn-secondary" onClick={handleReset} tabIndex={6}>
+            <button className="inv-btn-secondary" onClick={handleReset} tabIndex={7}>
               Reset
             </button>
-            <button className="inv-btn-primary" onClick={handleResult} tabIndex={7}>
+            <button className="inv-btn-primary" onClick={handleResult} tabIndex={8}>
               Result
             </button>
           </div>
@@ -409,30 +399,29 @@ export default function PurchaseOrderReportPage() {
               <thead>
                 <tr>
                   <th style={{ width: 40 }}></th>
-                  <th>PO Number</th>
-                  <th>PO Date</th>
-                  <th>Supplier</th>
-                  <th>Delivery Date</th>
-                  <th>PO Type</th>
+                  <th>ISS No</th>
+                  <th>Issue Date</th>
+                  <th>Department</th>
+                  <th>Store</th>
+                  <th>Requested By</th>
                   <th style={{ textAlign: "right" }}>Total Items</th>
                   <th style={{ textAlign: "right" }}>Total Qty</th>
-                  <th style={{ textAlign: "right" }}>Total Amount</th>
                 </tr>
               </thead>
               <tbody ref={tableBodyRef}>
-                {groupedData.map((po, index) => {
-                  const isExpanded = expandedRows[po.poNo];
+                {groupedData.map((iss) => {
+                  const isExpanded = expandedRows[iss.issNo];
                   return (
-                    <React.Fragment key={po.poNo}>
-                      {/* Main PO Row */}
+                    <React.Fragment key={iss.issNo}>
+                      {/* Main ISS Row */}
                       <tr 
-                        className="po-main-row"
+                        className="iss-main-row"
                         style={{ cursor: "pointer", backgroundColor: "#f8fafc" }}
-                        onClick={() => toggleExpand(po.poNo)}
+                        onClick={() => toggleExpand(iss.issNo)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            toggleExpand(po.poNo);
+                            toggleExpand(iss.issNo);
                           }
                         }}
                         tabIndex={0}
@@ -442,20 +431,19 @@ export default function PurchaseOrderReportPage() {
                             {isExpanded ? "▼" : "▶"}
                           </span>
                         </td>
-                        <td style={{ fontWeight: 600, color: "#3b6ef8" }}>{po.poNo}</td>
-                        <td>{po.poDate}</td>
-                        <td>{po.supplier || "—"}</td>
-                        <td>{po.deliveryDate || "—"}</td>
-                        <td>{po.poType || "—"}</td>
-                        <td style={{ textAlign: "right" }}>{po.totalItems}</td>
-                        <td style={{ textAlign: "right", fontWeight: 500 }}>{fmtQty(po.totalQty)}</td>
-                        <td style={{ textAlign: "right", fontWeight: 500, color: "#10b981" }}>{fmt(po.totalAmount)}</td>
+                        <td style={{ fontWeight: 600, color: "#3b6ef8" }}>{iss.issNo}</td>
+                        <td>{iss.issueDate}</td>
+                        <td>{iss.department || "—"}</td>
+                        <td>{iss.store || "—"}</td>
+                        <td>{iss.requestedBy || "—"}</td>
+                        <td style={{ textAlign: "right" }}>{iss.totalItems}</td>
+                        <td style={{ textAlign: "right", fontWeight: 500 }}>{fmtQty(iss.totalQty)}</td>
                       </tr>
                       
                       {/* Expanded Items Row */}
                       {isExpanded && (
                         <tr style={{ backgroundColor: "#fafafa" }}>
-                          <td colSpan={9} style={{ padding: 0 }}>
+                          <td colSpan={8} style={{ padding: 0 }}>
                             <table className="inv-table" style={{ 
                               margin: 0, 
                               width: "100%", 
@@ -469,43 +457,38 @@ export default function PurchaseOrderReportPage() {
                                   borderBottom: "1px solid #cbd5e1"
                                 }}>
                                   <th style={{ width: 40, padding: "8px 12px" }}></th>
-                                  <th style={{ width: "10%", padding: "8px 12px", textAlign: "left" }}>Indent No</th>
-                                  <th style={{ width: "25%", padding: "8px 12px", textAlign: "left" }}>Item Name</th>
-                                  <th style={{ width: "8%", padding: "8px 12px", textAlign: "center" }}>UOM</th>
-                                  <th style={{ width: "10%", padding: "8px 12px", textAlign: "right" }}>PO Qty</th>
-                                  <th style={{ width: "10%", padding: "8px 12px", textAlign: "right" }}>Rate</th>
-                                  <th style={{ width: "10%", padding: "8px 12px", textAlign: "right" }}>Discount</th>
-                                  <th style={{ width: "10%", padding: "8px 12px", textAlign: "right" }}>GST</th>
-                                  <th style={{ width: "12%", padding: "8px 12px", textAlign: "right" }}>Total Amount</th>
+                                  <th style={{ width: "35%", padding: "8px 12px", textAlign: "left" }}>Item Name</th>
+                                  <th style={{ width: "15%", padding: "8px 12px", textAlign: "right" }}>Stock Qty</th>
+                                  <th style={{ width: "15%", padding: "8px 12px", textAlign: "right" }}>Issue Qty</th>
+                                  <th style={{ width: "10%", padding: "8px 12px", textAlign: "center" }}>UOM</th>
+                                  <th style={{ width: "15%", padding: "8px 12px", textAlign: "right" }}>Balance Qty</th>
+                                  <th style={{ width: "15%", padding: "8px 12px", textAlign: "left" }}>Item Remarks</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {po.items.map((item, idx) => (
+                                {iss.items.map((item, idx) => (
                                   <tr 
                                     key={idx} 
                                     style={{ 
-                                      borderBottom: idx === po.items.length - 1 ? "none" : "1px solid #e2e8f0",
+                                      borderBottom: idx === iss.items.length - 1 ? "none" : "1px solid #e2e8f0",
                                       backgroundColor: "#ffffff"
                                     }}
                                   >
                                     <td style={{ paddingLeft: 28, verticalAlign: "top" }}>↳</td>
-                                    <td style={{ padding: "10px 12px", fontSize: 13, verticalAlign: "top" }}>{item.indentNo || "—"}</td>
-                                    <td style={{ padding: "10px 12px", fontSize: 13, verticalAlign: "top" }}>{item.itemName}</td>
-                                    <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "center", verticalAlign: "top" }}>{item.uom}</td>
-                                    <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top" }}>{fmtQty(item.poQty)}</td>
-                                    <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top" }}>{fmt(item.poRate)}</td>
-                                    <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top", color: "#ef4444" }}>{fmt(item.discPrice)}</td>
-                                    <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top" }}>{fmt(item.totGst)}</td>
-                                    <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top", fontWeight: 600, color: "#10b981" }}>{fmt(item.totalAmount)}</td>
+                                    <td style={{ padding: "10px 12px", fontSize: 13, verticalAlign: "top" }}>{item.itemName || "—"}</td>
+                                    <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top" }}>{fmtQty(item.stkQty)}</td>
+                                    <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top", fontWeight: 600, color: "#3b6ef8" }}>{fmtQty(item.issueQty)}</td>
+                                    <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "center", verticalAlign: "top" }}>{item.uom || "—"}</td>
+                                    <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", verticalAlign: "top" }}>{fmtQty(item.balQty)}</td>
+                                    <td style={{ padding: "10px 12px", fontSize: 13, verticalAlign: "top" }}>{item.itemRemarks || "—"}</td>
                                   </tr>
                                 ))}
                               </tbody>
                               <tfoot>
                                 <tr style={{ backgroundColor: "#f1f5f9", fontWeight: 600 }}>
-                                  <td colSpan={4} style={{ padding: "10px 12px", textAlign: "right" }}>Total:</td>
-                                  <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmtQty(po.totalQty)}</td>
+                                  <td colSpan={3} style={{ padding: "10px 12px", textAlign: "right" }}>Total:</td>
+                                  <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmtQty(iss.totalQty)}</td>
                                   <td colSpan={3}></td>
-                                  <td style={{ padding: "10px 12px", textAlign: "right", color: "#10b981" }}>{fmt(po.totalAmount)}</td>
                                 </tr>
                               </tfoot>
                             </table>
@@ -527,26 +510,16 @@ export default function PurchaseOrderReportPage() {
           <div className="inv-card-body">
             <div style={{ display: "flex", gap: 32, justifyContent: "flex-end" }}>
               <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>Total POs</div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>{groupedData.length}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>Total Issues</div>
+                <div style={{ fontSize: 20, fontWeight: 700 }}>{totalIssues}</div>
               </div>
               <div>
                 <div style={{ fontSize: 11, color: "#64748b" }}>Total Items</div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>
-                  {groupedData.reduce((sum, g) => sum + g.totalItems, 0)}
-                </div>
+                <div style={{ fontSize: 20, fontWeight: 700 }}>{totalItems}</div>
               </div>
               <div>
                 <div style={{ fontSize: 11, color: "#64748b" }}>Total Quantity</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "#3b6ef8" }}>
-                  {fmtQty(groupedData.reduce((sum, g) => sum + g.totalQty, 0))}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>Total Amount</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "#10b981" }}>
-                  {fmt(groupedData.reduce((sum, g) => sum + g.totalAmount, 0))}
-                </div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(totalQuantity)}</div>
               </div>
             </div>
           </div>

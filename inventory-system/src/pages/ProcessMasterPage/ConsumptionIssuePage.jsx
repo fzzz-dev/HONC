@@ -245,34 +245,34 @@ const loadData = useCallback(async () => {
 
 
   async function openNew() {
-    let nextNo = "";
-    try {
-      const res = await consumptionIssueApi.getNextNumber();
-      nextNo = res?.issNo || "";
-    } catch (err) {
-      console.error("Failed to get next ISS number", err);
-    }
-
-    setHeader({
-      issNo: nextNo,
-      date: today,
-      issueType: "General",
-      itemId: "",
-      itemName: "",
-      departmentId: "",
-      departmentName: "",
-      storeId: "",
-      storeName: "",
-      requestedBy: "",
-      remarks: "",
-      preparedBy: user?.name || "Admin",
-    });
-    setDetails([emptyDetail()]);
-    setEditId(null);
-    setView("form");
-    setFormError(null);
-    prevDetailsLengthRef.current = 1;
+  let nextNo = "";
+  try {
+    const res = await consumptionIssueApi.getNextNumber();
+    nextNo = res?.issNo || "";
+  } catch (err) {
+    console.error("Failed to get next ISS number", err);
   }
+
+  setHeader({
+    issNo: nextNo,
+    date: today,
+    issueType: "General",
+    itemId: "",
+    itemName: "",
+    departmentId: "",
+    departmentName: "",
+    storeId: "",
+    storeName: "",
+    requestedBy: user?.name || user?.email || "Admin",
+    remarks: "",
+    preparedBy: user?.name || "Admin",
+  });
+  setDetails([emptyDetail()]);
+  setEditId(null);
+  setView("form");
+  setFormError(null);
+  prevDetailsLengthRef.current = 1;
+}
 
   function openEdit(rec) {
     setHeader({
@@ -286,6 +286,7 @@ const loadData = useCallback(async () => {
       storeId: sid(rec.storeId),
       storeName: rec.storeName,
       requestedBy: rec.requestedBy || "",
+      requestedBy: rec.requestedBy || user?.name || user?.email || "Admin",
       remarks: rec.remarks || "",
       preparedBy: rec.preparedBy || user?.name || "Admin",
     });
@@ -791,7 +792,8 @@ const loadData = useCallback(async () => {
                 <input 
                   className="inv-input" 
                   value={header.requestedBy} 
-                  onChange={(e) => setHeader(h => ({ ...h, requestedBy: e.target.value }))} 
+                  readOnly
+                  style={{ background: "#f8f9fa" }}  
                   placeholder="Person requesting"
                   tabIndex={6}
                 />

@@ -229,6 +229,40 @@ export const consumptionIssueApi = {
   remove: (id) => request(`/consumption-issues/${id}`, { method: "DELETE" }),
 };
 
+export const consumptionIssueReportApi = {
+  getReport: async (params = {}) => {
+    const queryParams = new URLSearchParams();
+    if (params.fromDate) queryParams.append('fromDate', params.fromDate);
+    if (params.toDate) queryParams.append('toDate', params.toDate);
+    if (params.searchISSNo) queryParams.append('searchISSNo', params.searchISSNo);
+    if (params.searchItem) queryParams.append('searchItem', params.searchItem);
+    if (params.department) queryParams.append('department', params.department);
+    if (params.store) queryParams.append('store', params.store);
+    
+    return request(`/consumption-issues/consumption-issue-report${queryParams.toString() ? `?${queryParams.toString()}` : ''}`);
+  },
+  
+  exportToExcel: (params = {}) => {
+    const queryParams = new URLSearchParams();
+    if (params.fromDate) queryParams.append('fromDate', params.fromDate);
+    if (params.toDate) queryParams.append('toDate', params.toDate);
+    if (params.searchISSNo) queryParams.append('searchISSNo', params.searchISSNo);
+    if (params.searchItem) queryParams.append('searchItem', params.searchItem);
+    if (params.department) queryParams.append('department', params.department);
+    if (params.store) queryParams.append('store', params.store);
+    
+    window.open(`${BASE}/consumption-issues/consumption-issue-report/export/csv?${queryParams.toString()}`, '_blank');
+  },
+  
+  getDepartments: async () => {
+    return request('/consumption-issues/consumption-issue-report/departments');
+  },
+  
+  getStores: async () => {
+    return request('/consumption-issues/consumption-issue-report/stores');
+  }
+};
+
 export const openingStockApi = {
   getAll: (p = {}) => request(`/opening-stocks${qs(p)}`),
   getNextNumber: () => request("/opening-stocks/next-number"),
@@ -312,3 +346,4 @@ export const hrEmployeeApi = {
     window.open(`${BASE}/hr/employees/export/csv${queryString}`, '_blank');
   },
 };
+
