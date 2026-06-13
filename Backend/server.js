@@ -210,6 +210,7 @@ async function startServer() {
     app.use("/api/hr/designations", require("./routes/hrms/hrDesignationRoutes"));
     app.use("/api/hr/shifts", require("./routes/hrms/hrShiftRoutes"));  
     app.use("/api/hr/employees", require("./routes/hrms/hrEmployeeRoutes"));
+    app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
     
         console.log("✅ Routes registered");
 

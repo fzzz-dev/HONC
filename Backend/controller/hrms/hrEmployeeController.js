@@ -1,6 +1,7 @@
-// controller/hrms/hrEmployeeController.js
 const { HrEmployee, HrDepartment, HrDesignation } = require('../../model');
 const { Op } = require('sequelize');
+const path = require('path');
+const fs = require('fs');
 
 // Helper function to calculate total salary
 const calculateTotalSalary = (basicSalary, hra, allowances) => {
@@ -54,19 +55,24 @@ exports.getAll = async (req, res) => {
       basicSalary: emp.basicSalary,
       hra: emp.hra,
       allowances: emp.allowances,
-      totalSalary: calculateTotalSalary(emp.basicSalary, emp.hra, emp.allowances), // 👈 ADD THIS
+      totalSalary: calculateTotalSalary(emp.basicSalary, emp.hra, emp.allowances),
       panNumber: emp.panNumber,
       aadharNumber: emp.aadharNumber,
       pfNumber: emp.pfNumber,
       bankName: emp.bankName,
       bankAccountNo: emp.bankAccountNo,
       ifscCode: emp.ifscCode,
-      accountHolderName: emp.accountHolderName,  // 👈 ADD THIS
-      bankBranch: emp.bankBranch,               // 👈 ADD THIS
+      accountHolderName: emp.accountHolderName,
+      bankBranch: emp.bankBranch,
       presentAddress: emp.presentAddress,
       permanentAddress: emp.permanentAddress,
       remarks: emp.remarks,
       isActive: emp.isActive,
+      // NEW FIELDS
+      photoUrl: emp.photoUrl,
+      managementStaff: emp.managementStaff,
+      visitorsAllowed: emp.visitorsAllowed,
+      guest: emp.guest,
       createdAt: emp.createdAt,
       updatedAt: emp.updatedAt
     }));
@@ -134,7 +140,9 @@ exports.create = async (req, res) => {
       employeeCode, firstName, lastName, dateOfBirth, gender, contactPhone, contactEmail,
       dateOfJoining, designationId, departmentId, employmentType, basicSalary, hra,
       allowances, panNumber, aadharNumber, pfNumber, bankName, bankAccountNo,
-      ifscCode, accountHolderName, bankBranch, presentAddress, permanentAddress, remarks, isActive 
+      ifscCode, accountHolderName, bankBranch, presentAddress, permanentAddress, remarks, isActive,
+      // NEW FIELDS
+      photoUrl, managementStaff, visitorsAllowed, guest
     } = req.body;
     
     if (!employeeCode || !firstName) {
@@ -151,10 +159,14 @@ exports.create = async (req, res) => {
       dateOfJoining, designationId, departmentId, employmentType, basicSalary, hra,
       allowances, panNumber, aadharNumber, pfNumber, bankName, bankAccountNo,
       ifscCode, accountHolderName, bankBranch, presentAddress, permanentAddress, remarks, 
-      isActive: isActive !== undefined ? isActive : true
+      isActive: isActive !== undefined ? isActive : true,
+      // NEW FIELDS
+      photoUrl: photoUrl || null,
+      managementStaff: managementStaff || 'No',
+      visitorsAllowed: visitorsAllowed || 'No',
+      guest: guest || 'No'
     });
     
-    // Fetch the created employee with department and designation joins
     const savedEmployee = await HrEmployee.findByPk(newEmployee.id, {
       include: [
         { model: HrDepartment, as: 'department', attributes: ['id', 'name', 'code'] },
@@ -193,15 +205,15 @@ exports.create = async (req, res) => {
       permanentAddress: savedEmployee.permanentAddress,
       remarks: savedEmployee.remarks,
       isActive: savedEmployee.isActive,
+      photoUrl: savedEmployee.photoUrl,
+      managementStaff: savedEmployee.managementStaff,
+      visitorsAllowed: savedEmployee.visitorsAllowed,
+      guest: savedEmployee.guest,
       createdAt: savedEmployee.createdAt,
       updatedAt: savedEmployee.updatedAt
     };
     
-    res.status(201).json({ 
-      success: true, 
-      message: 'Employee created successfully', 
-      data: formattedData 
-    });
+    res.status(201).json({ success: true, message: 'Employee created successfully', data: formattedData });
   } catch (error) {
     console.error('Error creating employee:', error);
     res.status(500).json({ success: false, message: 'Failed to create employee', error: error.message });
@@ -219,7 +231,6 @@ exports.update = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
     
-    // Check code uniqueness if being changed
     if (updateData.employeeCode && updateData.employeeCode !== employee.employeeCode) {
       const existing = await HrEmployee.findOne({ where: { employeeCode: updateData.employeeCode } });
       if (existing) {
@@ -229,7 +240,6 @@ exports.update = async (req, res) => {
     
     await employee.update(updateData);
     
-    // Fetch updated employee with joins
     const updatedEmployee = await HrEmployee.findByPk(id, {
       include: [
         { model: HrDepartment, as: 'department', attributes: ['id', 'name', 'code'] },
@@ -268,6 +278,10 @@ exports.update = async (req, res) => {
       permanentAddress: updatedEmployee.permanentAddress,
       remarks: updatedEmployee.remarks,
       isActive: updatedEmployee.isActive,
+      photoUrl: updatedEmployee.photoUrl,
+      managementStaff: updatedEmployee.managementStaff,
+      visitorsAllowed: updatedEmployee.visitorsAllowed,
+      guest: updatedEmployee.guest,
       createdAt: updatedEmployee.createdAt,
       updatedAt: updatedEmployee.updatedAt
     };
@@ -279,33 +293,93 @@ exports.update = async (req, res) => {
   }
 };
 
-// Soft delete
+// Upload employee photo
+exports.uploadPhoto = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+    
+    const employee = await HrEmployee.findByPk(id);
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+    
+    // Delete old photo if exists
+    if (employee.photoUrl) {
+      const oldPhotoPath = path.join(__dirname, '../../public', employee.photoUrl);
+      if (fs.existsSync(oldPhotoPath)) {
+        fs.unlinkSync(oldPhotoPath);
+      }
+    }
+    
+    // Generate URL for the uploaded photo
+    const photoUrl = `/uploads/employees/${req.file.filename}`;
+    
+    await employee.update({ photoUrl });
+    
+    res.json({
+      success: true,
+      message: 'Photo uploaded successfully',
+      data: { photoUrl }
+    });
+  } catch (error) {
+    console.error('Error uploading photo:', error);
+    res.status(500).json({ success: false, message: 'Failed to upload photo', error: error.message });
+  }
+};
+
+// Delete employee photo
+exports.deletePhoto = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const employee = await HrEmployee.findByPk(id);
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+    
+    if (employee.photoUrl) {
+      const photoPath = path.join(__dirname, '../../public', employee.photoUrl);
+      if (fs.existsSync(photoPath)) {
+        fs.unlinkSync(photoPath);
+      }
+      await employee.update({ photoUrl: null });
+    }
+    
+    res.json({ success: true, message: 'Photo deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting photo:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete photo', error: error.message });
+  }
+};
+
+// Delete employee
 exports.delete = async (req, res) => {
   try {
     const { id } = req.params;
     
     const employee = await HrEmployee.findByPk(id);
     if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: 'Employee not found'
-      });
+      return res.status(404).json({ success: false, message: 'Employee not found' });
     }
     
-    // HARD DELETE - permanently remove from database
+    // Delete photo if exists
+    if (employee.photoUrl) {
+      const photoPath = path.join(__dirname, '../../public', employee.photoUrl);
+      if (fs.existsSync(photoPath)) {
+        fs.unlinkSync(photoPath);
+      }
+    }
+    
     await employee.destroy();
     
-    res.json({
-      success: true,
-      message: 'Employee permanently deleted'
-    });
+    res.json({ success: true, message: 'Employee permanently deleted' });
   } catch (error) {
     console.error('Error deleting employee:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete employee',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to delete employee', error: error.message });
   }
 };
 
@@ -317,6 +391,13 @@ exports.hardDelete = async (req, res) => {
     
     if (!employee) {
       return res.status(404).json({ success: false, message: 'Employee not found' });
+    }
+    
+    if (employee.photoUrl) {
+      const photoPath = path.join(__dirname, '../../public', employee.photoUrl);
+      if (fs.existsSync(photoPath)) {
+        fs.unlinkSync(photoPath);
+      }
     }
     
     await employee.destroy();
@@ -337,7 +418,7 @@ exports.exportToCSV = async (req, res) => {
       ]
     });
     
-    const csvRows = [['Employee Code', 'First Name', 'Last Name', 'Department', 'Designation', 'Phone', 'Email', 'Total Salary', 'Status']];
+    const csvRows = [['Employee Code', 'First Name', 'Last Name', 'Department', 'Designation', 'Phone', 'Email', 'Total Salary', 'Management Staff', 'Visitors Allowed', 'Guest', 'Status']];
     
     employees.forEach(emp => {
       csvRows.push([
@@ -349,6 +430,9 @@ exports.exportToCSV = async (req, res) => {
         emp.contactPhone || '',
         emp.contactEmail || '',
         calculateTotalSalary(emp.basicSalary, emp.hra, emp.allowances),
+        emp.managementStaff || 'No',
+        emp.visitorsAllowed || 'No',
+        emp.guest || 'No',
         emp.isActive ? 'Active' : 'Inactive'
       ]);
     });

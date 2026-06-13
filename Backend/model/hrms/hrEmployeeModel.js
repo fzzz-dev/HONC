@@ -1,4 +1,3 @@
-// model/hrms/hrEmployeeModel.js
 const { DataTypes } = require('sequelize');
 const sequelize = require('../../config/database');
 
@@ -69,7 +68,6 @@ const HrEmployee = sequelize.define('HrEmployee', {
     type: DataTypes.DECIMAL(12, 2),
     defaultValue: 0
   },
-  // 👇 NEW FIELDS 👇
   accountHolderName: {
     type: DataTypes.STRING(100),
     field: 'account_holder_name'
@@ -78,7 +76,6 @@ const HrEmployee = sequelize.define('HrEmployee', {
     type: DataTypes.STRING(100),
     field: 'bank_branch'
   },
-  // 👆 NEW FIELDS 👆
   panNumber: {
     type: DataTypes.STRING(20),
     field: 'pan_number'
@@ -119,6 +116,31 @@ const HrEmployee = sequelize.define('HrEmployee', {
     defaultValue: true,
     field: 'is_active'
   },
+  // ========== NEW FIELDS ==========
+  photoUrl: {
+    type: DataTypes.STRING(500),
+    field: 'photo_url',
+    allowNull: true,
+    comment: 'Employee photograph URL/path'
+  },
+  managementStaff: {
+    type: DataTypes.ENUM('Yes', 'No'),
+    defaultValue: 'No',
+    field: 'management_staff',
+    allowNull: false
+  },
+  visitorsAllowed: {
+    type: DataTypes.ENUM('Yes', 'No'),
+    defaultValue: 'No',
+    field: 'visitors_allowed',
+    allowNull: false
+  },
+  guest: {
+    type: DataTypes.ENUM('Yes', 'No'),
+    defaultValue: 'No',
+    allowNull: false
+  },
+  // ========== END NEW FIELDS ==========
   createdAt: {
     type: DataTypes.DATE,
     field: 'created_at',

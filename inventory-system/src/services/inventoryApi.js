@@ -333,6 +333,7 @@ export const hrDesignationApi = {
   },
 };  
 
+
 // HR Employee API
 export const hrEmployeeApi = {
   getAll: (p = {}) => request(`/hr/employees${qs(p)}`),
@@ -344,6 +345,32 @@ export const hrEmployeeApi = {
   exportToCSV: (params = {}) => {
     const queryString = qs(params);
     window.open(`${BASE}/hr/employees/export/csv${queryString}`, '_blank');
+  },
+  
+  // ✅ ADD THESE TWO METHODS FOR PHOTO UPLOAD
+  uploadPhoto: async (id, formData) => {
+    const res = await fetch(`${BASE}/hr/employees/${id}/upload-photo`, {
+      method: "POST",
+      body: formData,
+      // DON'T set Content-Type header — browser will set it with boundary
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || data.error || "Photo upload failed");
+    }
+    return data.data !== undefined ? data.data : data;
+  },
+  
+  deletePhoto: async (id) => {
+    const res = await fetch(`${BASE}/hr/employees/${id}/photo`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || data.error || "Photo delete failed");
+    }
+    return data.data !== undefined ? data.data : data;
   },
 };
 
