@@ -7,6 +7,7 @@ import {
   itemApi,
   grnApi,
   uomApi,
+  issueTypeApi,
 } from "../../services/inventoryApi";
 import { SearchSelect } from "../../components/FormFields";
 import Modal from "../../components/Modal";
@@ -55,7 +56,7 @@ const safeDetails = (details) => {
 const emptyDetail = () => ({
   _rowId: Date.now() + Math.random(),
   itemName: "",
-  itemId:"",
+  itemId: "",
   stkQty: "0.000",
   issueQty: "0.000",
   uom: "",
@@ -64,7 +65,7 @@ const emptyDetail = () => ({
 });
 
 const FormGrid = ({ children }) => (
-  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "12px" }}>
     {children}
   </div>
 );
@@ -93,7 +94,9 @@ export default function ConsumptionIssuePage() {
   const [formError, setFormError] = useState(null);
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [uoms, setUoms] = useState([]);
-  
+  const [issueTypes, setIssueTypes] = useState([]);
+  const [selectedDescription, setSelectedDescription] = useState("");
+
   // Refs for tab flow
   const addButtonRef = useRef(null);
   const viewListButtonRef = useRef(null);
@@ -103,7 +106,8 @@ export default function ConsumptionIssuePage() {
   const [header, setHeader] = useState({
     issNo: "",
     date: today,
-    issueType: "General",
+    issueType: "",
+    issueTypeDescription: "",
     itemId: "",
     itemName: "",
     departmentId: "",
@@ -153,40 +157,73 @@ export default function ConsumptionIssuePage() {
   );
 
   const sortedUomOptions = useMemo(() => 
-  uoms
-    .map(u => ({ value: u.uom || u.name || u, label: u.uom || u.name || u }))
-    .sort((a, b) => a.label.localeCompare(b.label)),
-  [uoms]
-);
+    uoms
+      .map(u => ({ value: u.uom || u.name || u, label: u.uom || u.name || u }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    [uoms]
+  );
+
+  // Issue Type options
+  const sortedIssueTypeOptions = useMemo(() => 
+    issueTypes
+      .filter(it => it.active)
+      .map(it => ({ 
+        value: it.issueType, 
+        label: it.issueType,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    [issueTypes]
+  );
+
+  // Description options based on selected issue type
+  const descriptionOptions = useMemo(() => {
+    const selectedType = issueTypes.find(it => it.issueType === header.issueType);
+    if (!selectedType?.descriptions) return [];
+    return selectedType.descriptions.map(desc => ({
+      value: desc.description,
+      label: desc.description
+    }));
+  }, [issueTypes, header.issueType]);
 
   // UOM options based on selected item
-const getUomOptions = () => {
-  return sortedUomOptions;
-};
+  const getUomOptions = () => {
+    return sortedUomOptions;
+  };
 
-const loadData = useCallback(async () => {
-  try {
-    setLoading(true);
-    const [issData, deptData, storeData, itemData, grnRes, uomData] = await Promise.all([
-      consumptionIssueApi.getAll(),
-      departmentApi.getAll(),
-      storeApi.getAll(),
-      itemApi.getAll(),
-      grnApi.getAll(),
-      uomApi.getAll(),
-    ]);
-    setIssues(issData?.data || issData || []);
-    setDepartments(deptData?.data || deptData || []);
-    setStores(storeData?.data || storeData || []);
-    setItems(itemData?.data || itemData || []);
-    setGrns(grnRes?.data || grnRes || []);
-    setUoms(uomData?.data || uomData || []);
-  } catch (err) {
-    console.error("Failed to load consumption data", err);
-  } finally {
-    setLoading(false);
-  }
-}, []);
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [issData, deptData, storeData, itemData, grnRes, uomData, issueTypeData] = await Promise.all([
+        consumptionIssueApi.getAll(),
+        departmentApi.getAll(),
+        storeApi.getAll(),
+        itemApi.getAll(),
+        grnApi.getAll(),
+        uomApi.getAll(),
+        issueTypeApi.getAll(),
+      ]);
+      setIssues(issData?.data || issData || []);
+      setDepartments(deptData?.data || deptData || []);
+      setStores(storeData?.data || storeData || []);
+      setItems(itemData?.data || itemData || []);
+      setGrns(grnRes?.data || grnRes || []);
+      setUoms(uomData?.data || uomData || []);
+      setIssueTypes(issueTypeData?.data || issueTypeData || []);
+    } catch (err) {
+      console.error("Failed to load consumption data", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleIssueTypeChange = (val) => {
+    setHeader(h => ({ 
+      ...h, 
+      issueType: val,
+      issueTypeDescription: ""
+    }));
+    setSelectedDescription("");
+  };
 
   useEffect(() => {
     loadData();
@@ -243,42 +280,44 @@ const loadData = useCallback(async () => {
     };
   }, [details.length]);
 
-
   async function openNew() {
-  let nextNo = "";
-  try {
-    const res = await consumptionIssueApi.getNextNumber();
-    nextNo = res?.issNo || "";
-  } catch (err) {
-    console.error("Failed to get next ISS number", err);
-  }
+    let nextNo = "";
+    try {
+      const res = await consumptionIssueApi.getNextNumber();
+      nextNo = res?.issNo || "";
+    } catch (err) {
+      console.error("Failed to get next ISS number", err);
+    }
 
-  setHeader({
-    issNo: nextNo,
-    date: today,
-    issueType: "General",
-    itemId: "",
-    itemName: "",
-    departmentId: "",
-    departmentName: "",
-    storeId: "",
-    storeName: "",
-    requestedBy: user?.name || user?.email || "Admin",
-    remarks: "",
-    preparedBy: user?.name || "Admin",
-  });
-  setDetails([emptyDetail()]);
-  setEditId(null);
-  setView("form");
-  setFormError(null);
-  prevDetailsLengthRef.current = 1;
-}
+    setHeader({
+      issNo: nextNo,
+      date: today,
+      issueType: "",
+      issueTypeDescription: "",
+      itemId: "",
+      itemName: "",
+      departmentId: "",
+      departmentName: "",
+      storeId: "",
+      storeName: "",
+      requestedBy: user?.name || user?.email || "Admin",
+      remarks: "",
+      preparedBy: user?.name || "Admin",
+    });
+    setSelectedDescription("");
+    setDetails([emptyDetail()]);
+    setEditId(null);
+    setView("form");
+    setFormError(null);
+    prevDetailsLengthRef.current = 1;
+  }
 
   function openEdit(rec) {
     setHeader({
       issNo: rec.issNo,
       date: rec.date,
-      issueType: rec.issueType || "General",
+      issueType: rec.issueType || "",
+      issueTypeDescription: rec.issueTypeDescription || "",
       itemId: rec.itemId || "",
       itemName: rec.itemName || "",
       departmentId: sid(rec.departmentId),
@@ -286,10 +325,11 @@ const loadData = useCallback(async () => {
       storeId: sid(rec.storeId),
       storeName: rec.storeName,
       requestedBy: rec.requestedBy || "",
-      requestedBy: rec.requestedBy || user?.name || user?.email || "Admin",
       remarks: rec.remarks || "",
       preparedBy: rec.preparedBy || user?.name || "Admin",
     });
+    
+    setSelectedDescription(rec.issueTypeDescription || "");
     
     const safeDetailsList = safeDetails(rec.details);
     const processedDetails = safeDetailsList.map((d, index) => ({
@@ -310,29 +350,28 @@ const loadData = useCallback(async () => {
   }
 
   function updateDetail(idx, field, val) {
-  setDetails((prev) => {
-    const rows = [...prev];
-    const row = { ...rows[idx], [field]: val };
+    setDetails((prev) => {
+      const rows = [...prev];
+      const row = { ...rows[idx], [field]: val };
 
-    // When item changes, find and store the itemId
-    if (field === "itemName") {
-      const selectedItem = items.find(it => 
-        (it.itemDescription || it.itemName) === val
-      );
-      row.itemId = selectedItem?.id || "";  // 👈 STORE THE ID
-      row.uom = ""; // Reset UOM when item changes
-    }
+      if (field === "itemName") {
+        const selectedItem = items.find(it => 
+          (it.itemDescription || it.itemName) === val
+        );
+        row.itemId = selectedItem?.id || "";
+        row.uom = "";
+      }
 
-    if (field === "issueQty") {
-      const issueQty = Number(val || 0);
-      const stkQty = Number(row.stkQty || 0);
-      row.balQty = (stkQty - issueQty).toFixed(3);
-    }
+      if (field === "issueQty") {
+        const issueQty = Number(val || 0);
+        const stkQty = Number(row.stkQty || 0);
+        row.balQty = (stkQty - issueQty).toFixed(3);
+      }
 
-    rows[idx] = row;
-    return rows;
-  });
-}
+      rows[idx] = row;
+      return rows;
+    });
+  }
 
   function addRow() {
     setDetails(prev => [...prev, emptyDetail()]);
@@ -349,6 +388,14 @@ const loadData = useCallback(async () => {
     }
     if (!header.storeId) {
       setFormError("Store is required");
+      return;
+    }
+    if (!header.issueType) {
+      setFormError("Issue Type is required");
+      return;
+    }
+    if (!selectedDescription) {
+      setFormError("Description is required");
       return;
     }
     
@@ -368,7 +415,11 @@ const loadData = useCallback(async () => {
       .filter(d => d.itemName && Number(d.issueQty) > 0)
       .map(({ _rowId, ...rest }) => rest);
     
-    const payload = { ...header, details: cleanDetails };
+    const payload = { 
+      ...header, 
+      issueTypeDescription: selectedDescription,
+      details: cleanDetails 
+    };
     
     try {
       if (editId) {
@@ -388,7 +439,7 @@ const loadData = useCallback(async () => {
     } finally {
       setSaving(false);
     }
-  }, [header, details, editId, loadData]);
+  }, [header, details, editId, loadData, selectedDescription]);
 
   function printIssue() {
     const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -444,10 +495,10 @@ const loadData = useCallback(async () => {
     <div class="title-banner">CONSUMPTION ISSUE VOUCHER</div>
     <table class="info-table">
       <tr>
-        <td><div class="label">Issue Number</div><div class="value">${esc(header.issNo)}</div></td>
+        <tr><div class="label">Issue Number</div><div class="value">${esc(header.issNo)}</div></td>
         <td><div class="label">Issue Date</div><div class="value">${esc(new Date(header.date).toLocaleDateString("en-GB"))}</div></td>
         <td><div class="label">Issue Type</div><div class="value">${esc(header.issueType)}</div></td>
-        <td><div class="label">Financial Year</div><div class="value">${esc(getFY())}</div></td>
+        <td><div class="label">Description</div><div class="value">${esc(selectedDescription)}</div></td>
       </tr>
       <tr>
         <td colspan="2"><div class="label">Issued To (Department)</div><div class="value">${esc(header.departmentName)}</div></td>
@@ -524,7 +575,7 @@ const loadData = useCallback(async () => {
   };
 
   const getTabIndex = (rowIndex, fieldOffset, totalRows) => {
-    const headerFieldsCount = 8; // ISS No, Date, Issue Type, Department, Store, Requested By, Remarks, Prepared By
+    const headerFieldsCount = 8; // ISS No, Date, Issue Type, Description, Department, Store, Requested By, Remarks
     const fieldsPerRow = getFieldsPerRow();
     const rowStartTab = headerFieldsCount + (rowIndex * fieldsPerRow) + 1;
     return rowStartTab + fieldOffset;
@@ -751,16 +802,26 @@ const loadData = useCallback(async () => {
                   tabIndex={2} 
                 />
               </Field>
+
               <Field label="Issue Type">
-                <select 
-                  className="inv-input" 
+                <SearchSelect 
                   value={header.issueType} 
-                  onChange={(e) => setHeader(h => ({ ...h, issueType: e.target.value }))} 
+                  onChange={handleIssueTypeChange}
+                  options={sortedIssueTypeOptions}
+                  placeholder="Search or select issue type"
                   tabIndex={3}
-                >
-                  <option value="General">General</option>
-                  <option value="Product">Product</option>
-                </select>
+                />
+              </Field>
+
+              <Field label="Description">
+                <SearchSelect
+                  value={selectedDescription}
+                  onChange={setSelectedDescription}
+                  options={descriptionOptions}
+                  placeholder="Select description for this issue type"
+                  disabled={!header.issueType}
+                  tabIndex={4}
+                />
               </Field>
               
               <Field label="Department *">
@@ -772,7 +833,7 @@ const loadData = useCallback(async () => {
                   }}
                   options={sortedDepartmentOptions}
                   placeholder="Select department"
-                  tabIndex={4}
+                  tabIndex={5}
                 />
               </Field>
               <Field label="Store *">
@@ -784,18 +845,18 @@ const loadData = useCallback(async () => {
                   }}
                   options={sortedStoreOptions}
                   placeholder="Select store"
-                  tabIndex={5}
+                  tabIndex={6}
                 />
               </Field>
 
               <Field label="Requested By">
                 <input 
                   className="inv-input" 
-                  value={header.requestedBy} 
-                  readOnly
+                  value={header.requestedBy}
+                  onChange={(e) => setHeader(prev => ({ ...prev, requestedBy: e.target.value }))}
                   style={{ background: "#f8f9fa" }}  
                   placeholder="Person requesting"
-                  tabIndex={6}
+                  tabIndex={7}
                 />
               </Field>
 
@@ -805,7 +866,7 @@ const loadData = useCallback(async () => {
                   value={header.remarks} 
                   onChange={(e) => setHeader(h => ({ ...h, remarks: e.target.value }))} 
                   placeholder="Remarks..."
-                  tabIndex={7}
+                  tabIndex={8}
                 />
               </Field>
             </FormGrid>

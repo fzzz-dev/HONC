@@ -32,6 +32,7 @@ import {
   ProcessMasterPage,
 } from "./pages/OrgMasterPages";
 import Uompage from "./pages/UomPage";
+import IssueTypePage from "./pages/IssueTypePage";
 
 // Transactions
 import PurchaseIndentPage from "./pages/ProcessMasterPage/Purchaseindentpage";
@@ -101,6 +102,7 @@ export default function App() {
                 <Route path="/store" element={<StoreMasterPage />} />
                 <Route path="/department" element={<DepartmentMasterPage />} />
                 <Route path="/process" element={<ProcessMasterPage />} />
+                <Route path= "/Issues" element={<IssueTypePage/>} />
 
                 {/* ── Transactions ── */}
                 <Route path="/purchase-indent" element={<PurchaseIndentPage />} />

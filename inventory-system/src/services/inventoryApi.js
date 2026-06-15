@@ -145,6 +145,13 @@ export const storeApi = {
   getAll: (p = {}) => request(`/stores${qs(p)}`),
 };
 
+export const issueTypeApi = {
+  getAll: (p = {}) => request(`/issue-types${qs(p)}`),
+  create: (body) => request("/issue-types", { method: "POST", body: j(body) }),
+  update: (id, b) => request(`/issue-types/${id}`, { method: "PUT", body: j(b) }),
+  remove: (id) => request(`/issue-types/${id}`, { method: "DELETE" }),
+};
+
 // ── Transactions ─────────────────────────────────────────────────────────────
 
 export const purchaseIndentApi = {
