@@ -25,7 +25,7 @@ exports.getAll = async (req, res) => {
       count: shifts.length
     });
   } catch (error) {
-    console.error('Error fetching shifts:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch shifts',
@@ -51,7 +51,7 @@ exports.getById = async (req, res) => {
       data: shift
     });
   } catch (error) {
-    console.error('Error fetching shift:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch shift',
@@ -73,7 +73,7 @@ exports.getActive = async (req, res) => {
       data: shifts
     });
   } catch (error) {
-    console.error('Error fetching active shifts:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch active shifts',
@@ -115,7 +115,7 @@ exports.create = async (req, res) => {
       data: newShift
     });
   } catch (error) {
-    console.error('Error creating shift:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to create shift',
@@ -168,7 +168,7 @@ exports.update = async (req, res) => {
       data: shift
     });
   } catch (error) {
-    console.error('Error updating shift:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to update shift',
@@ -197,7 +197,7 @@ exports.delete = async (req, res) => {
       message: 'Shift permanently deleted'
     });
   } catch (error) {
-    console.error('Error deleting shift:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to delete shift',
@@ -225,7 +225,7 @@ exports.hardDelete = async (req, res) => {
       message: 'Shift permanently deleted'
     });
   } catch (error) {
-    console.error('Error hard deleting shift:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to permanently delete shift',
@@ -277,7 +277,7 @@ exports.exportToCSV = async (req, res) => {
     res.attachment(`hr_shifts_${new Date().toISOString().split('T')[0]}.csv`);
     res.send(csv);
   } catch (error) {
-    console.error('Error exporting shifts:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to export shifts',

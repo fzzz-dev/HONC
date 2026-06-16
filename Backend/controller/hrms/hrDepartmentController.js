@@ -28,7 +28,7 @@ exports.getAll = async (req, res) => {
       count: departments.length
     });
   } catch (error) {
-    console.error('Error fetching departments:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch departments',
@@ -54,7 +54,7 @@ exports.getById = async (req, res) => {
       data: department
     });
   } catch (error) {
-    console.error('Error fetching department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch department',
@@ -76,7 +76,7 @@ exports.getActive = async (req, res) => {
       data: departments
     });
   } catch (error) {
-    console.error('Error fetching active departments:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch active departments',
@@ -125,7 +125,7 @@ exports.create = async (req, res) => {
       data: newDepartment
     });
   } catch (error) {
-    console.error('Error creating department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to create department',
@@ -187,7 +187,7 @@ exports.update = async (req, res) => {
       data: department
     });
   } catch (error) {
-    console.error('Error updating department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to update department',
@@ -215,7 +215,7 @@ exports.delete = async (req, res) => {
       message: 'Department deactivated successfully'
     });
   } catch (error) {
-    console.error('Error deleting department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to delete department',
@@ -251,7 +251,7 @@ exports.hardDelete = async (req, res) => {
       message: 'Department permanently deleted'
     });
   } catch (error) {
-    console.error('Error hard deleting department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to permanently delete department',
@@ -305,7 +305,7 @@ exports.exportToCSV = async (req, res) => {
     res.attachment(`hr_departments_${new Date().toISOString().split('T')[0]}.csv`);
     res.send(csv);
   } catch (error) {
-    console.error('Error exporting departments:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to export departments',

@@ -39,6 +39,43 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
+// Configure multer for bulk upload (Excel/CSV files)
+const bulkUploadStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '../../public/uploads/bulk');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `bulk_${uniqueSuffix}${ext}`);
+  }
+});
+
+const bulkUploadFileFilter = (req, file, cb) => {
+  const allowedTypes = /xlsx|xls|csv/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype) || 
+                   file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                   file.mimetype === 'application/vnd.ms-excel' ||
+                   file.mimetype === 'text/csv';
+  
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb(new Error('Only Excel (.xlsx, .xls) and CSV files are allowed'));
+  }
+};
+
+const bulkUpload = multer({
+  storage: bulkUploadStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit for bulk uploads
+  fileFilter: bulkUploadFileFilter
+});
+
 // Routes
 router.get('/', hrEmployeeController.getAll);
 router.get('/next-code', hrEmployeeController.getNextCode);
@@ -48,6 +85,9 @@ router.get('/:id', hrEmployeeController.getById);
 // Photo upload/delete routes
 router.post('/:id/upload-photo', upload.single('photo'), hrEmployeeController.uploadPhoto);
 router.delete('/:id/photo', hrEmployeeController.deletePhoto);
+
+// Bulk upload route
+router.post('/bulk-upload', bulkUpload.single('file'), hrEmployeeController.bulkUpload);
 
 router.post('/', hrEmployeeController.create);
 router.put('/:id', hrEmployeeController.update);

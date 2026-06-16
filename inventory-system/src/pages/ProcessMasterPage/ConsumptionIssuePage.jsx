@@ -8,6 +8,7 @@ import {
   grnApi,
   uomApi,
   issueTypeApi,
+  inventoryStockApi, // Add this API for stock
 } from "../../services/inventoryApi";
 import { SearchSelect } from "../../components/FormFields";
 import Modal from "../../components/Modal";
@@ -96,6 +97,7 @@ export default function ConsumptionIssuePage() {
   const [uoms, setUoms] = useState([]);
   const [issueTypes, setIssueTypes] = useState([]);
   const [selectedDescription, setSelectedDescription] = useState("");
+  const [stockData, setStockData] = useState({}); // Store stock quantities keyed by itemId
 
   // Refs for tab flow
   const addButtonRef = useRef(null);
@@ -190,6 +192,79 @@ export default function ConsumptionIssuePage() {
     return sortedUomOptions;
   };
 
+  // Fetch stock quantity for an item
+  const fetchStockQuantity = useCallback(async (itemName, storeName) => {
+
+  
+  if (!itemName || !storeName) {
+
+    return "0.000";
+  }
+  
+  try {
+    const response = await inventoryStockApi.getCurrentStock({ 
+      itemName: itemName, 
+      storeName: storeName 
+    });
+    
+
+    // FIX: The response is { stkqty: '-210.000' } directly, not { data: { stkqty: ... } }
+    const stockQty = response?.stkqty || 0;  // CHANGED THIS LINE
+
+    return Number(stockQty).toFixed(3);
+  } catch (error) {
+
+    return "0.000";
+  }
+}, []);
+
+
+const updateStockQuantities = useCallback(async () => {
+  if (!header.storeName) return;
+  
+  const updatedDetails = [...details];
+  let hasChanges = false;
+  let hasNegativeStock = false;
+  let negativeItemName = "";
+  
+  for (let i = 0; i < updatedDetails.length; i++) {
+    const row = updatedDetails[i];
+    if (row.itemName) {
+      const stockQty = await fetchStockQuantity(row.itemName, header.storeName);
+      if (stockQty !== row.stkQty) {
+        updatedDetails[i].stkQty = stockQty;
+        const issueQty = Number(row.issueQty || 0);
+        updatedDetails[i].balQty = (Number(stockQty) - issueQty).toFixed(3);
+        hasChanges = true;
+        
+        // Check for negative stock
+        if (Number(stockQty) < 0) {
+          hasNegativeStock = true;
+          negativeItemName = row.itemName;
+        }
+      }
+    }
+  }
+  
+  if (hasChanges) {
+    setDetails(updatedDetails);
+  }
+  
+  // Show error if negative stock found
+  if (hasNegativeStock) {
+    setFormError(`⚠️ Negative stock detected for "${negativeItemName}". Please check inventory.`);
+  } else {
+    setFormError(null);
+  }
+}, [header.storeName, details, fetchStockQuantity]);
+
+  
+  useEffect(() => {
+  if (view === "form" && header.storeName) { // Changed from storeId to storeName
+    updateStockQuantities();
+  }
+}, [header.storeName, view, updateStockQuantities]); // Changed from storeId to storeName
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -210,7 +285,7 @@ export default function ConsumptionIssuePage() {
       setUoms(uomData?.data || uomData || []);
       setIssueTypes(issueTypeData?.data || issueTypeData || []);
     } catch (err) {
-      console.error("Failed to load consumption data", err);
+
     } finally {
       setLoading(false);
     }
@@ -286,7 +361,7 @@ export default function ConsumptionIssuePage() {
       const res = await consumptionIssueApi.getNextNumber();
       nextNo = res?.issNo || "";
     } catch (err) {
-      console.error("Failed to get next ISS number", err);
+
     }
 
     setHeader({
@@ -310,6 +385,7 @@ export default function ConsumptionIssuePage() {
     setView("form");
     setFormError(null);
     prevDetailsLengthRef.current = 1;
+    setStockData({});
   }
 
   function openEdit(rec) {
@@ -349,29 +425,68 @@ export default function ConsumptionIssuePage() {
     prevDetailsLengthRef.current = processedDetails.length;
   }
 
-  function updateDetail(idx, field, val) {
-    setDetails((prev) => {
+ async function updateDetail(idx, field, val) {
+  if (field === "itemName") {
+    const selectedItem = items.find(it => 
+      (it.itemDescription || it.itemName) === val
+    );
+    const itemId = selectedItem?.id || "";
+    
+    setDetails(prev => {
       const rows = [...prev];
-      const row = { ...rows[idx], [field]: val };
-
-      if (field === "itemName") {
-        const selectedItem = items.find(it => 
-          (it.itemDescription || it.itemName) === val
-        );
-        row.itemId = selectedItem?.id || "";
-        row.uom = "";
-      }
-
-      if (field === "issueQty") {
-        const issueQty = Number(val || 0);
-        const stkQty = Number(row.stkQty || 0);
-        row.balQty = (stkQty - issueQty).toFixed(3);
-      }
-
-      rows[idx] = row;
+      rows[idx] = { ...rows[idx], itemName: val, itemId: itemId, uom: "" };
       return rows;
     });
+
+    if (header.storeName && val) {
+      try {
+        const stockQty = await fetchStockQuantity(val, header.storeName);
+        setDetails(currentDetails => {
+          const updated = [...currentDetails];
+          if (updated[idx]) {
+            updated[idx].stkQty = stockQty;
+            const issueQty = Number(updated[idx].issueQty || 0);
+            updated[idx].balQty = (Number(stockQty) - issueQty).toFixed(3);
+            
+            // Check if stock is negative
+            if (Number(stockQty) < 0) {
+              setFormError(`⚠️ Negative stock detected for "${val}". Current stock: ${stockQty}`);
+            } else {
+              setFormError(null);
+            }
+          }
+          return updated;
+        });
+      } catch (error) {
+        // Silent fail
+      }
+    }
+    return;
   }
+
+  setDetails((prev) => {
+    const rows = [...prev];
+    const row = { ...rows[idx], [field]: val };
+
+    if (field === "issueQty") {
+      const issueQty = Number(val || 0);
+      const stkQty = Number(row.stkQty || 0);
+      row.balQty = (stkQty - issueQty).toFixed(3);
+      
+      // Check for negative stock
+      if (stkQty < 0) {
+        setFormError(`⚠️ Negative stock detected. Current stock: ${stkQty.toFixed(3)}. Please check inventory.`);
+      } else if (issueQty > stkQty && stkQty > 0) {
+        setFormError(`⚠️ Warning: Issue quantity (${issueQty}) exceeds available stock (${stkQty})`);
+      } else {
+        setFormError(null);
+      }
+    }
+
+    rows[idx] = row;
+    return rows;
+  });
+}
 
   function addRow() {
     setDetails(prev => [...prev, emptyDetail()]);
@@ -382,64 +497,83 @@ export default function ConsumptionIssuePage() {
   }
 
   const handleSave = useCallback(async () => {
-    if (!header.departmentId) {
-      setFormError("Department is required");
-      return;
-    }
-    if (!header.storeId) {
-      setFormError("Store is required");
-      return;
-    }
-    if (!header.issueType) {
-      setFormError("Issue Type is required");
-      return;
-    }
-    if (!selectedDescription) {
-      setFormError("Description is required");
-      return;
-    }
-    
-    const hasValidRows = details.some(row => row.itemName && Number(row.issueQty) > 0);
-    if (!hasValidRows) {
-      setFormError("Add at least one item with quantity");
-      return;
-    }
+  if (!header.departmentId) {
+    setFormError("Department is required");
+    return;
+  }
+  if (!header.storeId) {
+    setFormError("Store is required");
+    return;
+  }
+  if (!header.issueType) {
+    setFormError("Issue Type is required");
+    return;
+  }
+  if (!selectedDescription) {
+    setFormError("Description is required");
+    return;
+  }
+  
+  const hasValidRows = details.some(row => row.itemName && Number(row.issueQty) > 0);
+  if (!hasValidRows) {
+    setFormError("Add at least one item with quantity");
+    return;
+  }
 
-    const confirmSave = window.confirm("Do you want to save this record?");
-    if (!confirmSave) return;
-
-    setFormError(null);
-    setSaving(true);
+  // Validate stock before saving
+  for (const row of details) {
+    const stkQty = Number(row.stkQty || 0);
     
-    const cleanDetails = details
-      .filter(d => d.itemName && Number(d.issueQty) > 0)
-      .map(({ _rowId, ...rest }) => rest);
-    
-    const payload = { 
-      ...header, 
-      issueTypeDescription: selectedDescription,
-      details: cleanDetails 
-    };
-    
-    try {
-      if (editId) {
-        await consumptionIssueApi.update(editId, payload);
-      } else {
-        await consumptionIssueApi.create(payload);
-      }
-      await loadData();
-      setSaveSuccessModal(true);
-      setTimeout(() => {
-        setSaveSuccessModal(false);
-        setView("list");
-      }, 2000);
-    } catch (err) {
-      console.error("Save error:", err);
-      setFormError(err.message);
-    } finally {
-      setSaving(false);
+    // Check for negative stock
+    if (stkQty < 0) {
+      setFormError(`⚠️ Negative stock detected for "${row.itemName}". Current stock: ${stkQty.toFixed(3)}. Please check inventory before issuing.`);
+      return;
     }
-  }, [header, details, editId, loadData, selectedDescription]);
+    
+    // Check if issue quantity exceeds available stock
+    if (row.itemId && Number(row.issueQty) > stkQty) {
+      setFormError(`⚠️ Insufficient stock for "${row.itemName}". Available: ${stkQty.toFixed(3)}, Requested: ${Number(row.issueQty).toFixed(3)}`);
+      return;
+    }
+  }
+
+  const confirmSave = window.confirm("Do you want to save this record?");
+  if (!confirmSave) return;
+
+  setFormError(null);
+  setSaving(true);
+  
+  const cleanDetails = details
+    .filter(d => d.itemName && Number(d.issueQty) > 0)
+    .map(({ _rowId, ...rest }) => rest);
+  
+  const payload = { 
+    ...header, 
+    issueTypeDescription: selectedDescription,
+    details: cleanDetails 
+  };
+  
+  try {
+    if (editId) {
+      await consumptionIssueApi.update(editId, payload);
+    } else {
+      await consumptionIssueApi.create(payload);
+    }
+    await loadData();
+    setSaveSuccessModal(true);
+    setTimeout(() => {
+      setSaveSuccessModal(false);
+      setView("list");
+    }, 2000);
+  } catch (err) {
+    console.error("Save error:", err);
+    setFormError(err.message);
+  } finally {
+    setSaving(false);
+  }
+}, [header, details, editId, loadData, selectedDescription]);
+
+  // ... (rest of your printIssue, handleDelete, etc. functions remain the same)
 
   function printIssue() {
     const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -495,7 +629,7 @@ export default function ConsumptionIssuePage() {
     <div class="title-banner">CONSUMPTION ISSUE VOUCHER</div>
     <table class="info-table">
       <tr>
-        <tr><div class="label">Issue Number</div><div class="value">${esc(header.issNo)}</div></td>
+        <td><div class="label">Issue Number</div><div class="value">${esc(header.issNo)}</div></td>
         <td><div class="label">Issue Date</div><div class="value">${esc(new Date(header.date).toLocaleDateString("en-GB"))}</div></td>
         <td><div class="label">Issue Type</div><div class="value">${esc(header.issueType)}</div></td>
         <td><div class="label">Description</div><div class="value">${esc(selectedDescription)}</div></td>
@@ -526,7 +660,7 @@ export default function ConsumptionIssuePage() {
             <td class="text-right">${Number(d.issueQty).toFixed(3)}</td>
             <td class="text-center">${esc(d.uom)}</td>
             <td class="text-right">${Number(d.balQty).toFixed(3)}</td>
-          </tr>`;
+           </tr>`;
         }).join("")}
       </tbody>
       <tfoot>
@@ -918,17 +1052,16 @@ export default function ConsumptionIssuePage() {
                         />
                       </td>
                       
-                      {/* Stk Qty */}
+                      {/* Stk Qty - Auto-filled from stock */}
                       <td>
                         <input 
                           type="number" 
                           step="0.001" 
                           className="inv-input-cell" 
-                          style={{ width: "100%", textAlign: "right" }} 
+                          style={{ width: "100%", textAlign: "right", background: "#f8f9fa", fontWeight: 500 }} 
                           value={row.stkQty} 
-                          onChange={e => updateDetail(idx, "stkQty", e.target.value)}
-                          onBlur={e => updateDetail(idx, "stkQty", Number(e.target.value || 0).toFixed(3))}
-                          tabIndex={getTabIndex(idx, 1, totalRows)}
+                          readOnly
+                          tabIndex={-1}
                         />
                       </td>
                       
@@ -959,7 +1092,7 @@ export default function ConsumptionIssuePage() {
                         />
                       </td>
                       
-                      {/* Bal Qty - Read only */}
+                      {/* Bal Qty - Auto-calculated */}
                       <td>
                         <input 
                           type="text" 
@@ -1045,4 +1178,4 @@ export default function ConsumptionIssuePage() {
       )}
     </div>
   );
-}
+} 

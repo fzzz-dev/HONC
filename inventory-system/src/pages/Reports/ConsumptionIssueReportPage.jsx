@@ -94,7 +94,7 @@ export default function ConsumptionIssueReportPage() {
           setStores(storeResult.data || []);
         }
       } catch (err) {
-        console.error("Failed to load filter options:", err);
+
       }
     };
     
@@ -123,7 +123,7 @@ export default function ConsumptionIssueReportPage() {
         setFiltersApplied(false);
       }
     } catch (err) {
-      console.error("Error fetching report:", err);
+
       setError(err.message);
       setFiltersApplied(false);
     } finally {

@@ -188,7 +188,7 @@ export default function IssueTypePage() {
                           value=""
                           onChange={(e) => {
                             // Handle selection if needed
-                            console.log("Selected:", e.target.value);
+
                           }}
                         >
                           <option value="" disabled>Select description</option>

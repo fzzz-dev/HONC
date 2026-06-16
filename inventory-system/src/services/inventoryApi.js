@@ -278,6 +278,18 @@ export const openingStockApi = {
   remove: (id) => request(`/opening-stocks/${id}`, { method: "DELETE" }),
 };
 
+export const inventoryStockApi = {
+  getCurrentStock: (params = {}) => request(`/inventory-heads/stock/current${qs(params)}`),
+  getStockForItems: (params = {}) => request(`/inventory-heads/stock/for-items${qs(params)}`),
+  getStockFlow: (params = {}) => request(`/inventory-heads/stock/flow${qs(params)}`),
+  getStockSummary: (params = {}) => request(`/inventory-heads/stock/summary${qs(params)}`),
+  getDateRange: () => request(`/inventory-heads/stock/date-range`),
+  exportStockFlow: (params = {}) => {
+    const queryString = qs(params);
+    window.open(`${BASE}/inventory-heads/stock/export${queryString}`, '_blank');
+  },
+};
+
 // ── HR Masters ──────────────────────────────────────────────────────────────────
 
 export const hrDepartmentApi = {
@@ -354,7 +366,7 @@ export const hrEmployeeApi = {
     window.open(`${BASE}/hr/employees/export/csv${queryString}`, '_blank');
   },
   
-  // ✅ ADD THESE TWO METHODS FOR PHOTO UPLOAD
+  // Photo upload methods
   uploadPhoto: async (id, formData) => {
     const res = await fetch(`${BASE}/hr/employees/${id}/upload-photo`, {
       method: "POST",
@@ -379,5 +391,20 @@ export const hrEmployeeApi = {
     }
     return data.data !== undefined ? data.data : data;
   },
+  
+  // ✅ CORRECTED Bulk Upload method - consistent with your existing pattern
+  bulkUpload: async (formData) => {
+    const res = await fetch(`${BASE}/hr/employees/bulk-upload`, {
+      method: "POST",
+      body: formData,
+      // DON'T set Content-Type header - browser will set it with boundary for multipart/form-data
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || data.error || "Bulk upload failed");
+    }
+    return data;
+  }
 };
 
+ 

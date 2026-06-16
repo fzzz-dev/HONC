@@ -29,7 +29,7 @@ async function ensureDatabaseExists() {
   );
   await connection.end();
   
-  console.log("✅ Database ensured");
+
 }
 
 const seedData = async () => {
@@ -40,7 +40,7 @@ const seedData = async () => {
     const exists = await Role.findOne({ where: { name: roleName } });
     if (!exists) {
       await Role.create({ name: roleName });
-      console.log(`✅ Created role: ${roleName}`);
+
     }
   }
 
@@ -52,7 +52,7 @@ const seedData = async () => {
       role: "admin",
       name: "System Administrator",
     });
-    console.log("✅ Created admin user (username: admin, password: admin)");
+
   }
 };
 
@@ -72,7 +72,7 @@ const ensureItemMovementTypeColumn = async () => {
     await sequelize.query(
       "ALTER TABLE `Items` ADD COLUMN `movementType` ENUM('moving','non-moving') NOT NULL DEFAULT 'moving' AFTER `spec`",
     );
-    console.log("✅ Added movementType column to Items");
+
   }
 };
 
@@ -81,7 +81,7 @@ async function ensureSchemaEnhancements() {
     const [tables] = await sequelize.query("SHOW TABLES");
     const dbTables = tables.map(t => Object.values(t)[0]);
 
-    console.log(`📋 Found ${dbTables.length} tables in database`);
+
 
     const patches = [
       ["items", "minimumStock", "ADD COLUMN `minimumStock` DECIMAL(12,2) NOT NULL DEFAULT 0"],
@@ -144,39 +144,39 @@ async function ensureSchemaEnhancements() {
         try {
           await sequelize.query(`ALTER TABLE \`${targetTable}\` ${ddl}`);
           addedCount++;
-          console.log(`  ✅ Added ${targetTable}.${col}`);
+
         } catch (innerErr) {
           if (!innerErr.message.includes("Duplicate column name")) {
-            console.log(`  ℹ️ ${targetTable}.${col} already exists`);
+
           }
         }
       }
     }
-    console.log(`Schema enhancement: ${addedCount} columns added`);
+
   } catch (e) {
-    console.error("Schema enhancement error:", e.message);
+
   }
 }
 
 // Start server function
 async function startServer() {
   try {
-    console.log("🚀 Starting server...");
+
     
     await ensureDatabaseExists();
-    console.log("✅ Database connection established");
+
     
     await sequelize.authenticate();
 
     await ensureSchemaEnhancements();
     await sequelize.sync();
-    console.log("✅ Database synced");
+
 
     await ensureItemMovementTypeColumn();
     await seedData();
 
     // ========== REGISTER ALL ROUTES AFTER DATABASE IS READY ==========
-    console.log("📡 Registering routes...");
+
 
     app.use("/api/countries", require("./routes/countryRoutes"));
     app.use("/api/states", require("./routes/stateRoutes"));
@@ -213,7 +213,7 @@ async function startServer() {
     app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
     app.use("/api/issue-types", require("./routes/issueTypeRoutes")); 
     
-        console.log("✅ Routes registered");
+
 
     // Test routes
     app.get("/test-simple", (req, res) => {
@@ -226,7 +226,7 @@ async function startServer() {
 
     // Global error handler
     app.use((err, req, res, next) => {
-      console.error("Global error:", err.message);
+
       res.status(500).json({
         success: false,
         message: err.message || "Internal Server Error",
@@ -235,12 +235,12 @@ async function startServer() {
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
-      console.log(`🎉 Server running on port ${PORT}`);
-      console.log(`📁 Uploads directory: /uploads`);
-      console.log(`✅ All systems ready!`);
+
+
+
     });
   } catch (err) {
-    console.error("❌ Failed to start server:", err.message);
+
     process.exit(1);
   }
 }

@@ -30,6 +30,12 @@ const HrEmployee = sequelize.define('HrEmployee', {
     type: DataTypes.ENUM('Male', 'Female', 'Other'),
     defaultValue: 'Male'
   },
+  bloodGroup: {
+    type: DataTypes.STRING(5),
+    field: 'blood_group',
+    allowNull: true,
+    comment: 'Employee blood group (A+, A-, B+, B-, O+, O-, AB+, AB-)'
+  },
   contactPhone: {
     type: DataTypes.STRING(20),
     field: 'contact_phone'
@@ -116,7 +122,6 @@ const HrEmployee = sequelize.define('HrEmployee', {
     defaultValue: true,
     field: 'is_active'
   },
-  // ========== NEW FIELDS ==========
   photoUrl: {
     type: DataTypes.STRING(500),
     field: 'photo_url',
@@ -140,7 +145,6 @@ const HrEmployee = sequelize.define('HrEmployee', {
     defaultValue: 'No',
     allowNull: false
   },
-  // ========== END NEW FIELDS ==========
   createdAt: {
     type: DataTypes.DATE,
     field: 'created_at',

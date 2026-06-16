@@ -1,7 +1,8 @@
-const { HrEmployee, HrDepartment, HrDesignation } = require('../../model');
+const { HrEmployee, HrDepartment, HrDesignation, HrSubDepartment } = require('../../model');
 const { Op } = require('sequelize');
 const path = require('path');
 const fs = require('fs');
+const XLSX = require('xlsx'); // Make sure to install: npm install xlsx
 
 // Helper function to calculate total salary
 const calculateTotalSalary = (basicSalary, hra, allowances) => {
@@ -27,7 +28,9 @@ exports.getAll = async (req, res) => {
         { firstName: { [Op.like]: `%${search}%` } },
         { lastName: { [Op.like]: `%${search}%` } },
         { employeeCode: { [Op.like]: `%${search}%` } },
-        { contactPhone: { [Op.like]: `%${search}%` } }
+        { contactPhone: { [Op.like]: `%${search}%` } },
+        { panNumber: { [Op.like]: `%${search}%` } },
+        { aadharNumber: { [Op.like]: `%${search}%` } }
       ];
     }
     
@@ -44,6 +47,7 @@ exports.getAll = async (req, res) => {
       lastName: emp.lastName,
       dateOfBirth: emp.dateOfBirth,
       gender: emp.gender,
+      bloodGroup: emp.bloodGroup, // ADDED
       contactPhone: emp.contactPhone,
       contactEmail: emp.contactEmail,
       dateOfJoining: emp.dateOfJoining,
@@ -68,7 +72,6 @@ exports.getAll = async (req, res) => {
       permanentAddress: emp.permanentAddress,
       remarks: emp.remarks,
       isActive: emp.isActive,
-      // NEW FIELDS
       photoUrl: emp.photoUrl,
       managementStaff: emp.managementStaff,
       visitorsAllowed: emp.visitorsAllowed,
@@ -79,7 +82,7 @@ exports.getAll = async (req, res) => {
     
     res.json({ success: true, data: formattedData, count: formattedData.length });
   } catch (error) {
-    console.error('Error fetching employees:', error);
+
     res.status(500).json({ success: false, message: 'Failed to fetch employees', error: error.message });
   }
 };
@@ -104,7 +107,7 @@ exports.getById = async (req, res) => {
     
     res.json({ success: true, data: employeeData });
   } catch (error) {
-    console.error('Error fetching employee:', error);
+
     res.status(500).json({ success: false, message: 'Failed to fetch employee', error: error.message });
   }
 };
@@ -128,7 +131,7 @@ exports.getNextCode = async (req, res) => {
     const code = `EMP${String(nextNumber).padStart(3, '0')}`;
     res.json({ success: true, data: { code } });
   } catch (error) {
-    console.error('Error generating next code:', error);
+
     res.status(500).json({ success: false, message: 'Failed to generate employee code', error: error.message });
   }
 };
@@ -137,11 +140,11 @@ exports.getNextCode = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const { 
-      employeeCode, firstName, lastName, dateOfBirth, gender, contactPhone, contactEmail,
-      dateOfJoining, designationId, departmentId, employmentType, basicSalary, hra,
-      allowances, panNumber, aadharNumber, pfNumber, bankName, bankAccountNo,
-      ifscCode, accountHolderName, bankBranch, presentAddress, permanentAddress, remarks, isActive,
-      // NEW FIELDS
+      employeeCode, firstName, lastName, dateOfBirth, gender, bloodGroup, // ADDED bloodGroup
+      contactPhone, contactEmail, dateOfJoining, designationId, departmentId, 
+      employmentType, basicSalary, hra, allowances, panNumber, aadharNumber, 
+      pfNumber, bankName, bankAccountNo, ifscCode, accountHolderName, bankBranch, 
+      presentAddress, permanentAddress, remarks, isActive,
       photoUrl, managementStaff, visitorsAllowed, guest
     } = req.body;
     
@@ -155,12 +158,12 @@ exports.create = async (req, res) => {
     }
     
     const newEmployee = await HrEmployee.create({
-      employeeCode, firstName, lastName, dateOfBirth, gender, contactPhone, contactEmail,
-      dateOfJoining, designationId, departmentId, employmentType, basicSalary, hra,
-      allowances, panNumber, aadharNumber, pfNumber, bankName, bankAccountNo,
-      ifscCode, accountHolderName, bankBranch, presentAddress, permanentAddress, remarks, 
+      employeeCode, firstName, lastName, dateOfBirth, gender, bloodGroup, // ADDED bloodGroup
+      contactPhone, contactEmail, dateOfJoining, designationId, departmentId, 
+      employmentType, basicSalary, hra, allowances, panNumber, aadharNumber, 
+      pfNumber, bankName, bankAccountNo, ifscCode, accountHolderName, bankBranch, 
+      presentAddress, permanentAddress, remarks, 
       isActive: isActive !== undefined ? isActive : true,
-      // NEW FIELDS
       photoUrl: photoUrl || null,
       managementStaff: managementStaff || 'No',
       visitorsAllowed: visitorsAllowed || 'No',
@@ -181,6 +184,7 @@ exports.create = async (req, res) => {
       lastName: savedEmployee.lastName,
       dateOfBirth: savedEmployee.dateOfBirth,
       gender: savedEmployee.gender,
+      bloodGroup: savedEmployee.bloodGroup, // ADDED
       contactPhone: savedEmployee.contactPhone,
       contactEmail: savedEmployee.contactEmail,
       dateOfJoining: savedEmployee.dateOfJoining,
@@ -215,7 +219,7 @@ exports.create = async (req, res) => {
     
     res.status(201).json({ success: true, message: 'Employee created successfully', data: formattedData });
   } catch (error) {
-    console.error('Error creating employee:', error);
+
     res.status(500).json({ success: false, message: 'Failed to create employee', error: error.message });
   }
 };
@@ -254,6 +258,7 @@ exports.update = async (req, res) => {
       lastName: updatedEmployee.lastName,
       dateOfBirth: updatedEmployee.dateOfBirth,
       gender: updatedEmployee.gender,
+      bloodGroup: updatedEmployee.bloodGroup, // ADDED
       contactPhone: updatedEmployee.contactPhone,
       contactEmail: updatedEmployee.contactEmail,
       dateOfJoining: updatedEmployee.dateOfJoining,
@@ -288,7 +293,7 @@ exports.update = async (req, res) => {
     
     res.json({ success: true, message: 'Employee updated successfully', data: formattedData });
   } catch (error) {
-    console.error('Error updating employee:', error);
+
     res.status(500).json({ success: false, message: 'Failed to update employee', error: error.message });
   }
 };
@@ -326,7 +331,7 @@ exports.uploadPhoto = async (req, res) => {
       data: { photoUrl }
     });
   } catch (error) {
-    console.error('Error uploading photo:', error);
+
     res.status(500).json({ success: false, message: 'Failed to upload photo', error: error.message });
   }
 };
@@ -351,12 +356,254 @@ exports.deletePhoto = async (req, res) => {
     
     res.json({ success: true, message: 'Photo deleted successfully' });
   } catch (error) {
-    console.error('Error deleting photo:', error);
+
     res.status(500).json({ success: false, message: 'Failed to delete photo', error: error.message });
   }
 };
 
-// Delete employee
+// Bulk Upload Employees - COMPLETE WORKING VERSION
+exports.bulkUpload = async (req, res) => {
+  try {
+
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No file uploaded. Please select an Excel or CSV file.' 
+      });
+    }
+
+    let data = [];
+    const fileExt = path.extname(req.file.originalname).toLowerCase();
+    
+    try {
+      if (fileExt === '.csv') {
+        const csvData = fs.readFileSync(req.file.path, 'utf8');
+        const lines = csvData.split('\n');
+        const headers = lines[0].split(',').map(h => h.replace(/["']/g, '').trim());
+        
+        for (let i = 1; i < lines.length; i++) {
+          if (lines[i].trim()) {
+            const values = lines[i].split(',').map(v => v.replace(/["']/g, '').trim());
+            const row = {};
+            headers.forEach((header, idx) => {
+              row[header] = values[idx] || '';
+            });
+            data.push(row);
+          }
+        }
+      } else {
+        const workbook = XLSX.readFile(req.file.path);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        data = XLSX.utils.sheet_to_json(worksheet);
+      }
+    } catch (parseError) {
+
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Failed to parse the file.',
+        error: parseError.message 
+      });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No data found in the uploaded file.' 
+      });
+    }
+
+    const results = {
+      successCount: 0,
+      failedCount: 0,
+      errors: [],
+      employees: []
+    };
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      
+      try {
+        const employeeCode = row.EmployeeCode || row['EmployeeCode*'];
+        const firstName = row.FirstName || row['FirstName*'];
+        const lastName = row.LastName;
+        const dateOfBirth = row.DateOfBirth;
+        const gender = row.Gender || 'Male';
+        const bloodGroup = row.BloodGroup;
+        const contactPhone = row.ContactPhone;
+        const contactEmail = row.ContactEmail;
+        const dateOfJoining = row.DateOfJoining;
+        const departmentName = row.DepartmentName || row['DepartmentName*'];
+        const subDepartmentName = row.SubDepartmentName || row['SubDepartmentName*'];
+        const designationName = row.DesignationName || row['DesignationName*'];
+        const employmentType = row.EmploymentType || 'Permanent';
+        const basicSalary = row.BasicSalary || 0;
+        const hra = row.HRA || 0;
+        const allowances = row.Allowances || 0;
+        const panNumber = row.PANNumber;
+        const aadharNumber = row.AadharNumber;
+        const pfNumber = row.PFNumber;
+        const bankName = row.BankName;
+        const bankAccountNo = row.BankAccountNo;
+        const ifscCode = row.IFSCCode;
+        const accountHolderName = row.AccountHolderName;
+        const bankBranch = row.BankBranch;
+        const presentAddress = row.PresentAddress;
+        const permanentAddress = row.PermanentAddress;
+        const remarks = row.Remarks;
+        const managementStaff = row.ManagementStaff === 'Yes' ? 'Yes' : 'No';
+        const visitorsAllowed = row.VisitorsAllowed === 'Yes' ? 'Yes' : 'No';
+        const guest = row.Guest === 'Yes' ? 'Yes' : 'No';
+
+        // Validate required fields
+        if (!employeeCode) throw new Error('Employee Code is required');
+        if (!firstName) throw new Error('First Name is required');
+        if (!departmentName) throw new Error('Department Name is required');
+
+        // Step 1: Find department
+        const department = await HrDepartment.findOne({ 
+          where: { name: departmentName.trim() } 
+        });
+        
+        if (!department) {
+          throw new Error(`Department "${departmentName}" not found. Available: Information Technology, Admin`);
+        }
+
+        // Step 2: Find sub-department (if provided)
+        let subDepartmentId = null;
+        if (subDepartmentName && subDepartmentName.trim()) {
+          const subDepartment = await HrSubDepartment.findOne({ 
+            where: { 
+              name: subDepartmentName.trim(),
+              department_id: department.id
+            } 
+          });
+          
+          if (!subDepartment) {
+            throw new Error(`Sub-department "${subDepartmentName}" not found under department "${departmentName}". For IT use "Frontend", for Admin use "purchase"`);
+          }
+          subDepartmentId = subDepartment.id;
+        }
+
+        // Step 3: Find designation (if provided)
+        let designationId = null;
+        if (designationName && designationName.trim()) {
+          const whereClause = { 
+            name: designationName.trim()
+          };
+          
+          // If subDepartmentId exists, use it; otherwise try to find by department_id
+          if (subDepartmentId) {
+            whereClause.sub_department_id = subDepartmentId;
+          } else {
+            // Try to find designation directly by name (fallback)
+            const designation = await HrDesignation.findOne({ 
+              where: { name: designationName.trim() }
+            });
+            if (designation) {
+              designationId = designation.id;
+            }
+          }
+          
+          if (!designationId) {
+            const designation = await HrDesignation.findOne({ where: whereClause });
+            if (designation) {
+              designationId = designation.id;
+            } else {
+              throw new Error(`Designation "${designationName}" not found. For Frontend sub-department use "Frontend Developer", for purchase sub-department use "Manages"`);
+            }
+          }
+        }
+
+        // Check existing employee
+        const existingEmployee = await HrEmployee.findOne({
+          where: { employeeCode: employeeCode.trim() }
+        });
+
+        if (existingEmployee) {
+          throw new Error(`Employee code "${employeeCode}" already exists`);
+        }
+
+        // Create employee
+        const employee = await HrEmployee.create({
+          employeeCode: employeeCode.trim(),
+          firstName: firstName.trim(),
+          lastName: lastName ? lastName.trim() : '',
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+          gender: gender,
+          bloodGroup: bloodGroup || null,
+          contactPhone: contactPhone ? contactPhone.toString() : null,
+          contactEmail: contactEmail || null,
+          dateOfJoining: dateOfJoining ? new Date(dateOfJoining) : null,
+          designationId: designationId,
+          departmentId: department.id,
+          employmentType: employmentType,
+          basicSalary: parseFloat(basicSalary) || 0,
+          hra: parseFloat(hra) || 0,
+          allowances: parseFloat(allowances) || 0,
+          panNumber: panNumber ? panNumber.toUpperCase() : null,
+          aadharNumber: aadharNumber ? aadharNumber.toString() : null,
+          pfNumber: pfNumber ? pfNumber.toUpperCase() : null,
+          bankName: bankName || null,
+          bankAccountNo: bankAccountNo ? bankAccountNo.toString() : null,
+          ifscCode: ifscCode ? ifscCode.toUpperCase() : null,
+          accountHolderName: accountHolderName || null,
+          bankBranch: bankBranch || null,
+          presentAddress: presentAddress || null,
+          permanentAddress: permanentAddress || null,
+          remarks: remarks || null,
+          isActive: true,
+          managementStaff: managementStaff,
+          visitorsAllowed: visitorsAllowed,
+          guest: guest
+        });
+
+        results.successCount++;
+        results.employees.push(employee);
+
+
+      } catch (err) {
+
+        results.failedCount++;
+        results.errors.push({
+          row: i + 2,
+          message: err.message,
+          data: row
+        });
+      }
+    }
+
+    // Clean up uploaded file
+    try {
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    } catch (unlinkError) {
+
+    }
+
+    res.json({
+      success: true,
+      message: `Processed ${data.length} records. ${results.successCount} successful, ${results.failedCount} failed.`,
+      data: results
+    });
+
+  } catch (error) {
+
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+
+      }
+    }
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+// Delete employee (soft delete - if you want to implement)
 exports.delete = async (req, res) => {
   try {
     const { id } = req.params;
@@ -376,9 +623,9 @@ exports.delete = async (req, res) => {
     
     await employee.destroy();
     
-    res.json({ success: true, message: 'Employee permanently deleted' });
+    res.json({ success: true, message: 'Employee deleted successfully' });
   } catch (error) {
-    console.error('Error deleting employee:', error);
+
     res.status(500).json({ success: false, message: 'Failed to delete employee', error: error.message });
   }
 };
@@ -400,10 +647,10 @@ exports.hardDelete = async (req, res) => {
       }
     }
     
-    await employee.destroy();
+    await employee.destroy({ force: true });
     res.json({ success: true, message: 'Employee permanently deleted' });
   } catch (error) {
-    console.error('Error hard deleting employee:', error);
+
     res.status(500).json({ success: false, message: 'Failed to permanently delete employee', error: error.message });
   }
 };
@@ -418,13 +665,14 @@ exports.exportToCSV = async (req, res) => {
       ]
     });
     
-    const csvRows = [['Employee Code', 'First Name', 'Last Name', 'Department', 'Designation', 'Phone', 'Email', 'Total Salary', 'Management Staff', 'Visitors Allowed', 'Guest', 'Status']];
+    const csvRows = [['Employee Code', 'First Name', 'Last Name', 'Blood Group', 'Department', 'Designation', 'Phone', 'Email', 'Total Salary', 'Management Staff', 'Visitors Allowed', 'Guest', 'Status']];
     
     employees.forEach(emp => {
       csvRows.push([
         emp.employeeCode,
         emp.firstName,
         emp.lastName || '',
+        emp.bloodGroup || '', // ADDED Blood Group
         emp.department?.name || '',
         emp.designation?.name || '',
         emp.contactPhone || '',
@@ -442,7 +690,7 @@ exports.exportToCSV = async (req, res) => {
     res.attachment(`hr_employees_${new Date().toISOString().split('T')[0]}.csv`);
     res.send(csv);
   } catch (error) {
-    console.error('Error exporting employees:', error);
+
     res.status(500).json({ success: false, message: 'Failed to export employees', error: error.message });
   }
 };

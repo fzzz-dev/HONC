@@ -47,7 +47,7 @@ useEffect(() => {
     console.log("Fetched departments:", data); // Add this log
     setDepartments(data);
   } catch (err) {
-    console.error("Failed to load departments:", err);
+
   }
 }
 

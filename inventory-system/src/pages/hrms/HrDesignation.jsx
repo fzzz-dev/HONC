@@ -49,7 +49,7 @@ export default function HrDesignation() {
       const data = await hrDepartmentApi.getActive();
       setDepartments(data);
     } catch (err) {
-      console.error("Failed to load departments:", err);
+
     }
   }
 
@@ -58,7 +58,7 @@ export default function HrDesignation() {
       const data = await hrSubDepartmentApi.getByDepartment(departmentId);
       setSubDepartments(data);
     } catch (err) {
-      console.error("Failed to load sub-departments:", err);
+
     }
   }
 
@@ -100,7 +100,7 @@ export default function HrDesignation() {
           fetchSubDepartments(subDeptData.departmentId);
         }
       } catch (err) {
-        console.error("Failed to load sub-department details:", err);
+
       }
     };
     findDepartment();

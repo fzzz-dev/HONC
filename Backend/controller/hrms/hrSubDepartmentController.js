@@ -50,7 +50,7 @@ exports.getAll = async (req, res) => {
       count: formattedData.length
     });
   } catch (error) {
-    console.error('Error fetching sub-departments:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch sub-departments',
@@ -93,7 +93,7 @@ exports.getById = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching sub-department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch sub-department',
@@ -121,7 +121,7 @@ exports.getByDepartment = async (req, res) => {
       data: subDepartments
     });
   } catch (error) {
-    console.error('Error fetching sub-departments by department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch sub-departments',
@@ -181,7 +181,7 @@ exports.create = async (req, res) => {
       data: newSubDepartment
     });
   } catch (error) {
-    console.error('Error creating sub-department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to create sub-department',
@@ -252,7 +252,7 @@ exports.update = async (req, res) => {
       data: subDepartment
     });
   } catch (error) {
-    console.error('Error updating sub-department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to update sub-department',
@@ -290,7 +290,7 @@ exports.delete = async (req, res) => {
       message: 'Sub-department permanently deleted'
     });
   } catch (error) {
-    console.error('Error deleting sub-department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to delete sub-department',
@@ -318,7 +318,7 @@ exports.hardDelete = async (req, res) => {
       message: 'Sub-department permanently deleted'
     });
   } catch (error) {
-    console.error('Error hard deleting sub-department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to permanently delete sub-department',
@@ -382,7 +382,7 @@ exports.exportToCSV = async (req, res) => {
     res.attachment(`hr_sub_departments_${new Date().toISOString().split('T')[0]}.csv`);
     res.send(csv);
   } catch (error) {
-    console.error('Error exporting sub-departments:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to export sub-departments',

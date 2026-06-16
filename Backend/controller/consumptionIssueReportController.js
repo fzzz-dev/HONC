@@ -67,7 +67,7 @@ const getConsumptionIssueReport = async (req, res) => {
       count: results.length
     });
   } catch (error) {
-    console.error("Error in getConsumptionIssueReport:", error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -180,7 +180,7 @@ const exportConsumptionIssueReportCSV = async (req, res) => {
     res.send(BOM + csvRows.join('\n'));
     
   } catch (error) {
-    console.error("Error in exportConsumptionIssueReportCSV:", error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -200,7 +200,7 @@ const getDistinctDepartments = async (req, res) => {
     
     res.json({ success: true, data: departments });
   } catch (error) {
-    console.error("Error in getDistinctDepartments:", error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -220,7 +220,7 @@ const getDistinctStores = async (req, res) => {
     
     res.json({ success: true, data: stores });
   } catch (error) {
-    console.error("Error in getDistinctStores:", error);
+
     res.status(500).json({ success: false, message: error.message });
   }
 };

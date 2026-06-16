@@ -11,6 +11,7 @@ const EMPTY = {
   lastName: "",
   dateOfBirth: "",
   gender: "Male",
+  bloodGroup: "",
   contactPhone: "",
   contactEmail: "",
   dateOfJoining: "",
@@ -74,6 +75,185 @@ const Section = ({ title, children }) => (
   </div>
 );
 
+// View Details Modal Component
+const ViewEmployeeDetails = ({ employee, onClose }) => {
+  if (!employee) return null;
+
+  const InfoRow = ({ label, value, colSpan = 1 }) => (
+    <div style={{ 
+      padding: "12px", 
+      backgroundColor: "#f8fafc", 
+      borderRadius: "6px",
+      borderLeft: "3px solid #3b6ef8"
+    }}>
+      <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: "14px", fontWeight: 500, color: "#1e293b" }}>
+        {value || "—"}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="inv-modal-overlay" style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+      overflow: "auto"
+    }}>
+      <div style={{
+        backgroundColor: "white",
+        borderRadius: "12px",
+        maxWidth: "1000px",
+        width: "90%",
+        maxHeight: "90vh",
+        overflowY: "auto",
+        margin: "20px"
+      }}>
+        <div style={{
+          position: "sticky",
+          top: 0,
+          backgroundColor: "white",
+          borderBottom: "1px solid #e2e8f0",
+          padding: "20px 24px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          zIndex: 1
+        }}>
+          <div>
+            <h2 style={{ fontSize: "20px", fontWeight: 600, margin: 0, color: "#1e293b" }}>
+              Employee Details
+            </h2>
+            <p style={{ fontSize: "13px", color: "#64748b", margin: "4px 0 0 0" }}>
+              {employee.employeeCode} - {employee.firstName} {employee.lastName}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: "24px",
+              cursor: "pointer",
+              color: "#64748b",
+              padding: "4px 8px"
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ padding: "24px" }}>
+          {/* Personal Information */}
+          <Section title="Personal Information">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+              <InfoRow label="Employee Code" value={employee.employeeCode} />
+              <InfoRow label="First Name" value={employee.firstName} />
+              <InfoRow label="Last Name" value={employee.lastName} />
+              <InfoRow label="Date of Birth" value={employee.dateOfBirth ? new Date(employee.dateOfBirth).toLocaleDateString() : "—"} />
+              <InfoRow label="Gender" value={employee.gender} />
+              <InfoRow label="Blood Group" value={employee.bloodGroup || "—"} />
+              <InfoRow label="Date of Joining" value={employee.dateOfJoining ? new Date(employee.dateOfJoining).toLocaleDateString() : "—"} />
+              <InfoRow label="Employment Type" value={employee.employmentType} />
+              <InfoRow label="Status" value={employee.isActive ? "Active" : "Inactive"} />
+            </div>
+          </Section>
+
+          {/* Contact Information */}
+          <Section title="Contact Information">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
+              <InfoRow label="Phone Number" value={employee.contactPhone} />
+              <InfoRow label="Email Address" value={employee.contactEmail} />
+            </div>
+          </Section>
+
+          {/* Employment Details */}
+          <Section title="Employment Details">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
+              <InfoRow label="Department" value={employee.departmentName} />
+              <InfoRow label="Designation" value={employee.designationName} />
+              <InfoRow label="Management Staff" value={employee.managementStaff === "Yes" ? "✓ Yes" : "✗ No"} />
+              <InfoRow label="Visitors Allowed" value={employee.visitorsAllowed === "Yes" ? "✓ Yes" : "✗ No"} />
+              <InfoRow label="Guest Access" value={employee.guest === "Yes" ? "✓ Yes" : "✗ No"} />
+            </div>
+          </Section>
+
+          {/* Compensation */}
+          <Section title="Compensation">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+              <InfoRow label="Basic Salary" value={employee.basicSalary ? `₹${parseFloat(employee.basicSalary).toLocaleString('en-IN')}` : "—"} />
+              <InfoRow label="HRA" value={employee.hra ? `₹${parseFloat(employee.hra).toLocaleString('en-IN')}` : "—"} />
+              <InfoRow label="Allowances" value={employee.allowances ? `₹${parseFloat(employee.allowances).toLocaleString('en-IN')}` : "—"} />
+              <InfoRow label="Total Salary" value={employee.totalSalary ? `₹${parseFloat(employee.totalSalary).toLocaleString('en-IN')}` : "—"} />
+            </div>
+          </Section>
+
+          {/* Banking Information */}
+          <Section title="Banking Information">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
+              <InfoRow label="Account Holder Name" value={employee.accountHolderName} />
+              <InfoRow label="Bank Name" value={employee.bankName} />
+              <InfoRow label="Bank Branch" value={employee.bankBranch} />
+              <InfoRow label="Account Number" value={employee.bankAccountNo} />
+              <InfoRow label="IFSC Code" value={employee.ifscCode} />
+            </div>
+          </Section>
+
+          {/* Identification Documents */}
+          <Section title="Identification Documents">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+              <InfoRow label="PAN Number" value={employee.panNumber} />
+              <InfoRow label="Aadhar Number" value={employee.aadharNumber} />
+              <InfoRow label="PF Number" value={employee.pfNumber} />
+            </div>
+          </Section>
+
+          {/* Address Information */}
+          <Section title="Address Information">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "12px" }}>
+              <InfoRow label="Present Address" value={employee.presentAddress} />
+              <InfoRow label="Permanent Address" value={employee.permanentAddress} />
+              <InfoRow label="Remarks" value={employee.remarks} />
+            </div>
+          </Section>
+
+          {/* System Information */}
+          <Section title="System Information">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
+              <InfoRow label="Created At" value={employee.createdAt ? new Date(employee.createdAt).toLocaleString() : "—"} />
+              <InfoRow label="Last Updated" value={employee.updatedAt ? new Date(employee.updatedAt).toLocaleString() : "—"} />
+            </div>
+          </Section>
+        </div>
+
+        <div style={{
+          position: "sticky",
+          bottom: 0,
+          backgroundColor: "white",
+          borderTop: "1px solid #e2e8f0",
+          padding: "16px 24px",
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: "12px"
+        }}>
+          <button className="inv-btn-secondary" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function HrEmployee() {
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -91,6 +271,14 @@ export default function HrEmployee() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoUploadStatus, setPhotoUploadStatus] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [viewingEmployee, setViewingEmployee] = useState(null); // New state for view modal
+  
+  // Bulk Upload States
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkUploadProgress, setBulkUploadProgress] = useState(null);
+  const [bulkUploadResult, setBulkUploadResult] = useState(null);
 
   useEffect(() => {
     fetchEmployees();
@@ -123,7 +311,7 @@ export default function HrEmployee() {
       const data = await hrDepartmentApi.getActive();
       setDepartments(data);
     } catch (err) {
-      console.error("Failed to load departments:", err);
+
     }
   }
 
@@ -132,7 +320,7 @@ export default function HrEmployee() {
       const data = await hrDesignationApi.getByDepartment(departmentId);
       setDesignations(data);
     } catch (err) {
-      console.error("Failed to load designations:", err);
+
     }
   }
 
@@ -174,6 +362,7 @@ export default function HrEmployee() {
       lastName: row.lastName || "",
       dateOfBirth: row.dateOfBirth?.split('T')[0] || "",
       gender: row.gender || "Male",
+      bloodGroup: row.bloodGroup || "",
       contactPhone: row.contactPhone || "",
       contactEmail: row.contactEmail || "",
       dateOfJoining: row.dateOfJoining?.split('T')[0] || "",
@@ -204,7 +393,6 @@ export default function HrEmployee() {
     setEditId(row.id);
     setPhotoUploadStatus(null);
     
-    // Show existing photo preview if it exists
     if (row.photoUrl) {
       const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const baseBackendUrl = backendUrl.replace('/api', '');
@@ -238,6 +426,7 @@ export default function HrEmployee() {
       lastName: form.lastName?.trim() || "",
       dateOfBirth: form.dateOfBirth || null,
       gender: form.gender,
+      bloodGroup: form.bloodGroup || null,
       contactPhone: form.contactPhone || null,
       contactEmail: form.contactEmail || null,
       dateOfJoining: form.dateOfJoining || null,
@@ -287,7 +476,7 @@ export default function HrEmployee() {
             setPhotoUploadStatus(null);
           }, 3000);
         } catch (photoErr) {
-          console.warn("Photo upload failed:", photoErr);
+
           setPhotoUploadStatus('error');
           setTimeout(() => {
             setPhotoUploadStatus(null);
@@ -305,7 +494,7 @@ export default function HrEmployee() {
       }, 2000);
 
     } catch (err) {
-      console.error("Save error:", err);
+
       setFormError(err.message || "Save failed");
     } finally {
       setSaving(false);
@@ -322,21 +511,209 @@ export default function HrEmployee() {
     }
   }
 
-  const exportToExcel = () => {
-    const headers = ["Emp Code", "First Name", "Last Name", "Department", "Designation", "Phone", "Email", "PAN", "Aadhar", "PF No", "Bank Name", "Account No", "IFSC", "Status"];
-    const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
-    const rows = filtered.map(emp => {
-      return [emp.employeeCode, emp.firstName, emp.lastName || "", emp.departmentName || "", emp.designationName || "", emp.contactPhone || "", emp.contactEmail || "", emp.panNumber || "", emp.aadharNumber || "", emp.pfNumber || "", emp.bankName || "", emp.bankAccountNo || "", emp.ifscCode || "", emp.isActive ? "Active" : "Inactive"].map(escapeCsv).join(",");
-    });
-    const csvContent = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "employees.csv";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+const exportToExcel = () => {
+  const headers = [
+    "S.No",
+    "Employee Code",
+    "First Name", 
+    "Last Name",
+    "Blood Group",
+    "Date of Birth",
+    "Gender",
+    "Date of Joining",
+    "Department",
+    "Designation",
+    "Employment Type",
+    "Status",
+    "Contact Phone",
+    "Contact Email",
+    "Management Staff",
+    "Visitors Allowed",
+    "Guest",
+    "Basic Salary (₹)",
+    "HRA (₹)",
+    "Allowances (₹)",
+    "Total Salary (₹)",
+    "Account Holder Name",
+    "Bank Name",
+    "Bank Branch",
+    "Account Number",
+    "IFSC Code",
+    "PAN Number",
+    "Aadhar Number",
+    "PF Number",
+    "Present Address",
+    "Permanent Address",
+    "Remarks",
+    "Created Date",
+    "Last Updated"
+  ];
+
+  const escapeCsv = (str) => {
+    if (str === null || str === undefined || str === '') return '""';
+    const stringValue = String(str);
+    // Handle if value contains comma, newline or double quote
+    if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return `"${stringValue}"`;
   };
+
+  const rows = filtered.map((emp, index) => {
+    const basicSalary = parseFloat(emp.basicSalary) || 0;
+    const hra = parseFloat(emp.hra) || 0;
+    const allowances = parseFloat(emp.allowances) || 0;
+    const totalSalary = basicSalary + hra + allowances;
+    
+    return [
+      index + 1,
+      emp.employeeCode || '',
+      emp.firstName || '',
+      emp.lastName || '',
+      emp.bloodGroup || '',
+      emp.dateOfBirth ? new Date(emp.dateOfBirth).toLocaleDateString('en-IN') : '',
+      emp.gender || '',
+      emp.dateOfJoining ? new Date(emp.dateOfJoining).toLocaleDateString('en-IN') : '',
+      emp.departmentName || '',
+      emp.designationName || '',
+      emp.employmentType || '',
+      emp.isActive ? 'Active' : 'Inactive',
+      emp.contactPhone || '',
+      emp.contactEmail || '',
+      emp.managementStaff === 'Yes' ? 'Yes' : 'No',
+      emp.visitorsAllowed === 'Yes' ? 'Yes' : 'No',
+      emp.guest === 'Yes' ? 'Yes' : 'No',
+      basicSalary.toLocaleString('en-IN'),
+      hra.toLocaleString('en-IN'),
+      allowances.toLocaleString('en-IN'),
+      totalSalary.toLocaleString('en-IN'),
+      emp.accountHolderName || '',
+      emp.bankName || '',
+      emp.bankBranch || '',
+      emp.bankAccountNo || '',
+      emp.ifscCode || '',
+      emp.panNumber || '',
+      emp.aadharNumber || '',
+      emp.pfNumber || '',
+      (emp.presentAddress || '').replace(/\n/g, ' ').replace(/\r/g, ' '),
+      (emp.permanentAddress || '').replace(/\n/g, ' ').replace(/\r/g, ' '),
+      (emp.remarks || '').replace(/\n/g, ' ').replace(/\r/g, ' '),
+      emp.createdAt ? new Date(emp.createdAt).toLocaleString('en-IN') : '',
+      emp.updatedAt ? new Date(emp.updatedAt).toLocaleString('en-IN') : ''
+    ].map(escapeCsv).join(',');
+  });
+
+  // Add BOM for UTF-8 to handle special characters properly
+  const csvContent = "\uFEFF" + [headers.join(','), ...rows].join('\n');
+  
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = `employees_export_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+const handleBulkUpload = async () => {
+  if (!bulkFile) {
+    alert("Please select an Excel file to upload");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', bulkFile);
+
+  setBulkUploading(true);
+  setBulkUploadProgress('uploading');
+  setBulkUploadResult(null);
+
+  try {
+    const response = await hrEmployeeApi.bulkUpload(formData);
+    console.log("Bulk upload response:", response); // Debug log
+    
+    setBulkUploadResult({
+      success: response.success || true,
+      data: response.data,
+      message: response.message || 'Bulk upload completed successfully',
+      errors: response.data?.errors || response.errors || []
+    });
+    setBulkUploadProgress('complete');
+    
+    // Refresh employee list after successful upload
+    if (response.data?.successCount > 0) {
+      await fetchEmployees();
+    }
+    
+    // Auto close modal after 3 seconds if no errors
+    if (response.data?.failedCount === 0) {
+      setTimeout(() => {
+        setShowBulkUploadModal(false);
+        setBulkFile(null);
+        setBulkUploadResult(null);
+        setBulkUploadProgress(null);
+      }, 3000);
+    }
+  } catch (err) {
+
+
+    setBulkUploadResult({
+      success: false,
+      message: err.response?.data?.message || err.message || 'Bulk upload failed',
+      errors: err.response?.data?.data?.errors || err.response?.data?.errors || []
+    });
+    setBulkUploadProgress('error');
+  } finally {
+    setBulkUploading(false);
+  }
+};
+
+const downloadSampleTemplate = () => {
+  const headers = [
+    "EmployeeCode*", "FirstName*", "LastName", "DateOfBirth", "Gender", 
+    "BloodGroup", "ContactPhone", "ContactEmail", "DateOfJoining", 
+    "DepartmentName*", "SubDepartmentName*", "DesignationName*", "EmploymentType", 
+    "BasicSalary", "HRA", "Allowances", "PANNumber", "AadharNumber", "PFNumber", 
+    "BankName", "BankAccountNo", "IFSCCode", "AccountHolderName", 
+    "BankBranch", "PresentAddress", "PermanentAddress", "Remarks", 
+    "ManagementStaff", "VisitorsAllowed", "Guest"
+  ];
+  
+  const sampleRows = [
+    [
+      "EMP001", "John", "Doe", "1990-01-01", "Male", 
+      "O+", "9876543210", "john@example.com", "2024-01-01", 
+      "Information Technology", "Frontend", "Frontend Developer", "Permanent", 
+      "50000", "20000", "10000", "ABCDE1234F", "123456789012", "PF123456", 
+      "SBI", "1234567890", "SBIN0012345", "John Doe", 
+      "Main Branch", "123 Main St, City", "Same as Present", "Good employee", 
+      "No", "No", "No"
+    ],
+    [
+      "EMP002", "Jane", "Smith", "1992-05-15", "Female", 
+      "A+", "9876543211", "jane@example.com", "2024-02-01", 
+      "Admin", "purchase", "Manages", "Permanent", 
+      "60000", "25000", "15000", "XYZAB5678G", "987654321098", "PF789012", 
+      "HDFC", "9876543210", "HDFC0012345", "Jane Smith", 
+      "City Branch", "456 Park Ave, City", "Same as Present", "Experienced manager", 
+      "Yes", "Yes", "No"
+    ]
+  ];
+  
+  const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+  const csvRows = [headers.join(","), ...sampleRows.map(row => row.map(escapeCsv).join(","))];
+  const csvContent = "\uFEFF" + csvRows.join("\n");
+  
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "employee_bulk_upload_template.csv";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
   const spinnerStyle = `
     @keyframes spin {
@@ -357,6 +734,13 @@ export default function HrEmployee() {
           <div style={{ display: "flex", gap: 8 }}>
             <button className="inv-btn-secondary" onClick={exportToExcel}>
               Export to Excel
+            </button>
+            <button 
+              className="inv-btn-secondary" 
+              onClick={() => setShowBulkUploadModal(true)}
+              style={{ background: "#10b981", color: "white", borderColor: "#10b981" }}
+            >
+              📤 Bulk Upload
             </button>
             <button className="inv-btn-primary" onClick={openAdd}>
               + Add Employee
@@ -392,12 +776,13 @@ export default function HrEmployee() {
             <div style={{ textAlign: "center", padding: 40 }}>Loading...</div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table className="inv-table" style={{ minWidth: "1400px" }}>
+              <table className="inv-table" style={{ minWidth: "1600px" }}>
                 <thead>
                   <tr>
                     <th>#</th>
                     <th>Emp Code</th>
                     <th>Full Name</th>
+                    <th>Blood Group</th>
                     <th>Department</th>
                     <th>Designation</th>
                     <th>Phone</th>
@@ -415,7 +800,7 @@ export default function HrEmployee() {
                 <tbody>
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={15} style={{ textAlign: "center", padding: 40 }}>
+                      <td colSpan={16} style={{ textAlign: "center", padding: 40 }}>
                         No records found
                       </td>
                     </tr>
@@ -425,6 +810,7 @@ export default function HrEmployee() {
                         <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
                         <td className="inv-bold">{row.employeeCode}</td>
                         <td className="inv-bold">{row.firstName} {row.lastName || ""}</td>
+                        <td>{row.bloodGroup || "—"}</td>
                         <td>{row.departmentName || "—"}</td>
                         <td>{row.designationName || "—"}</td>
                         <td>{row.contactPhone || "—"}</td>
@@ -442,6 +828,17 @@ export default function HrEmployee() {
                         </td>
                         <td>
                           <div className="inv-actions">
+                            <button 
+                              className="inv-btn-icon" 
+                              title="View Details" 
+                              onClick={() => setViewingEmployee(row)}
+                              style={{ color: "#3b6ef8" }}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </svg>
+                            </button>
                             <button 
                               className="inv-btn-icon" 
                               title="Edit" 
@@ -474,6 +871,221 @@ export default function HrEmployee() {
             </div>
           )}
         </div>
+
+        {/* View Employee Details Modal */}
+        {viewingEmployee && (
+          <ViewEmployeeDetails 
+            employee={viewingEmployee} 
+            onClose={() => setViewingEmployee(null)} 
+          />
+        )}
+
+        {/* Bulk Upload Modal */}
+        {showBulkUploadModal && (
+          <div className="inv-modal-overlay" style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000
+          }}>
+            <div style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "24px",
+              maxWidth: "600px",
+              width: "90%",
+              maxHeight: "80vh",
+              overflowY: "auto"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                <h3 style={{ fontSize: "18px", fontWeight: 600, margin: 0 }}>Bulk Upload Employees</h3>
+                <button 
+                  onClick={() => {
+                    setShowBulkUploadModal(false);
+                    setBulkFile(null);
+                    setBulkUploadResult(null);
+                    setBulkUploadProgress(null);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    fontSize: "24px",
+                    cursor: "pointer",
+                    color: "#64748b"
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              {!bulkUploadResult ? (
+                <>
+                  <div style={{ marginBottom: "20px" }}>
+                    <p style={{ marginBottom: "12px", color: "#475569" }}>
+                      Upload an Excel file (.xlsx, .xls, .csv) containing employee details. 
+                      Maximum 500 records per upload.
+                    </p>
+                    <button 
+                      className="inv-btn-secondary" 
+                      onClick={downloadSampleTemplate}
+                      style={{ fontSize: "13px" }}
+                    >
+                      📥 Download Sample Template
+                    </button>
+                  </div>
+
+                  <div style={{ marginBottom: "20px" }}>
+                    <Field label="Select Excel File" required>
+                      <input
+                        type="file"
+                        className="inv-input"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={(e) => setBulkFile(e.target.files[0])}
+                        disabled={bulkUploading}
+                        style={{ padding: "8px" }}
+                      />
+                    </Field>
+                    {bulkFile && (
+                      <p style={{ fontSize: "12px", color: "#10b981", marginTop: "8px" }}>
+                        ✓ Selected: {bulkFile.name} ({(bulkFile.size / 1024).toFixed(2)} KB)
+                      </p>
+                    )}
+                  </div>
+
+                  {bulkUploadProgress === 'uploading' && (
+                    <div style={{ marginBottom: "20px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+                        <div className="spinner" style={{
+                          width: "20px",
+                          height: "20px",
+                          border: "2px solid #e2e8f0",
+                          borderTop: "2px solid #3b6ef8",
+                          borderRadius: "50%",
+                          animation: "spin 0.8s linear infinite"
+                        }} />
+                        <span style={{ fontSize: "14px", color: "#475569" }}>Uploading and processing file...</span>
+                      </div>
+                      <div style={{
+                        width: "100%",
+                        height: "6px",
+                        backgroundColor: "#e2e8f0",
+                        borderRadius: "3px",
+                        overflow: "hidden"
+                      }}>
+                        <div style={{
+                          width: "100%",
+                          height: "100%",
+                          backgroundColor: "#3b6ef8",
+                          animation: "loading 1.5s ease-in-out infinite"
+                        }} />
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                    <button 
+                      className="inv-btn-secondary" 
+                      onClick={() => {
+                        setShowBulkUploadModal(false);
+                        setBulkFile(null);
+                      }}
+                      disabled={bulkUploading}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      className="inv-btn-primary" 
+                      onClick={handleBulkUpload}
+                      disabled={!bulkFile || bulkUploading}
+                    >
+                      {bulkUploading ? "Uploading..." : "Upload & Process"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <div style={{ 
+                    textAlign: "center", 
+                    padding: "20px",
+                    backgroundColor: bulkUploadResult.success ? "#f0fdf4" : "#fef2f2",
+                    borderRadius: "8px",
+                    marginBottom: "20px"
+                  }}>
+                    <div style={{ fontSize: "48px", marginBottom: "12px" }}>
+                      {bulkUploadResult.success ? "✓" : "✗"}
+                    </div>
+                    <h4 style={{ 
+                      fontSize: "16px", 
+                      fontWeight: 600, 
+                      marginBottom: "8px",
+                      color: bulkUploadResult.success ? "#10b981" : "#ef4444"
+                    }}>
+                      {bulkUploadResult.success ? "Upload Successful!" : "Upload Failed"}
+                    </h4>
+                    <p style={{ color: "#475569", fontSize: "14px" }}>
+                      {bulkUploadResult.message}
+                    </p>
+                    
+                    {bulkUploadResult.errors && bulkUploadResult.errors.length > 0 && (
+                      <div style={{ 
+                        marginTop: "16px", 
+                        textAlign: "left",
+                        maxHeight: "200px",
+                        overflowY: "auto",
+                        backgroundColor: "white",
+                        borderRadius: "6px",
+                        padding: "12px"
+                      }}>
+                        <p style={{ fontWeight: 600, marginBottom: "8px", fontSize: "13px" }}>Errors encountered:</p>
+                        {bulkUploadResult.errors.map((err, idx) => (
+                          <div key={idx} style={{ 
+                            fontSize: "12px", 
+                            color: "#dc2626", 
+                            marginBottom: "4px",
+                            padding: "4px",
+                            borderBottom: "1px solid #f1f5f9"
+                          }}>
+                            {err.row ? `Row ${err.row}: ` : ''}{err.message || err}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {bulkUploadResult.data && (
+                      <div style={{ marginTop: "16px", fontSize: "13px", color: "#475569" }}>
+                        {bulkUploadResult.data.successCount && (
+                          <p>✅ Successfully processed: {bulkUploadResult.data.successCount} records</p>
+                        )}
+                        {bulkUploadResult.data.failedCount && bulkUploadResult.data.failedCount > 0 && (
+                          <p>❌ Failed: {bulkUploadResult.data.failedCount} records</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <button 
+                    className="inv-btn-primary" 
+                    onClick={() => {
+                      setShowBulkUploadModal(false);
+                      setBulkFile(null);
+                      setBulkUploadResult(null);
+                      setBulkUploadProgress(null);
+                    }}
+                    style={{ width: "100%" }}
+                  >
+                    Close
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -546,7 +1158,7 @@ export default function HrEmployee() {
                     gap: "8px",
                     flexWrap: "wrap"
                   }}>
-                    <span>📎 Current file: <strong>{photoPreview.split('/').pop()}</strong></span>
+                    <span>📎 Current file available</span>
                     <span style={{ color: "#64748b", fontSize: "11px" }}>
                       (Choose a new file above to replace)
                     </span>
@@ -661,6 +1273,23 @@ export default function HrEmployee() {
               onChange={(v) => setForm((f) => ({ ...f, lastName: v.target.value }))}
               placeholder="Enter last name"
             />
+          </Field>
+          <Field label="Blood Group">
+            <select
+              className="inv-input"
+              value={form.bloodGroup}
+              onChange={(e) => setForm((f) => ({ ...f, bloodGroup: e.target.value }))}
+            >
+              <option value="">Select Blood Group</option>
+              <option value="A+">A+</option>
+              <option value="A-">A-</option>
+              <option value="B+">B+</option>
+              <option value="B-">B-</option>
+              <option value="O+">O+</option>
+              <option value="O-">O-</option>
+              <option value="AB+">AB+</option>
+              <option value="AB-">AB-</option>
+            </select>
           </Field>
           <Field label="Date of Birth">
             <input

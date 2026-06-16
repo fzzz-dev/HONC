@@ -57,7 +57,7 @@ exports.getAll = async (req, res) => {
       count: formattedData.length
     });
   } catch (error) {
-    console.error('Error fetching designations:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch designations',
@@ -91,7 +91,7 @@ exports.getByDepartment = async (req, res) => {
       data: designations
     });
   } catch (error) {
-    console.error('Error fetching designations by department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch designations',
@@ -140,7 +140,7 @@ exports.getById = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching designation:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch designation',
@@ -168,7 +168,7 @@ exports.getBySubDepartment = async (req, res) => {
       data: designations
     });
   } catch (error) {
-    console.error('Error fetching designations by sub-department:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to fetch designations',
@@ -220,7 +220,7 @@ exports.create = async (req, res) => {
       data: newDesignation
     });
   } catch (error) {
-    console.error('Error creating designation:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to create designation',
@@ -281,7 +281,7 @@ exports.update = async (req, res) => {
       data: designation
     });
   } catch (error) {
-    console.error('Error updating designation:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to update designation',
@@ -319,7 +319,7 @@ exports.delete = async (req, res) => {
       message: 'Designation permanently deleted'
     });
   } catch (error) {
-    console.error('Error deleting designation:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to delete designation',
@@ -347,7 +347,7 @@ exports.hardDelete = async (req, res) => {
       message: 'Designation permanently deleted'
     });
   } catch (error) {
-    console.error('Error hard deleting designation:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to permanently delete designation',
@@ -418,7 +418,7 @@ exports.exportToCSV = async (req, res) => {
     res.attachment(`hr_designations_${new Date().toISOString().split('T')[0]}.csv`);
     res.send(csv);
   } catch (error) {
-    console.error('Error exporting designations:', error);
+
     res.status(500).json({
       success: false,
       message: 'Failed to export designations',

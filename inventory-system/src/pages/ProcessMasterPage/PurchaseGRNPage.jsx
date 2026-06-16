@@ -9,6 +9,7 @@ import {
   itemApi,
   purchaseOrderApi,
   purchaseIndentApi,
+  uomApi,
 } from "../../services/inventoryApi";
 import Modal from "../../components/Modal";
 import { SearchSelect } from "../../components/FormFields";
@@ -223,41 +224,43 @@ export default function PurchaseGRNPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+  const [uoms, setUoms] = useState([]);
 
   const navigate = useNavigate();
 
   const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const [grnData, suppData, storeData, itemData, poData, indData] = await Promise.all([
-        grnApi.getAll(),
-        supplierApi.getAll(),
-        storeApi.getAll(),
-        itemApi.getAll(),
-        purchaseOrderApi.getAll(),
-        purchaseIndentApi.getAll(),
-      ]);
-      const sid = (v) => {
-        if (!v) return "";
-        if (typeof v === "object") return String(v.id || v._id || "");
-        return String(v);
-      };
+  try {
+    setLoading(true);
+    const [grnData, suppData, storeData, itemData, uomData, poData, indData] = await Promise.all([
+      grnApi.getAll(),
+      supplierApi.getAll(),
+      storeApi.getAll(),
+      itemApi.getAll(),
+      uomApi.getAll(),
+      purchaseOrderApi.getAll(),
+      purchaseIndentApi.getAll(),
+    ]);
+    const sid = (v) => {
+      if (!v) return "";
+      if (typeof v === "object") return String(v.id || v._id || "");
+      return String(v);
+    };
 
-      setGrns(grnData || []);
-      setSuppliers((suppData || []).map(s => ({ ...s, id: sid(s) })));
-      setStores((storeData || []).map(s => ({ ...s, id: sid(s) })));
-      setItems((itemData || []).map(it => ({ ...it, id: sid(it), headId: sid(it.headId), groupId: sid(it.groupId) })));
-      setPos(poData || []);
-      setIndents(indData || []);
-    } catch (err) {
+    setGrns(grnData || []);
+    setSuppliers((suppData || []).map(s => ({ ...s, id: sid(s) })));
+    setStores((storeData || []).map(s => ({ ...s, id: sid(s) })));
+    setItems((itemData || []).map(it => ({ ...it, id: sid(it), headId: sid(it.headId), groupId: sid(it.groupId) })));
+    setPos(poData || []);
+    setIndents(indData || []);
+    setUoms(uomData || []); // ✅ Fixed variable name
+  } catch (err) {
 
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
-  const pendingPOGroups = useMemo(() => {
-
+ const pendingPOGroups = useMemo(() => {
   const groups = {};
   
   pendingPoRows.forEach((item) => {
@@ -275,15 +278,10 @@ export default function PurchaseGRNPage() {
     groups[poKey].items.push(item);
   });
   
-  // ✅ ADD THIS - Log each group's item count
-  Object.keys(groups).forEach(poNo => {
-
-
-  });
-  
-  return groups;
+  return groups; // ✅ Make sure to return groups
 }, [pendingPoRows]);
-  useEffect(() => {
+  
+useEffect(() => {
     loadData();
     openNew();
   }, [loadData]);
@@ -1172,6 +1170,7 @@ function addPendingLinesToDetails() {
                 </table>
               </div>
             </div>
+          
             
             <div className="modal-fixed-footer">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
@@ -1311,144 +1310,415 @@ function addPendingLinesToDetails() {
               </button>
             </div>
           </div>
+
           <div style={{ overflowX: "auto", minHeight: 400 }}>
-            <table className="inv-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={{ width: "40px", textAlign: "left" }}>#</th>
-                  {header.grnType !== "General" && <th style={{ width: "120px", textAlign: "left" }}>Indent No</th>}
-                  {header.grnType !== "General" && <th style={{ width: "120px", textAlign: "left" }}>PO No</th>}
-                  <th style={{ minWidth: "200px", textAlign: "left" }}>Item Description</th>
-                  {header.grnType !== "General" && <th style={{ width: "90px", textAlign: "right" }}>PO Qty</th>}
-                  {header.grnType !== "General" && <th style={{ width: "100px", textAlign: "right" }}>PO Unit Price</th>}
-                  <th style={{ width: "100px", textAlign: "left" }}>GRN Qty</th>
-                  <th style={{ width: "80px", textAlign: "left" }}>Batch</th>
-                  {header.grnType !== "General" && <th style={{ width: "100px", textAlign: "right" }}>Balance Qty</th>}
-                  {header.grnType !== "General" && <th style={{ width: "100px", textAlign: "left" }}>Phy Qty</th>}
-                  <th style={{ width: "100px", textAlign: "right" }}>Unit Price</th>
-                  <th style={{ width: "80px", textAlign: "right" }}>Disc %</th>
-                  <th style={{ width: "70px", textAlign: "center" }}>GST%</th>
-                  <th style={{ width: "90px", textAlign: "right" }}>Total GST</th>
-                  <th style={{ width: "100px", textAlign: "right" }}>Total</th>
-                  <th style={{ width: "50px", textAlign: "center" }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {details.map((row, idx) => {
-                  const baseTabIndex = header.grnType === "General" ? 9 + (idx * 12) : 60 + (idx * 10);
-                  const isLastRow = idx === details.length - 1;
+          <table className="inv-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ width: "40px", textAlign: "left" }}>#</th>
+                {header.grnType !== "General" && <th style={{ width: "120px", textAlign: "left" }}>Indent No</th>}
+                {header.grnType !== "General" && <th style={{ width: "120px", textAlign: "left" }}>PO No</th>}
+                <th style={{ minWidth: "200px", textAlign: "left" }}>Item Description</th>
+                {header.grnType !== "General" && <th style={{ width: "90px", textAlign: "right" }}>PO Qty</th>}
+                <th style={{ width: "100px", textAlign: "left" }}>UOM</th>
+                {header.grnType !== "General" && <th style={{ width: "100px", textAlign: "right" }}>PO Unit Price</th>}
+                <th style={{ width: "100px", textAlign: "left" }}>GRN Qty</th>
+                <th style={{ width: "80px", textAlign: "left" }}>Batch</th>
+                {header.grnType !== "General" && <th style={{ width: "100px", textAlign: "right" }}>Balance Qty</th>}
+                {header.grnType !== "General" && <th style={{ width: "100px", textAlign: "left" }}>Phy Qty</th>}
+                <th style={{ width: "100px", textAlign: "right" }}>Unit Price</th>
+                <th style={{ width: "80px", textAlign: "right" }}>Disc %</th>
+                <th style={{ width: "70px", textAlign: "center" }}>GST%</th>
+                <th style={{ width: "90px", textAlign: "right" }}>Total GST</th>
+                <th style={{ width: "100px", textAlign: "right" }}>Total</th>
+                <th style={{ width: "50px", textAlign: "center" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {details.map((row, idx) => {
+                const baseTabIndex = header.grnType === "General" ? 9 + (idx * 13) : 60 + (idx * 11);
+                const isLastRow = idx === details.length - 1;
+                
+                return (
+                <tr key={row._rowId}>
+                  <td style={{ textAlign: "center", padding: "6px 4px", width: "30px" }}>{idx + 1}</td>
                   
-                  return (
-                    <tr key={row._rowId}>
-                      <td style={{ textAlign: "left", padding: "8px 4px" }}>{idx + 1}</td>
-                      {header.grnType !== "General" && (
-                        <td style={{ textAlign: "left", padding: "8px 4px" }}>
-                          <input className="inv-input-cell" value={row.indentNo || ""} readOnly placeholder="—" style={{ background: "#f8fafc", textAlign: "left", width: "100%", padding: "6px 4px" }} />
-                        </td>
+                  {header.grnType !== "General" && (
+                    <td style={{ textAlign: "left", padding: "6px 4px", minWidth: "80px" }}>
+                      <input className="inv-input-cell" value={row.indentNo || ""} readOnly placeholder="—" style={{ background: "#f8fafc", textAlign: "left", width: "100%", padding: "6px 8px", fontSize: "12px" }} />
+                    </td>
+                  )}
+                  {header.grnType !== "General" && (
+                    <td style={{ textAlign: "left", padding: "6px 4px", minWidth: "80px" }}>
+                      <input className="inv-input-cell" value={row.poNo || ""} readOnly placeholder="—" style={{ background: "#f8fafc", textAlign: "left", width: "100%", padding: "6px 8px", fontSize: "12px" }} />
+                    </td>
+                  )}
+                  
+                  {/* Item Description */}
+                  <td style={{ textAlign: "left", padding: "6px 4px", minWidth: "180px" }}>
+                    {header.grnType === "General" ? (
+                      <input 
+                        type="text" 
+                        className="inv-input-cell" 
+                        tabIndex={baseTabIndex} 
+                        value={row.itemName || ""} 
+                        onChange={e => updateDetail(idx, "itemName", e.target.value)} 
+                        placeholder="Enter item name" 
+                        style={{ 
+                          border: "1px solid #e2e8f0", 
+                          borderRadius: "4px", 
+                          padding: "6px 8px", 
+                          width: "100%", 
+                          fontSize: "13px", 
+                          backgroundColor: "#ffffff",
+                          textAlign: "left"
+                        }} 
+                        autoComplete="off" 
+                      />
+                    ) : (
+                      <input 
+                        className="inv-input-cell" 
+                        value={row.itemName || ""} 
+                        readOnly 
+                        placeholder="Via Pick PO" 
+                        style={{ 
+                          background: "#f8fafc", 
+                          textAlign: "left", 
+                          width: "100%", 
+                          padding: "6px 8px", 
+                          fontSize: "13px" 
+                        }} 
+                      />
+                    )}
+                  </td>
+                  
+                  {/* PO Qty - Against PO only */}
+                  {header.grnType !== "General" && (
+                    <td style={{ textAlign: "center", padding: "6px 4px", minWidth: "70px" }}>
+                      <input 
+                        className="inv-input" 
+                        style={{ 
+                          border: "none", 
+                          width: "100%", 
+                          textAlign: "center", 
+                          background: "transparent", 
+                          padding: "6px 4px",
+                          fontSize: "12px"
+                        }} 
+                        value={fmtQty(row.poQty)} 
+                        readOnly 
+                      />
+                    </td>
+                  )}
+
+                  {/* UOM Dropdown */}
+                  <td style={{ textAlign: "center", padding: "6px 4px", minWidth: "60px" }}>
+                    <select 
+                      className="inv-input-cell" 
+                      tabIndex={baseTabIndex + 1}
+                      value={row.uom || ""} 
+                      onChange={e => updateDetail(idx, "uom", e.target.value)}
+                      style={{ 
+                        border: header.grnType === "General" ? "1px solid #e2e8f0" : "none",
+                        borderRadius: "4px", 
+                        padding: "6px 4px", 
+                        width: "100%", 
+                        fontSize: "12px",
+                        backgroundColor: header.grnType === "General" ? "#ffffff" : "#f8fafc",
+                        cursor: header.grnType === "General" ? "pointer" : "default",
+                        textAlign: "center"
+                      }}
+                      disabled={header.grnType !== "General"}
+                    >
+                      <option value=""></option>
+                      {uoms.map(uom => (
+                        <option key={uom.id || uom._id} value={uom.uomName || uom.name || uom.code}>
+                          {uom.uomName || uom.name || uom.code}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  
+                  {/* PO Unit Price - Against PO only */}
+                  {header.grnType !== "General" && (
+                    <td style={{ textAlign: "center", padding: "6px 4px", minWidth: "80px" }}>
+                      <input 
+                        type="number" 
+                        step="1.00" 
+                        className="inv-input" 
+                        tabIndex={baseTabIndex + 2} 
+                        style={{ 
+                          border: "none", 
+                          width: "100%", 
+                          textAlign: "center", 
+                          background: "transparent", 
+                          padding: "6px 4px",
+                          fontSize: "12px"
+                        }} 
+                        value={row.poRate && row.poRate !== 0 ? row.poRate : ""} 
+                        onChange={e => updateDetail(idx, "poRate", e.target.value)} 
+                        placeholder="0.00" 
+                      />
+                    </td>
+                  )}
+                  
+                  {/* GRN Qty */}
+                  <td style={{ textAlign: "center", padding: "6px 4px", minWidth: "80px" }}>
+                    <input 
+                      type="number" 
+                      step="1.00" 
+                      className="inv-input" 
+                      tabIndex={baseTabIndex + 3} 
+                      style={{ 
+                        border: "none", 
+                        width: "100%", 
+                        textAlign: "center", 
+                        fontWeight: 600, 
+                        color: '#3b6ef8', 
+                        background: "transparent", 
+                        padding: "6px 4px",
+                        fontSize: "13px"
+                      }} 
+                      value={row.grnQty && row.grnQty !== 0 ? row.grnQty : ""} 
+                      onChange={e => updateDetail(idx, "grnQty", e.target.value)} 
+                      placeholder="0.000" 
+                    />
+                  </td>
+                  
+                  {/* Batch */}
+                  <td style={{ textAlign: "center", padding: "6px 4px", minWidth: "70px" }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+                      <select 
+                        className="inv-input" 
+                        tabIndex={baseTabIndex + 4} 
+                        style={{ 
+                          border: "none", 
+                          width: "50px", 
+                          padding: "6px 4px", 
+                          textAlign: "center", 
+                          background: "transparent",
+                          fontSize: "12px"
+                        }} 
+                        value={row.isBatch} 
+                        onChange={e => { 
+                          const val = e.target.value; 
+                          updateDetail(idx, "isBatch", val); 
+                          if (val === "Yes") { 
+                            setBatchRowIdx(idx); 
+                            setBatchModalOpen(true); 
+                          } 
+                        }}
+                      >
+                        <option value="No">No</option>
+                        <option value="Yes">Yes</option>
+                      </select>
+                      {row.isBatch === "Yes" && (
+                        <button 
+                          className="inv-btn-icon" 
+                          style={{ padding: '2px', color: 'var(--accent)' }} 
+                          onClick={() => { 
+                            setBatchRowIdx(idx); 
+                            setBatchModalOpen(true); 
+                          }} 
+                          title="Edit Batch Details"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 20h9"/>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                          </svg>
+                        </button>
                       )}
-                      {header.grnType !== "General" && (
-                        <td style={{ textAlign: "left", padding: "8px 4px" }}>
-                          <input className="inv-input-cell" value={row.poNo || ""} readOnly placeholder="—" style={{ background: "#f8fafc", textAlign: "left", width: "100%", padding: "6px 4px" }} />
-                        </td>
-                      )}
-                      
-                      <td style={{ textAlign: "left", padding: "8px 4px" }}>
-                        {header.grnType === "General" ? (
-                          <input type="text" className="inv-input-cell" tabIndex={baseTabIndex} value={row.itemName || ""} onChange={e => updateDetail(idx, "itemName", e.target.value)} placeholder="Enter item name" style={{ border: "1px solid #e2e8f0", borderRadius: "4px", padding: "6px 8px", width: "100%", fontSize: "13px", backgroundColor: "#ffffff" }} autoComplete="off" />
-                        ) : (
-                          <input className="inv-input-cell" value={row.itemName || ""} readOnly placeholder="Via Pick PO" style={{ background: "#f8fafc", textAlign: "left", width: "100%", padding: "6px 4px" }} />
-                        )}
-                      </td>
-                      
-                      {header.grnType !== "General" && (
-                        <td style={{ textAlign: "right", padding: "8px 4px" }}>
-                          <input className="inv-input" style={{ border: "none", width: "100%", textAlign: "right", background: "transparent", padding: "6px 4px" }} value={fmtQty(row.poQty)} readOnly />
-                        </td>
-                      )}
-                      {header.grnType !== "General" && (
-                        <td style={{ textAlign: "right", padding: "8px 4px" }}>
-                          <input type="number" step="1.00" className="inv-input" tabIndex={baseTabIndex + 1} style={{ border: "none", width: "100%", textAlign: "right", background: "transparent", padding: "6px 4px" }} value={row.poRate && row.poRate !== 0 ? row.poRate : ""} onChange={e => updateDetail(idx, "poRate", e.target.value)} placeholder="0.00" />
-                        </td>
-                      )}
-                      
-                      <td style={{ textAlign: "left", padding: "8px 4px" }}>
-                        <input type="number" step="1.00" className="inv-input" tabIndex={baseTabIndex + 2} style={{ border: "none", width: "100%", textAlign: "left", fontWeight: 600, color: '#3b6ef8', background: "transparent", padding: "6px 4px" }} value={row.grnQty && row.grnQty !== 0 ? row.grnQty : ""} onChange={e => updateDetail(idx, "grnQty", e.target.value)} placeholder="0.000" />
-                      </td>
-                      
-                      <td style={{ textAlign: "left", padding: "8px 4px" }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <select className="inv-input" tabIndex={baseTabIndex + 3} style={{ border: "none", width: "50px", padding: "6px 0", textAlign: "left", background: "transparent" }} value={row.isBatch} onChange={e => { const val = e.target.value; updateDetail(idx, "isBatch", val); if (val === "Yes") { setBatchRowIdx(idx); setBatchModalOpen(true); } }}>
-                            <option value="No">No</option>
-                            <option value="Yes">Yes</option>
-                          </select>
-                          {row.isBatch === "Yes" && (
-                            <button className="inv-btn-icon" style={{ padding: '4px', color: 'var(--accent)' }} onClick={() => { setBatchRowIdx(idx); setBatchModalOpen(true); }} title="Edit Batch Details">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      
-                      {header.grnType !== "General" && (
-                        <td style={{ textAlign: "right", padding: "8px 4px" }}>
-                          <input className="inv-input" tabIndex={-1 } style={{ border: "none", width: "100%", textAlign: "right", background: "transparent", padding: "6px 4px" }} value={fmtQty(row.balQty)} readOnly />
-                        </td>
-                      )}
-                      {header.grnType !== "General" && (
-                        <td style={{ textAlign: "left", padding: "8px 4px" }}>
-                          <input type="number" step="1.00" className="inv-input" tabIndex={baseTabIndex + 4} style={{ border: "none", width: "100%", textAlign: "left", background: "transparent", padding: "6px 4px" }} value={row.phyQty && row.phyQty !== 0 ? row.phyQty : ""} onChange={e => updateDetail(idx, "phyQty", e.target.value)} placeholder="0.000" />
-                        </td>
-                      )}
-                      
-                      <td style={{ textAlign: "right", padding: "8px 4px" }}>
-                        <input type="number" step="1.00" className="inv-input" tabIndex={baseTabIndex + 5} style={{ border: "none", width: "100%", textAlign: "right", background: "transparent", padding: "6px 4px" }} value={row.grnRate && row.grnRate !== 0 ? row.grnRate : ""} onChange={e => updateDetail(idx, "grnRate", e.target.value)} placeholder="0.00" />
-                      </td>
-                      
-                      <td style={{ textAlign: "right", padding: "8px 4px" }}>
-                        <input type="number" step="1.00" className="inv-input" tabIndex={baseTabIndex + 6} style={{ border: "none", width: "100%", textAlign: "right", background: "transparent", padding: "6px 4px" }} value={row.discPct && row.discPct !== 0 ? row.discPct : ""} onChange={e => updateDetail(idx, "discPct", e.target.value)} placeholder="0.00" />
-                      </td>
-                      
-                      <td style={{ textAlign: "center", padding: "8px 4px" }}>
-                        {header.grnType === "General" ? (
-                          <input 
-                            type="number" 
-                            step="1.00"
-                            className="inv-input" 
-                            tabIndex={baseTabIndex + 7} 
-                            style={{ border: "1px solid #e2e8f0", width: "100%", textAlign: "center", padding: "6px 4px", borderRadius: "4px" }} 
-                            value={row.gstPct && row.gstPct !== 0 ? row.gstPct : ""} 
-                            onChange={e => updateDetail(idx, "gstPct", e.target.value)}
-                            placeholder="0"
-                          />
-                        ) : (
-                          <input 
-                            className="inv-input" 
-                            style={{ border: "none", width: "100%", textAlign: "center", background: '#f8f9fa', padding: "6px 4px" }} 
-                            value={row.gstPct ? `${row.gstPct}%` : "0%"} 
-                            readOnly 
-                          />
-                        )}
-                      </td>
-                      
-                      <td style={{ textAlign: "right", fontWeight: 500, padding: "8px 4px" }}>
-                        <input className="inv-input" tabIndex={baseTabIndex + 8} style={{ border: "none", width: "100%", textAlign: "right", background: '#f8f9fa', padding: "6px 4px", fontWeight: 500 }} value={fmt(row.totGst)} readOnly />
-                      </td>
-                      
-                      <td style={{ textAlign: "right", fontWeight: 700, padding: "8px 4px" }}>
-                        <input className="inv-input" tabIndex={baseTabIndex + 9} style={{ border: "none", width: "100%", textAlign: "right", background: '#f8f9fa', fontWeight: 700, padding: "6px 4px" }} value={fmt(row.totalAmount)} readOnly />
-                      </td>
-                      
-                      <td style={{ textAlign: "center", padding: "8px 4px" }}>
-                        <button className="inv-btn-icon inv-btn-danger" tabIndex={isLastRow ? baseTabIndex + 10 : -1} onClick={() => setDetails(p => p.filter((_, i) => i !== idx))} style={{ padding: "4px" }}>✕</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </td>
+                  
+                  {/* Balance Qty - Against PO only */}
+                  {header.grnType !== "General" && (
+                    <td style={{ textAlign: "center", padding: "6px 4px", minWidth: "70px" }}>
+                      <input 
+                        className="inv-input" 
+                        tabIndex={-1} 
+                        style={{ 
+                          border: "none", 
+                          width: "100%", 
+                          textAlign: "center", 
+                          background: "transparent", 
+                          padding: "6px 4px",
+                          fontSize: "12px"
+                        }} 
+                        value={fmtQty(row.balQty)} 
+                        readOnly 
+                      />
+                    </td>
+                  )}
+                  
+                  {/* Physical Qty - Against PO only */}
+                  {header.grnType !== "General" && (
+                    <td style={{ textAlign: "center", padding: "6px 4px", minWidth: "80px" }}>
+                      <input 
+                        type="number" 
+                        step="1.00" 
+                        className="inv-input" 
+                        tabIndex={baseTabIndex + 5} 
+                        style={{ 
+                          border: "none", 
+                          width: "100%", 
+                          textAlign: "center", 
+                          background: "transparent", 
+                          padding: "6px 4px",
+                          fontSize: "12px"
+                        }} 
+                        value={row.phyQty && row.phyQty !== 0 ? row.phyQty : ""} 
+                        onChange={e => updateDetail(idx, "phyQty", e.target.value)} 
+                        placeholder="0.000" 
+                      />
+                    </td>
+                  )}
+                  
+                  {/* Unit Price */}
+                  <td style={{ textAlign: "center", padding: "6px 4px", minWidth: "80px" }}>
+                    <input 
+                      type="number" 
+                      step="1.00" 
+                      className="inv-input" 
+                      tabIndex={baseTabIndex + 6} 
+                      style={{ 
+                        border: "none", 
+                        width: "100%", 
+                        textAlign: "center", 
+                        background: "transparent", 
+                        padding: "6px 4px",
+                        fontSize: "12px"
+                      }} 
+                      value={row.grnRate && row.grnRate !== 0 ? row.grnRate : ""} 
+                      onChange={e => updateDetail(idx, "grnRate", e.target.value)} 
+                      placeholder="0.00" 
+                    />
+                  </td>
+                  
+                  {/* Discount % */}
+                  <td style={{ textAlign: "center", padding: "6px 4px", minWidth: "70px" }}>
+                    <input 
+                      type="number" 
+                      step="1.00" 
+                      className="inv-input" 
+                      tabIndex={baseTabIndex + 7} 
+                      style={{ 
+                        border: "none", 
+                        width: "100%", 
+                        textAlign: "center", 
+                        background: "transparent", 
+                        padding: "6px 4px",
+                        fontSize: "12px"
+                      }} 
+                      value={row.discPct && row.discPct !== 0 ? row.discPct : ""} 
+                      onChange={e => updateDetail(idx, "discPct", e.target.value)} 
+                      placeholder="0.00" 
+                    />
+                  </td>
+                  
+                  {/* GST % */}
+                  <td style={{ textAlign: "center", padding: "6px 4px", minWidth: "60px" }}>
+                    {header.grnType === "General" ? (
+                      <input 
+                        type="number" 
+                        step="1.00"
+                        className="inv-input" 
+                        tabIndex={baseTabIndex + 8} 
+                        style={{ 
+                          border: "1px solid #e2e8f0", 
+                          width: "100%", 
+                          textAlign: "center", 
+                          padding: "6px 4px", 
+                          borderRadius: "4px",
+                          fontSize: "12px"
+                        }} 
+                        value={row.gstPct && row.gstPct !== 0 ? row.gstPct : ""} 
+                        onChange={e => updateDetail(idx, "gstPct", e.target.value)}
+                        placeholder="0"
+                      />
+                    ) : (
+                      <input 
+                        className="inv-input" 
+                        style={{ 
+                          border: "none", 
+                          width: "100%", 
+                          textAlign: "center", 
+                          background: '#f8f9fa', 
+                          padding: "6px 4px",
+                          fontSize: "12px"
+                        }} 
+                        value={row.gstPct ? `${row.gstPct}%` : "0%"} 
+                        readOnly 
+                      />
+                    )}
+                  </td>
+                  
+                  {/* Total GST */}
+                  <td style={{ textAlign: "right", fontWeight: 500, padding: "6px 4px", minWidth: "80px" }}>
+                    <input 
+                      className="inv-input" 
+                      tabIndex={baseTabIndex + 9} 
+                      style={{ 
+                        border: "none", 
+                        width: "100%", 
+                        textAlign: "right", 
+                        background: '#f8f9fa', 
+                        padding: "6px 8px", 
+                        fontWeight: 500,
+                        fontSize: "12px"
+                      }} 
+                      value={fmt(row.totGst)} 
+                      readOnly 
+                    />
+                  </td>
+                  
+                  {/* Total Amount */}
+                  <td style={{ textAlign: "right", fontWeight: 700, padding: "6px 4px", minWidth: "100px" }}>
+                    <input 
+                      className="inv-input" 
+                      tabIndex={baseTabIndex + 10} 
+                      style={{ 
+                        border: "none", 
+                        width: "100%", 
+                        textAlign: "right", 
+                        background: '#f8f9fa', 
+                        fontWeight: 700, 
+                        padding: "6px 8px",
+                        fontSize: "13px",
+                        color: "#1e293b"
+                      }} 
+                      value={fmt(row.totalAmount)} 
+                      readOnly 
+                    />
+                  </td>
+                  
+                  {/* Delete button */}
+                  <td style={{ textAlign: "center", padding: "6px 4px", width: "35px" }}>
+                    <button 
+                      className="inv-btn-icon inv-btn-danger" 
+                      tabIndex={isLastRow ? baseTabIndex + 11 : -1} 
+                      onClick={() => setDetails(p => p.filter((_, i) => i !== idx))} 
+                      style={{ 
+                        padding: "4px",
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        color: "#ef4444",
+                        fontSize: "14px"
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
+    </div>
+
 
       <div className="inv-card" style={{ marginTop: 20 }}>
         <div className="inv-card-body">
