@@ -740,7 +740,7 @@ const downloadSampleTemplate = () => {
               onClick={() => setShowBulkUploadModal(true)}
               style={{ background: "#10b981", color: "white", borderColor: "#10b981" }}
             >
-              📤 Bulk Upload
+               Bulk Upload
             </button>
             <button className="inv-btn-primary" onClick={openAdd}>
               + Add Employee
@@ -936,7 +936,7 @@ const downloadSampleTemplate = () => {
                       onClick={downloadSampleTemplate}
                       style={{ fontSize: "13px" }}
                     >
-                      📥 Download Sample Template
+                       Download Sample Template
                     </button>
                   </div>
 
