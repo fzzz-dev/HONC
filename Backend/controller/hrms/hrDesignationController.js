@@ -1,5 +1,5 @@
 // controllers/hrDesignationController.js
-const { HrDesignation, HrSubDepartment, HrDepartment } = require('../../model');
+const { HrDesignation, HrSubDepartment, HrDepartment, HrEmployee } = require('../../model');
 const { Parser } = require('json2csv');
 const { Op } = require('sequelize');
 
