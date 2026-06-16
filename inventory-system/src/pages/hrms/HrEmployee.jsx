@@ -9,6 +9,7 @@ const EMPTY = {
   employeeCode: "",
   firstName: "",
   lastName: "",
+  fatherName:"",
   dateOfBirth: "",
   gender: "Male",
   bloodGroup: "",
@@ -21,6 +22,7 @@ const EMPTY = {
   basicSalary: "",
   hra: "",
   allowances: "",
+  totalSalary: "",  
   panNumber: "",
   aadharNumber: "",
   pfNumber: "",
@@ -356,57 +358,60 @@ export default function HrEmployee() {
   }
 
   function openEdit(row) {
-    setForm({
-      employeeCode: row.employeeCode,
-      firstName: row.firstName,
-      lastName: row.lastName || "",
-      dateOfBirth: row.dateOfBirth?.split('T')[0] || "",
-      gender: row.gender || "Male",
-      bloodGroup: row.bloodGroup || "",
-      contactPhone: row.contactPhone || "",
-      contactEmail: row.contactEmail || "",
-      dateOfJoining: row.dateOfJoining?.split('T')[0] || "",
-      designationId: row.designationId || "",
-      departmentId: row.departmentId || "",
-      employmentType: row.employmentType || "Permanent",
-      basicSalary: row.basicSalary || "",
-      hra: row.hra || "",
-      allowances: row.allowances || "",
-      panNumber: row.panNumber || "",
-      aadharNumber: row.aadharNumber || "",
-      pfNumber: row.pfNumber || "",
-      bankName: row.bankName || "",
-      bankAccountNo: row.bankAccountNo || "",
-      ifscCode: row.ifscCode || "",
-      accountHolderName: row.accountHolderName || "",
-      bankBranch: row.bankBranch || "",
-      presentAddress: row.presentAddress || "",
-      permanentAddress: row.permanentAddress || "",
-      remarks: row.remarks || "",
-      active: row.isActive,
-      managementStaff: row.managementStaff || "No",
-      visitorsAllowed: row.visitorsAllowed || "No",
-      guest: row.guest || "No",
-      photoFile: null,
-    });
-    
-    setEditId(row.id);
-    setPhotoUploadStatus(null);
-    
-    if (row.photoUrl) {
-      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const baseBackendUrl = backendUrl.replace('/api', '');
-      setPhotoPreview(`${baseBackendUrl}${row.photoUrl}`);
-    } else {
-      setPhotoPreview(null);
-    }
-    
-    if (row.departmentId) {
-      setSelectedDepartment(row.departmentId);
-      fetchDesignations(row.departmentId);
-    }
-    setView("form");
+  setForm({
+    employeeCode: row.employeeCode,
+    firstName: row.firstName,
+    lastName: row.lastName || "",
+    fatherName: row.fatherName || "",  // ← ADD THIS
+    dateOfBirth: row.dateOfBirth?.split('T')[0] || "",
+    gender: row.gender || "Male",
+    bloodGroup: row.bloodGroup || "",
+    contactPhone: row.contactPhone || "",
+    contactEmail: row.contactEmail || "",
+    dateOfJoining: row.dateOfJoining?.split('T')[0] || "",
+    designationId: row.designationId || "",
+    departmentId: row.departmentId || "",
+    employmentType: row.employmentType || "Permanent",
+    basicSalary: row.basicSalary || "",
+    hra: row.hra || "",
+    allowances: row.allowances || "",
+    totalSalary: row.totalSalary || "",
+    panNumber: row.panNumber || "",
+    aadharNumber: row.aadharNumber || "",
+    pfNumber: row.pfNumber || "",
+    bankName: row.bankName || "",
+    bankAccountNo: row.bankAccountNo || "",
+    ifscCode: row.ifscCode || "",
+    accountHolderName: row.accountHolderName || "",
+    bankBranch: row.bankBranch || "",
+    presentAddress: row.presentAddress || "",
+    permanentAddress: row.permanentAddress || "",
+    remarks: row.remarks || "",
+    active: row.isActive,
+    managementStaff: row.managementStaff || "No",
+    visitorsAllowed: row.visitorsAllowed || "No",
+    guest: row.guest || "No",
+    photoFile: null,
+  });
+  
+  setEditId(row.id);
+  setPhotoUploadStatus(null);
+  
+  if (row.photoUrl) {
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const baseBackendUrl = backendUrl.replace('/api', '');
+    setPhotoPreview(`${baseBackendUrl}${row.photoUrl}`);
+  } else {
+    setPhotoPreview(null);
   }
+  
+  if (row.departmentId) {
+    setSelectedDepartment(row.departmentId);
+    fetchDesignations(row.departmentId);
+  }
+  
+  setView("form");
+}
 
   const handleSave = useCallback(async () => {
     if (!form.firstName.trim()) {
@@ -420,38 +425,40 @@ export default function HrEmployee() {
     setSaving(true);
     setPhotoUploadStatus(null);
 
-    const payload = {
-      employeeCode: form.employeeCode,
-      firstName: form.firstName.trim(),
-      lastName: form.lastName?.trim() || "",
-      dateOfBirth: form.dateOfBirth || null,
-      gender: form.gender,
-      bloodGroup: form.bloodGroup || null,
-      contactPhone: form.contactPhone || null,
-      contactEmail: form.contactEmail || null,
-      dateOfJoining: form.dateOfJoining || null,
-      designationId: form.designationId ? parseInt(form.designationId) : null,
-      departmentId: form.departmentId ? parseInt(form.departmentId) : null,
-      employmentType: form.employmentType,
-      basicSalary: form.basicSalary ? parseFloat(form.basicSalary) : 0,
-      hra: form.hra ? parseFloat(form.hra) : 0,
-      allowances: form.allowances ? parseFloat(form.allowances) : 0,
-      panNumber: form.panNumber || null,
-      aadharNumber: form.aadharNumber || null,
-      pfNumber: form.pfNumber || null,
-      bankName: form.bankName || null,
-      bankAccountNo: form.bankAccountNo || null,
-      ifscCode: form.ifscCode || null,
-      accountHolderName: form.accountHolderName || null,
-      bankBranch: form.bankBranch || null,
-      presentAddress: form.presentAddress || null,
-      permanentAddress: form.permanentAddress || null,
-      remarks: form.remarks || null,
-      isActive: form.active,
-      managementStaff: form.managementStaff,
-      visitorsAllowed: form.visitorsAllowed,
-      guest: form.guest,
-    };
+     const payload = {
+  employeeCode: form.employeeCode,
+  firstName: form.firstName.trim(),
+  lastName: form.lastName?.trim() || "",
+  fatherName: form.fatherName?.trim() || "",  // ← ADD THIS
+  dateOfBirth: form.dateOfBirth || null,
+  gender: form.gender,
+  bloodGroup: form.bloodGroup || null,
+  contactPhone: form.contactPhone || null,
+  contactEmail: form.contactEmail || null,
+  dateOfJoining: form.dateOfJoining || null,
+  designationId: form.designationId ? parseInt(form.designationId) : null,
+  departmentId: form.departmentId ? parseInt(form.departmentId) : null,
+  employmentType: form.employmentType,
+  basicSalary: form.basicSalary ? parseFloat(form.basicSalary) : 0,
+  hra: form.hra ? parseFloat(form.hra) : 0,
+  allowances: form.allowances ? parseFloat(form.allowances) : 0,
+  totalSalary: form.totalSalary ? parseFloat(form.totalSalary) : 0,
+  panNumber: form.panNumber || null,
+  aadharNumber: form.aadharNumber || null,
+  pfNumber: form.pfNumber || null,
+  bankName: form.bankName || null,
+  bankAccountNo: form.bankAccountNo || null,
+  ifscCode: form.ifscCode || null,
+  accountHolderName: form.accountHolderName || null,
+  bankBranch: form.bankBranch || null,
+  presentAddress: form.presentAddress || null,
+  permanentAddress: form.permanentAddress || null,
+  remarks: form.remarks || null,
+  isActive: form.active,
+  managementStaff: form.managementStaff,
+  visitorsAllowed: form.visitorsAllowed,
+  guest: form.guest,
+};
 
     try {
       let employeeId;
@@ -632,7 +639,7 @@ const handleBulkUpload = async () => {
 
   try {
     const response = await hrEmployeeApi.bulkUpload(formData);
-    console.log("Bulk upload response:", response); // Debug log
+    // Remove this line: console.log("Bulk upload response:", response);
     
     setBulkUploadResult({
       success: response.success || true,
@@ -642,12 +649,10 @@ const handleBulkUpload = async () => {
     });
     setBulkUploadProgress('complete');
     
-    // Refresh employee list after successful upload
     if (response.data?.successCount > 0) {
       await fetchEmployees();
     }
     
-    // Auto close modal after 3 seconds if no errors
     if (response.data?.failedCount === 0) {
       setTimeout(() => {
         setShowBulkUploadModal(false);
@@ -657,8 +662,6 @@ const handleBulkUpload = async () => {
       }, 3000);
     }
   } catch (err) {
-
-
     setBulkUploadResult({
       success: false,
       message: err.response?.data?.message || err.message || 'Bulk upload failed',
@@ -672,30 +675,33 @@ const handleBulkUpload = async () => {
 
 const downloadSampleTemplate = () => {
   const headers = [
-    "EmployeeCode*", "FirstName*", "LastName", "DateOfBirth", "Gender", 
-    "BloodGroup", "ContactPhone", "ContactEmail", "DateOfJoining", 
-    "DepartmentName*", "SubDepartmentName*", "DesignationName*", "EmploymentType", 
-    "BasicSalary", "HRA", "Allowances", "PANNumber", "AadharNumber", "PFNumber", 
-    "BankName", "BankAccountNo", "IFSCCode", "AccountHolderName", 
-    "BankBranch", "PresentAddress", "PermanentAddress", "Remarks", 
-    "ManagementStaff", "VisitorsAllowed", "Guest"
+    "Employee Code", "First Name", "Last Name", "Father Name", "Date of Birth", "Gender", 
+    "Blood Group", "Contact Phone", "Contact Email", "Date of Joining", 
+    "Department Name", "Designation Name", "Employment Type", 
+    "Basic Salary", "HRA", "Allowances", "Total Salary",
+    "PAN Number", "Aadhar Number", "PF Number", 
+    "Bank Name", "Bank Account No", "IFSC Code", "Account Holder Name", 
+    "Bank Branch", "Present Address", "Permanent Address", "Remarks", 
+    "Management Staff", "Visitors Allowed", "Guest"
   ];
   
   const sampleRows = [
     [
-      "EMP001", "John", "Doe", "1990-01-01", "Male", 
-      "O+", "9876543210", "john@example.com", "2024-01-01", 
-      "Information Technology", "Frontend", "Frontend Developer", "Permanent", 
-      "50000", "20000", "10000", "ABCDE1234F", "123456789012", "PF123456", 
+      "HG-RE-TPR-001", "John", "Doe", "Robert Doe", "01-01-1990", "Male", 
+      "O+", "9876543210", "john@example.com", "01-01-2024", 
+      "Information Technology", "Frontend Developer", "Permanent", 
+      "50000", "20000", "10000", "80000",
+      "ABCDE1234F", "123456789012", "PF123456", 
       "SBI", "1234567890", "SBIN0012345", "John Doe", 
       "Main Branch", "123 Main St, City", "Same as Present", "Good employee", 
       "No", "No", "No"
     ],
     [
-      "EMP002", "Jane", "Smith", "1992-05-15", "Female", 
-      "A+", "9876543211", "jane@example.com", "2024-02-01", 
-      "Admin", "purchase", "Manages", "Permanent", 
-      "60000", "25000", "15000", "XYZAB5678G", "987654321098", "PF789012", 
+      "HG-RE-TPR-002", "Jane", "Smith", "Michael Smith", "15-05-1992", "Female", 
+      "A+", "9876543211", "jane@example.com", "01-02-2024", 
+      "Admin", "Office Manager", "Permanent", 
+      "60000", "25000", "15000", "100000",
+      "XYZAB5678G", "987654321098", "PF789012", 
       "HDFC", "9876543210", "HDFC0012345", "Jane Smith", 
       "City Branch", "456 Park Ave, City", "Same as Present", "Experienced manager", 
       "Yes", "Yes", "No"
@@ -782,6 +788,7 @@ const downloadSampleTemplate = () => {
                     <th>#</th>
                     <th>Emp Code</th>
                     <th>Full Name</th>
+                    <th>Father Name</th>
                     <th>Blood Group</th>
                     <th>Department</th>
                     <th>Designation</th>
@@ -810,6 +817,7 @@ const downloadSampleTemplate = () => {
                         <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
                         <td className="inv-bold">{row.employeeCode}</td>
                         <td className="inv-bold">{row.firstName} {row.lastName || ""}</td>
+                        <td>{row.fatherName || "—"}</td>
                         <td>{row.bloodGroup || "—"}</td>
                         <td>{row.departmentName || "—"}</td>
                         <td>{row.designationName || "—"}</td>
@@ -1253,7 +1261,7 @@ const downloadSampleTemplate = () => {
               className="inv-input"
               value={form.employeeCode}
               onChange={(v) => setForm((f) => ({ ...f, employeeCode: v.target.value.toUpperCase() }))}
-              placeholder="Auto-generated"
+              placeholder="HG-RE-TPR-001"  // ← Add this placeholder
               disabled={!!editId}
               style={{ background: editId ? "#f1f5f9" : "white" }}
             />
@@ -1272,6 +1280,14 @@ const downloadSampleTemplate = () => {
               value={form.lastName}
               onChange={(v) => setForm((f) => ({ ...f, lastName: v.target.value }))}
               placeholder="Enter last name"
+            />
+          </Field>
+          <Field label="Father's Name">
+            <input
+              className="inv-input"
+              value={form.fatherName}
+              onChange={(v) => setForm((f) => ({ ...f, fatherName: v.target.value }))}
+              placeholder="Enter father's name"
             />
           </Field>
           <Field label="Blood Group">
@@ -1434,52 +1450,56 @@ const downloadSampleTemplate = () => {
       </Section>
 
       <Section title="Compensation">
-        <FormGrid cols={3}>
-          <Field label="Basic Salary">
-            <input
-              className="inv-input"
-              value={form.basicSalary}
-              onChange={(v) => setForm((f) => ({ ...f, basicSalary: v.target.value }))}
-              placeholder="Basic Salary"
-              type="number"
-              step="0.01"
-            />
-          </Field>
-          <Field label="HRA">
-            <input
-              className="inv-input"
-              value={form.hra}
-              onChange={(v) => setForm((f) => ({ ...f, hra: v.target.value }))}
-              placeholder="HRA Amount"
-              type="number"
-              step="0.01"
-            />
-          </Field>
-          <Field label="Allowances">
-            <input
-              className="inv-input"
-              value={form.allowances}
-              onChange={(v) => setForm((f) => ({ ...f, allowances: v.target.value }))}
-              placeholder="Other Allowances"
-              type="number"
-              step="0.01"
-            />
-          </Field>
-          <Field label="Total Salary">
-            <input
-              className="inv-input"
-              value={((parseFloat(form.basicSalary) || 0) + (parseFloat(form.hra) || 0) + (parseFloat(form.allowances) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              readOnly
-              style={{ 
-                background: "#f1f5f9", 
-                fontWeight: 600, 
-                color: "#3b6ef8",
-                cursor: "not-allowed"
-              }}
-            />
-          </Field>
-        </FormGrid>
-      </Section>
+  <FormGrid cols={3}>
+    <Field label="Basic Salary">
+      <input
+        className="inv-input"
+        value={form.basicSalary}
+        onChange={(v) => setForm((f) => ({ ...f, basicSalary: v.target.value }))}
+        placeholder="Basic Salary"
+        type="number"
+        step="0.01"
+      />
+    </Field>
+    <Field label="HRA">
+      <input
+        className="inv-input"
+        value={form.hra}
+        onChange={(v) => setForm((f) => ({ ...f, hra: v.target.value }))}
+        placeholder="HRA Amount"
+        type="number"
+        step="0.01"
+      />
+    </Field>
+    <Field label="Allowances">
+      <input
+        className="inv-input"
+        value={form.allowances}
+        onChange={(v) => setForm((f) => ({ ...f, allowances: v.target.value }))}
+        placeholder="Other Allowances"
+        type="number"
+        step="0.01"
+      />
+    </Field>
+    <Field label="Total Salary">
+      <input
+        className="inv-input"
+        value={form.totalSalary || ((parseFloat(form.basicSalary) || 0) + (parseFloat(form.hra) || 0) + (parseFloat(form.allowances) || 0)).toFixed(2)}
+        onChange={(e) => setForm((f) => ({ ...f, totalSalary: e.target.value }))}
+        placeholder="Total Salary"
+        type="number"
+        step="0.01"
+        style={{ 
+          fontWeight: 600, 
+          color: "#3b6ef8",
+          border: "1px solid #e2e8f0",
+          borderRadius: "4px",
+          padding: "6px 12px"
+        }}
+      />
+    </Field>
+  </FormGrid>
+</Section>
 
       <Section title="Banking Information">
         <FormGrid cols={2}>

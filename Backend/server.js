@@ -206,7 +206,6 @@ async function startServer() {
     app.use("/api/reports", require("./routes/reportRoutes"));
     app.use("/api/level", require("./routes/levelRoutes"));
     app.use("/api/hr/departments", require("./routes/hrms/hrDepartmentRoutes"));
-    app.use("/api/hr/sub-departments", require("./routes/hrms/hrSubDepartmentRoutes"));
     app.use("/api/hr/designations", require("./routes/hrms/hrDesignationRoutes"));
     app.use("/api/hr/shifts", require("./routes/hrms/hrShiftRoutes"));  
     app.use("/api/hr/employees", require("./routes/hrms/hrEmployeeRoutes"));

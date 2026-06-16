@@ -150,6 +150,16 @@ const HrEmployee = sequelize.define('HrEmployee', {
     field: 'created_at',
     defaultValue: DataTypes.NOW
   },
+  fatherName: {
+  type: DataTypes.STRING(100),
+  field: 'father_name',
+  allowNull: true
+},
+totalSalary: {
+  type: DataTypes.DECIMAL(12, 2),
+  defaultValue: 0.00,
+  field: 'total_salary'
+},
   updatedAt: {
     type: DataTypes.DATE,
     field: 'updated_at',
@@ -160,5 +170,6 @@ const HrEmployee = sequelize.define('HrEmployee', {
   timestamps: true,
   underscored: true
 });
+
 
 module.exports = HrEmployee;

@@ -304,22 +304,7 @@ export const hrDepartmentApi = {
     const queryString = qs(params);
     window.open(`${BASE}/hr/departments/export/csv${queryString}`, '_blank');
   },
-};
-
-export const hrSubDepartmentApi = {
-  getAll: (p = {}) => request(`/hr/sub-departments${qs(p)}`),
-  getOne: (id) => request(`/hr/sub-departments/${id}`),
-  getByDepartment: (departmentId, onlyActive = true) => 
-    request(`/hr/sub-departments/by-department/${departmentId}?onlyActive=${onlyActive}`),
-  create: (body) => request("/hr/sub-departments", { method: "POST", body: j(body) }),
-  update: (id, b) => request(`/hr/sub-departments/${id}`, { method: "PUT", body: j(b) }),
-  remove: (id) => request(`/hr/sub-departments/${id}`, { method: "DELETE" }),
-  hardDelete: (id) => request(`/hr/sub-departments/${id}/permanent`, { method: "DELETE" }),
-  exportToCSV: (params = {}) => {
-    const queryString = qs(params);
-    window.open(`${BASE}/hr/sub-departments/export/csv${queryString}`, '_blank');
-  },
-};
+};  
 
 export const hrShiftApi = {
   getAll: (p = {}) => request(`/hr/shifts${qs(p)}`),
@@ -338,10 +323,8 @@ export const hrShiftApi = {
 export const hrDesignationApi = {
   getAll: (p = {}) => request(`/hr/designations${qs(p)}`),
   getOne: (id) => request(`/hr/designations/${id}`),
-  getBySubDepartment: (subDepartmentId, onlyActive = true) => 
-    request(`/hr/designations/by-sub-department/${subDepartmentId}?onlyActive=${onlyActive}`),
-  getByDepartment: (departmentId, onlyActive = true) =>   // ← ADD THIS LINE
-    request(`/hr/designations/by-department/${departmentId}?onlyActive=${onlyActive}`),  // ← ADD THIS LINE
+  getByDepartment: (departmentId, onlyActive = true) => 
+    request(`/hr/designations/by-department/${departmentId}?onlyActive=${onlyActive}`),
   create: (body) => request("/hr/designations", { method: "POST", body: j(body) }),
   update: (id, b) => request(`/hr/designations/${id}`, { method: "PUT", body: j(b) }),
   remove: (id) => request(`/hr/designations/${id}`, { method: "DELETE" }),
@@ -350,7 +333,7 @@ export const hrDesignationApi = {
     const queryString = qs(params);
     window.open(`${BASE}/hr/designations/export/csv${queryString}`, '_blank');
   },
-};  
+};
 
 
 // HR Employee API

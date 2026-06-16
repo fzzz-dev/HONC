@@ -45,7 +45,6 @@ import PurchaseIndentRegister from "./pages/RegisterPage/PurchaseIndentRegister"
 
 // HRMS Pages
 import HrDepartment from "./pages/hrms/HrDepartment";
-import HrSubDepartment from "./pages/hrms/HrSubDepartment";
 import HrDesignation from "./pages/hrms/HrDesignation";
 import HrShift from "./pages/hrms/HrShift";
 import HrEmployee from "./pages/hrms/HrEmployee";
@@ -126,7 +125,6 @@ export default function App() {
 
                 {/* ── HRMS ── */}
                 <Route path="/hr/department" element={<HrDepartment />} />
-                <Route path="/hr/sub-department" element={<HrSubDepartment />} />
                 <Route path="/hr/designation" element={<HrDesignation />} />
                 <Route path="/hr/shift" element={<HrShift />} />
                 <Route path="/hr/employee" element={<HrEmployee />} />

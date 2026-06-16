@@ -1,13 +1,96 @@
-const { HrEmployee, HrDepartment, HrDesignation, HrSubDepartment } = require('../../model');
+const { HrEmployee, HrDepartment, HrDesignation } = require('../../model');
 const { Op } = require('sequelize');
 const path = require('path');
 const fs = require('fs');
-const XLSX = require('xlsx'); // Make sure to install: npm install xlsx
+const XLSX = require('xlsx');
 
 // Helper function to calculate total salary
 const calculateTotalSalary = (basicSalary, hra, allowances) => {
   const total = (parseFloat(basicSalary) || 0) + (parseFloat(hra) || 0) + (parseFloat(allowances) || 0);
   return total.toFixed(2);
+};
+
+// Helper function to parse dates in multiple formats (DD-MM-YYYY preferred)
+const parseDate = (dateStr) => {
+  if (!dateStr) return null;
+  
+  // If it's a Date object already
+  if (dateStr instanceof Date) {
+    return isNaN(dateStr.getTime()) ? null : dateStr;
+  }
+  
+  // 🔥 HANDLE EXCEL SERIAL NUMBER (e.g., 28773)
+  if (typeof dateStr === 'number' || !isNaN(parseFloat(dateStr))) {
+    const num = parseFloat(dateStr);
+    // Excel serial dates are typically between 1 and 100000
+    if (num > 0 && num < 100000) {
+      // Excel serial date: days since 1900-01-01 (with a bug for 1900 leap year)
+      const excelEpoch = new Date(1899, 11, 30);
+      const date = new Date(excelEpoch.getTime() + num * 24 * 60 * 60 * 1000);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+  }
+  
+  // Convert to string and trim
+  dateStr = String(dateStr).trim();
+  
+  // Handle YYYY-MM-DD HH:MM:SS format (from Excel export)
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dateStr)) {
+    const parts = dateStr.split(' ')[0].split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+    if (date.getDate() === day && date.getMonth() === month && date.getFullYear() === year) {
+      return date;
+    }
+    return null;
+  }
+  
+  // Handle YYYY-MM-DD format (without time)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const parts = dateStr.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+    if (date.getDate() === day && date.getMonth() === month && date.getFullYear() === year) {
+      return date;
+    }
+    return null;
+  }
+  
+  // 🔥 PARSE DD-MM-YYYY (Indian/European format - YOUR PREFERRED FORMAT)
+  if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
+    const parts = dateStr.split('-');
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+    if (date.getDate() === day && date.getMonth() === month && date.getFullYear() === year) {
+      return date;
+    }
+    return null;
+  }
+  
+  // Parse DD/MM/YYYY format
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+    const parts = dateStr.split('/');
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+    if (date.getDate() === day && date.getMonth() === month && date.getFullYear() === year) {
+      return date;
+    }
+    return null;
+  }
+  
+  // Fallback - let JavaScript try to parse it
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? null : date;
 };
 
 // Get all employees
@@ -27,6 +110,7 @@ exports.getAll = async (req, res) => {
       where[Op.or] = [
         { firstName: { [Op.like]: `%${search}%` } },
         { lastName: { [Op.like]: `%${search}%` } },
+        { fatherName: { [Op.like]: `%${search}%` } },
         { employeeCode: { [Op.like]: `%${search}%` } },
         { contactPhone: { [Op.like]: `%${search}%` } },
         { panNumber: { [Op.like]: `%${search}%` } },
@@ -45,9 +129,10 @@ exports.getAll = async (req, res) => {
       employeeCode: emp.employeeCode,
       firstName: emp.firstName,
       lastName: emp.lastName,
+      fatherName: emp.fatherName || '',
       dateOfBirth: emp.dateOfBirth,
       gender: emp.gender,
-      bloodGroup: emp.bloodGroup, // ADDED
+      bloodGroup: emp.bloodGroup,
       contactPhone: emp.contactPhone,
       contactEmail: emp.contactEmail,
       dateOfJoining: emp.dateOfJoining,
@@ -59,7 +144,7 @@ exports.getAll = async (req, res) => {
       basicSalary: emp.basicSalary,
       hra: emp.hra,
       allowances: emp.allowances,
-      totalSalary: calculateTotalSalary(emp.basicSalary, emp.hra, emp.allowances),
+      totalSalary: emp.totalSalary || 0,
       panNumber: emp.panNumber,
       aadharNumber: emp.aadharNumber,
       pfNumber: emp.pfNumber,
@@ -82,7 +167,7 @@ exports.getAll = async (req, res) => {
     
     res.json({ success: true, data: formattedData, count: formattedData.length });
   } catch (error) {
-
+    console.error('Error fetching employees:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch employees', error: error.message });
   }
 };
@@ -103,11 +188,11 @@ exports.getById = async (req, res) => {
     }
     
     const employeeData = employee.toJSON();
-    employeeData.totalSalary = calculateTotalSalary(employee.basicSalary, employee.hra, employee.allowances);
+    employeeData.totalSalary = employee.totalSalary || calculateTotalSalary(employee.basicSalary, employee.hra, employee.allowances);
     
     res.json({ success: true, data: employeeData });
   } catch (error) {
-
+    console.error('Error fetching employee:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch employee', error: error.message });
   }
 };
@@ -122,16 +207,21 @@ exports.getNextCode = async (req, res) => {
     
     let nextNumber = 1;
     if (lastEmployee && lastEmployee.employeeCode) {
-      const match = lastEmployee.employeeCode.match(/\d+$/);
+      const match = lastEmployee.employeeCode.match(/-(\d+)$/);
       if (match) {
-        nextNumber = parseInt(match[0]) + 1;
+        nextNumber = parseInt(match[1]) + 1;
+      } else {
+        const numberMatch = lastEmployee.employeeCode.match(/\d+$/);
+        if (numberMatch) {
+          nextNumber = parseInt(numberMatch[0]) + 1;
+        }
       }
     }
     
-    const code = `EMP${String(nextNumber).padStart(3, '0')}`;
+    const code = `HG-RE-TPR-${String(nextNumber).padStart(3, '0')}`;
     res.json({ success: true, data: { code } });
   } catch (error) {
-
+    console.error('Error generating next code:', error);
     res.status(500).json({ success: false, message: 'Failed to generate employee code', error: error.message });
   }
 };
@@ -140,9 +230,9 @@ exports.getNextCode = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const { 
-      employeeCode, firstName, lastName, dateOfBirth, gender, bloodGroup, // ADDED bloodGroup
+      employeeCode, firstName, lastName, fatherName, dateOfBirth, gender, bloodGroup,
       contactPhone, contactEmail, dateOfJoining, designationId, departmentId, 
-      employmentType, basicSalary, hra, allowances, panNumber, aadharNumber, 
+      employmentType, basicSalary, hra, allowances, totalSalary, panNumber, aadharNumber, 
       pfNumber, bankName, bankAccountNo, ifscCode, accountHolderName, bankBranch, 
       presentAddress, permanentAddress, remarks, isActive,
       photoUrl, managementStaff, visitorsAllowed, guest
@@ -158,11 +248,34 @@ exports.create = async (req, res) => {
     }
     
     const newEmployee = await HrEmployee.create({
-      employeeCode, firstName, lastName, dateOfBirth, gender, bloodGroup, // ADDED bloodGroup
-      contactPhone, contactEmail, dateOfJoining, designationId, departmentId, 
-      employmentType, basicSalary, hra, allowances, panNumber, aadharNumber, 
-      pfNumber, bankName, bankAccountNo, ifscCode, accountHolderName, bankBranch, 
-      presentAddress, permanentAddress, remarks, 
+      employeeCode, 
+      firstName, 
+      lastName,
+      fatherName: fatherName || null,
+      dateOfBirth: dateOfBirth ? parseDate(dateOfBirth) : null,
+      gender, 
+      bloodGroup,
+      contactPhone, 
+      contactEmail, 
+      dateOfJoining: dateOfJoining ? parseDate(dateOfJoining) : null,
+      designationId, 
+      departmentId, 
+      employmentType, 
+      basicSalary: parseFloat(basicSalary) || 0,
+      hra: parseFloat(hra) || 0,
+      allowances: parseFloat(allowances) || 0,
+      totalSalary: parseFloat(totalSalary) || 0,
+      panNumber, 
+      aadharNumber, 
+      pfNumber, 
+      bankName, 
+      bankAccountNo, 
+      ifscCode, 
+      accountHolderName, 
+      bankBranch, 
+      presentAddress, 
+      permanentAddress, 
+      remarks, 
       isActive: isActive !== undefined ? isActive : true,
       photoUrl: photoUrl || null,
       managementStaff: managementStaff || 'No',
@@ -182,9 +295,10 @@ exports.create = async (req, res) => {
       employeeCode: savedEmployee.employeeCode,
       firstName: savedEmployee.firstName,
       lastName: savedEmployee.lastName,
+      fatherName: savedEmployee.fatherName || '',
       dateOfBirth: savedEmployee.dateOfBirth,
       gender: savedEmployee.gender,
-      bloodGroup: savedEmployee.bloodGroup, // ADDED
+      bloodGroup: savedEmployee.bloodGroup,
       contactPhone: savedEmployee.contactPhone,
       contactEmail: savedEmployee.contactEmail,
       dateOfJoining: savedEmployee.dateOfJoining,
@@ -196,7 +310,7 @@ exports.create = async (req, res) => {
       basicSalary: savedEmployee.basicSalary,
       hra: savedEmployee.hra,
       allowances: savedEmployee.allowances,
-      totalSalary: calculateTotalSalary(savedEmployee.basicSalary, savedEmployee.hra, savedEmployee.allowances),
+      totalSalary: savedEmployee.totalSalary || 0,
       panNumber: savedEmployee.panNumber,
       aadharNumber: savedEmployee.aadharNumber,
       pfNumber: savedEmployee.pfNumber,
@@ -219,7 +333,7 @@ exports.create = async (req, res) => {
     
     res.status(201).json({ success: true, message: 'Employee created successfully', data: formattedData });
   } catch (error) {
-
+    console.error('Error creating employee:', error);
     res.status(500).json({ success: false, message: 'Failed to create employee', error: error.message });
   }
 };
@@ -242,6 +356,13 @@ exports.update = async (req, res) => {
       }
     }
     
+    if (updateData.dateOfBirth) {
+      updateData.dateOfBirth = parseDate(updateData.dateOfBirth);
+    }
+    if (updateData.dateOfJoining) {
+      updateData.dateOfJoining = parseDate(updateData.dateOfJoining);
+    }
+    
     await employee.update(updateData);
     
     const updatedEmployee = await HrEmployee.findByPk(id, {
@@ -256,9 +377,10 @@ exports.update = async (req, res) => {
       employeeCode: updatedEmployee.employeeCode,
       firstName: updatedEmployee.firstName,
       lastName: updatedEmployee.lastName,
+      fatherName: updatedEmployee.fatherName || '',
       dateOfBirth: updatedEmployee.dateOfBirth,
       gender: updatedEmployee.gender,
-      bloodGroup: updatedEmployee.bloodGroup, // ADDED
+      bloodGroup: updatedEmployee.bloodGroup,
       contactPhone: updatedEmployee.contactPhone,
       contactEmail: updatedEmployee.contactEmail,
       dateOfJoining: updatedEmployee.dateOfJoining,
@@ -270,7 +392,7 @@ exports.update = async (req, res) => {
       basicSalary: updatedEmployee.basicSalary,
       hra: updatedEmployee.hra,
       allowances: updatedEmployee.allowances,
-      totalSalary: calculateTotalSalary(updatedEmployee.basicSalary, updatedEmployee.hra, updatedEmployee.allowances),
+      totalSalary: updatedEmployee.totalSalary || 0,
       panNumber: updatedEmployee.panNumber,
       aadharNumber: updatedEmployee.aadharNumber,
       pfNumber: updatedEmployee.pfNumber,
@@ -293,7 +415,7 @@ exports.update = async (req, res) => {
     
     res.json({ success: true, message: 'Employee updated successfully', data: formattedData });
   } catch (error) {
-
+    console.error('Error updating employee:', error);
     res.status(500).json({ success: false, message: 'Failed to update employee', error: error.message });
   }
 };
@@ -312,7 +434,6 @@ exports.uploadPhoto = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
     
-    // Delete old photo if exists
     if (employee.photoUrl) {
       const oldPhotoPath = path.join(__dirname, '../../public', employee.photoUrl);
       if (fs.existsSync(oldPhotoPath)) {
@@ -320,9 +441,7 @@ exports.uploadPhoto = async (req, res) => {
       }
     }
     
-    // Generate URL for the uploaded photo
     const photoUrl = `/uploads/employees/${req.file.filename}`;
-    
     await employee.update({ photoUrl });
     
     res.json({
@@ -331,7 +450,7 @@ exports.uploadPhoto = async (req, res) => {
       data: { photoUrl }
     });
   } catch (error) {
-
+    console.error('Error uploading photo:', error);
     res.status(500).json({ success: false, message: 'Failed to upload photo', error: error.message });
   }
 };
@@ -356,16 +475,14 @@ exports.deletePhoto = async (req, res) => {
     
     res.json({ success: true, message: 'Photo deleted successfully' });
   } catch (error) {
-
+    console.error('Error deleting photo:', error);
     res.status(500).json({ success: false, message: 'Failed to delete photo', error: error.message });
   }
 };
 
-// Bulk Upload Employees - COMPLETE WORKING VERSION
+// Bulk Upload
 exports.bulkUpload = async (req, res) => {
   try {
-
-    
     if (!req.file) {
       return res.status(400).json({ 
         success: false, 
@@ -378,9 +495,21 @@ exports.bulkUpload = async (req, res) => {
     
     try {
       if (fileExt === '.csv') {
-        const csvData = fs.readFileSync(req.file.path, 'utf8');
-        const lines = csvData.split('\n');
-        const headers = lines[0].split(',').map(h => h.replace(/["']/g, '').trim());
+        let csvData = fs.readFileSync(req.file.path, 'utf8');
+        
+        if (csvData.charCodeAt(0) === 0xFEFF) {
+          csvData = csvData.slice(1);
+        }
+        
+        const lines = csvData.split('\n').filter(line => line.trim());
+        
+        if (lines.length === 0) {
+          throw new Error('CSV file is empty');
+        }
+        
+        const headers = lines[0].split(',').map(h => 
+          h.replace(/["']/g, '').trim()
+        );
         
         for (let i = 1; i < lines.length; i++) {
           if (lines[i].trim()) {
@@ -393,13 +522,16 @@ exports.bulkUpload = async (req, res) => {
           }
         }
       } else {
-        const workbook = XLSX.readFile(req.file.path);
+        const workbook = XLSX.readFile(req.file.path, { 
+          cellDates: false,
+          raw: true
+        });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         data = XLSX.utils.sheet_to_json(worksheet);
       }
     } catch (parseError) {
-
+      console.error('Parse error:', parseError);
       return res.status(400).json({ 
         success: false, 
         message: 'Failed to parse the file.',
@@ -414,6 +546,39 @@ exports.bulkUpload = async (req, res) => {
       });
     }
 
+    const getColumnValue = (row, ...possibleNames) => {
+      for (const name of possibleNames) {
+        if (row[name] !== undefined && row[name] !== '') {
+          return row[name];
+        }
+        const foundKey = Object.keys(row).find(
+          key => key.trim().toLowerCase() === name.trim().toLowerCase()
+        );
+        if (foundKey && row[foundKey] !== undefined && row[foundKey] !== '') {
+          return row[foundKey];
+        }
+      }
+      return undefined;
+    };
+
+    const employmentTypeMap = {
+      'Full Time': 'Permanent',
+      'Full time': 'Permanent',
+      'Full-Time': 'Permanent',
+      'Fulltime': 'Permanent',
+      'Part Time': 'Contract',
+      'Part time': 'Contract',
+      'Part-Time': 'Contract',
+      'Contract': 'Contract',
+      'Contractual': 'Contract',
+      'Temporary': 'Temporary',
+      'Temp': 'Temporary',
+      'Probation': 'Probation',
+      'Probationary': 'Probation',
+      'Permanent': 'Permanent',
+      'Perm': 'Permanent'
+    };
+
     const results = {
       successCount: 0,
       failedCount: 0,
@@ -425,98 +590,93 @@ exports.bulkUpload = async (req, res) => {
       const row = data[i];
       
       try {
-        const employeeCode = row.EmployeeCode || row['EmployeeCode*'];
-        const firstName = row.FirstName || row['FirstName*'];
-        const lastName = row.LastName;
-        const dateOfBirth = row.DateOfBirth;
-        const gender = row.Gender || 'Male';
-        const bloodGroup = row.BloodGroup;
-        const contactPhone = row.ContactPhone;
-        const contactEmail = row.ContactEmail;
-        const dateOfJoining = row.DateOfJoining;
-        const departmentName = row.DepartmentName || row['DepartmentName*'];
-        const subDepartmentName = row.SubDepartmentName || row['SubDepartmentName*'];
-        const designationName = row.DesignationName || row['DesignationName*'];
-        const employmentType = row.EmploymentType || 'Permanent';
-        const basicSalary = row.BasicSalary || 0;
-        const hra = row.HRA || 0;
-        const allowances = row.Allowances || 0;
-        const panNumber = row.PANNumber;
-        const aadharNumber = row.AadharNumber;
-        const pfNumber = row.PFNumber;
-        const bankName = row.BankName;
-        const bankAccountNo = row.BankAccountNo;
-        const ifscCode = row.IFSCCode;
-        const accountHolderName = row.AccountHolderName;
-        const bankBranch = row.BankBranch;
-        const presentAddress = row.PresentAddress;
-        const permanentAddress = row.PermanentAddress;
-        const remarks = row.Remarks;
-        const managementStaff = row.ManagementStaff === 'Yes' ? 'Yes' : 'No';
-        const visitorsAllowed = row.VisitorsAllowed === 'Yes' ? 'Yes' : 'No';
-        const guest = row.Guest === 'Yes' ? 'Yes' : 'No';
+        const employeeCode = getColumnValue(row, 'Employee Code', 'EmployeeCode', 'EmployeeCode*', 'Employee Code*');
+        const firstName = getColumnValue(row, 'First Name', 'FirstName', 'FirstName*', 'First Name*');
+        const lastName = getColumnValue(row, 'Last Name', 'LastName');
+        const fatherName = getColumnValue(row, 'Father Name', 'FatherName');
+        const dateOfBirth = getColumnValue(row, 'Date of Birth', 'DateOfBirth');
+        const gender = getColumnValue(row, 'Gender', 'gender') || 'Male';
+        const bloodGroup = getColumnValue(row, 'Blood Group', 'BloodGroup');
+        const contactPhone = getColumnValue(row, 'Contact Phone', 'ContactPhone');
+        const contactEmail = getColumnValue(row, 'Contact Email', 'ContactEmail');
+        const dateOfJoining = getColumnValue(row, 'Date of Joining', 'DateOfJoining');
+        const departmentName = getColumnValue(row, 'Department Name', 'DepartmentName', 'Department', 'DepartmentName*', 'Department Name*');
+        const designationName = getColumnValue(row, 'Designation Name', 'DesignationName', 'Designation', 'DesignationName*', 'Designation Name*');
+        
+        let employmentType = getColumnValue(row, 'Employment Type', 'EmploymentType') || 'Permanent';
+        employmentType = employmentTypeMap[employmentType] || 'Permanent';
+        
+        const basicSalary = parseFloat(getColumnValue(row, 'Basic Salary', 'BasicSalary')) || 0;
+        const hra = parseFloat(getColumnValue(row, 'HRA', 'hra')) || 0;
+        const allowances = parseFloat(getColumnValue(row, 'Allowances', 'allowances')) || 0;
+        
+        // 🔥 FIX: Get Total Salary from CSV or auto-calculate
+        let totalSalary = parseFloat(getColumnValue(row, 'Total Salary', 'TotalSalary', 'Total Salary (₹)')) || 0;
+        
+        // Check if Total Salary column exists in the CSV
+        const hasTotalSalaryColumn = Object.keys(row).some(key => 
+          key.trim().toLowerCase() === 'total salary' || 
+          key.trim().toLowerCase() === 'totalsalary' ||
+          key.trim().toLowerCase() === 'total salary (₹)'
+        );
+        
+        // Only auto-calculate if the column doesn't exist at all
+        // If column exists, use the value from CSV (even if 0)
+        if (!hasTotalSalaryColumn) {
+          totalSalary = basicSalary + hra + allowances;
+        }
+        
+        const panNumber = getColumnValue(row, 'PAN Number', 'PANNumber');
+        const aadharNumber = getColumnValue(row, 'Aadhar Number', 'AadharNumber');
+        const pfNumber = getColumnValue(row, 'PF Number', 'PFNumber');
+        const bankName = getColumnValue(row, 'Bank Name', 'BankName');
+        const bankAccountNo = getColumnValue(row, 'Bank Account No', 'BankAccountNo', 'Account Number', 'AccountNumber');
+        const ifscCode = getColumnValue(row, 'IFSC Code', 'IFSCCode');
+        const accountHolderName = getColumnValue(row, 'Account Holder Name', 'AccountHolderName');
+        const bankBranch = getColumnValue(row, 'Bank Branch', 'BankBranch');
+        const presentAddress = getColumnValue(row, 'Present Address', 'PresentAddress');
+        const permanentAddress = getColumnValue(row, 'Permanent Address', 'PermanentAddress');
+        const remarks = getColumnValue(row, 'Remarks', 'remarks');
+        const managementStaff = getColumnValue(row, 'Management Staff', 'ManagementStaff') === 'Yes' ? 'Yes' : 'No';
+        const visitorsAllowed = getColumnValue(row, 'Visitors Allowed', 'VisitorsAllowed') === 'Yes' ? 'Yes' : 'No';
+        const guest = getColumnValue(row, 'Guest', 'guest') === 'Yes' ? 'Yes' : 'No';
 
-        // Validate required fields
-        if (!employeeCode) throw new Error('Employee Code is required');
+        if (!employeeCode) {
+          throw new Error(`Employee Code is required. Available columns: ${Object.keys(row).join(', ')}`);
+        }
         if (!firstName) throw new Error('First Name is required');
         if (!departmentName) throw new Error('Department Name is required');
 
-        // Step 1: Find department
         const department = await HrDepartment.findOne({ 
           where: { name: departmentName.trim() } 
         });
         
         if (!department) {
-          throw new Error(`Department "${departmentName}" not found. Available: Information Technology, Admin`);
+          const allDepts = await HrDepartment.findAll({ attributes: ['name'] });
+          const deptNames = allDepts.map(d => d.name);
+          throw new Error(`Department "${departmentName}" not found. Available: ${deptNames.join(', ')}`);
         }
 
-        // Step 2: Find sub-department (if provided)
-        let subDepartmentId = null;
-        if (subDepartmentName && subDepartmentName.trim()) {
-          const subDepartment = await HrSubDepartment.findOne({ 
+        let designationId = null;
+        if (designationName && designationName.trim()) {
+          const designation = await HrDesignation.findOne({ 
             where: { 
-              name: subDepartmentName.trim(),
+              name: designationName.trim(),
               department_id: department.id
             } 
           });
           
-          if (!subDepartment) {
-            throw new Error(`Sub-department "${subDepartmentName}" not found under department "${departmentName}". For IT use "Frontend", for Admin use "purchase"`);
-          }
-          subDepartmentId = subDepartment.id;
-        }
-
-        // Step 3: Find designation (if provided)
-        let designationId = null;
-        if (designationName && designationName.trim()) {
-          const whereClause = { 
-            name: designationName.trim()
-          };
-          
-          // If subDepartmentId exists, use it; otherwise try to find by department_id
-          if (subDepartmentId) {
-            whereClause.sub_department_id = subDepartmentId;
-          } else {
-            // Try to find designation directly by name (fallback)
-            const designation = await HrDesignation.findOne({ 
-              where: { name: designationName.trim() }
+          if (!designation) {
+            const allDesignations = await HrDesignation.findAll({
+              where: { department_id: department.id },
+              attributes: ['name']
             });
-            if (designation) {
-              designationId = designation.id;
-            }
+            const desigNames = allDesignations.map(d => d.name);
+            throw new Error(`Designation "${designationName}" not found in department "${departmentName}". Available: ${desigNames.join(', ') || 'No designations found'}`);
           }
-          
-          if (!designationId) {
-            const designation = await HrDesignation.findOne({ where: whereClause });
-            if (designation) {
-              designationId = designation.id;
-            } else {
-              throw new Error(`Designation "${designationName}" not found. For Frontend sub-department use "Frontend Developer", for purchase sub-department use "Manages"`);
-            }
-          }
+          designationId = designation.id;
         }
 
-        // Check existing employee
         const existingEmployee = await HrEmployee.findOne({
           where: { employeeCode: employeeCode.trim() }
         });
@@ -525,23 +685,24 @@ exports.bulkUpload = async (req, res) => {
           throw new Error(`Employee code "${employeeCode}" already exists`);
         }
 
-        // Create employee
         const employee = await HrEmployee.create({
           employeeCode: employeeCode.trim(),
           firstName: firstName.trim(),
           lastName: lastName ? lastName.trim() : '',
-          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+          fatherName: fatherName ? fatherName.trim() : '',
+          dateOfBirth: dateOfBirth ? parseDate(dateOfBirth) : null,
           gender: gender,
           bloodGroup: bloodGroup || null,
           contactPhone: contactPhone ? contactPhone.toString() : null,
           contactEmail: contactEmail || null,
-          dateOfJoining: dateOfJoining ? new Date(dateOfJoining) : null,
+          dateOfJoining: dateOfJoining ? parseDate(dateOfJoining) : null,
           designationId: designationId,
           departmentId: department.id,
           employmentType: employmentType,
-          basicSalary: parseFloat(basicSalary) || 0,
-          hra: parseFloat(hra) || 0,
-          allowances: parseFloat(allowances) || 0,
+          basicSalary: basicSalary,
+          hra: hra,
+          allowances: allowances,
+          totalSalary: totalSalary,  // ← Uses CSV value or calculated
           panNumber: panNumber ? panNumber.toUpperCase() : null,
           aadharNumber: aadharNumber ? aadharNumber.toString() : null,
           pfNumber: pfNumber ? pfNumber.toUpperCase() : null,
@@ -562,9 +723,8 @@ exports.bulkUpload = async (req, res) => {
         results.successCount++;
         results.employees.push(employee);
 
-
       } catch (err) {
-
+        console.error(`Error in row ${i + 2}:`, err.message);
         results.failedCount++;
         results.errors.push({
           row: i + 2,
@@ -574,13 +734,12 @@ exports.bulkUpload = async (req, res) => {
       }
     }
 
-    // Clean up uploaded file
     try {
       if (req.file && req.file.path && fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
       }
     } catch (unlinkError) {
-
+      // Silent fail
     }
 
     res.json({
@@ -590,20 +749,19 @@ exports.bulkUpload = async (req, res) => {
     });
 
   } catch (error) {
-
+    console.error('Bulk upload error:', error);
     if (req.file && req.file.path && fs.existsSync(req.file.path)) {
       try {
         fs.unlinkSync(req.file.path);
       } catch (unlinkError) {
-
+        // Silent fail
       }
     }
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-
-// Delete employee (soft delete - if you want to implement)
+// Delete employee (soft delete)
 exports.delete = async (req, res) => {
   try {
     const { id } = req.params;
@@ -613,7 +771,6 @@ exports.delete = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
     
-    // Delete photo if exists
     if (employee.photoUrl) {
       const photoPath = path.join(__dirname, '../../public', employee.photoUrl);
       if (fs.existsSync(photoPath)) {
@@ -625,7 +782,7 @@ exports.delete = async (req, res) => {
     
     res.json({ success: true, message: 'Employee deleted successfully' });
   } catch (error) {
-
+    console.error('Error deleting employee:', error);
     res.status(500).json({ success: false, message: 'Failed to delete employee', error: error.message });
   }
 };
@@ -650,7 +807,7 @@ exports.hardDelete = async (req, res) => {
     await employee.destroy({ force: true });
     res.json({ success: true, message: 'Employee permanently deleted' });
   } catch (error) {
-
+    console.error('Error hard deleting employee:', error);
     res.status(500).json({ success: false, message: 'Failed to permanently delete employee', error: error.message });
   }
 };
@@ -665,19 +822,24 @@ exports.exportToCSV = async (req, res) => {
       ]
     });
     
-    const csvRows = [['Employee Code', 'First Name', 'Last Name', 'Blood Group', 'Department', 'Designation', 'Phone', 'Email', 'Total Salary', 'Management Staff', 'Visitors Allowed', 'Guest', 'Status']];
+    const csvRows = [
+      ['Employee Code', 'First Name', 'Last Name', 'Father Name', 'Blood Group', 
+       'Department', 'Designation', 'Phone', 'Email', 'Total Salary', 
+       'Management Staff', 'Visitors Allowed', 'Guest', 'Status']
+    ];
     
     employees.forEach(emp => {
       csvRows.push([
         emp.employeeCode,
         emp.firstName,
         emp.lastName || '',
-        emp.bloodGroup || '', // ADDED Blood Group
+        emp.fatherName || '',
+        emp.bloodGroup || '',
         emp.department?.name || '',
         emp.designation?.name || '',
         emp.contactPhone || '',
         emp.contactEmail || '',
-        calculateTotalSalary(emp.basicSalary, emp.hra, emp.allowances),
+        emp.totalSalary || calculateTotalSalary(emp.basicSalary, emp.hra, emp.allowances),
         emp.managementStaff || 'No',
         emp.visitorsAllowed || 'No',
         emp.guest || 'No',
@@ -690,7 +852,7 @@ exports.exportToCSV = async (req, res) => {
     res.attachment(`hr_employees_${new Date().toISOString().split('T')[0]}.csv`);
     res.send(csv);
   } catch (error) {
-
+    console.error('Error exporting employees:', error);
     res.status(500).json({ success: false, message: 'Failed to export employees', error: error.message });
   }
 };

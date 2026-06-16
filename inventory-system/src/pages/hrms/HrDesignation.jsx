@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
 import Modal from "../../components/Modal";
-import { Field, Input, Toggle } from "../../components/FormFields";
-import { hrDesignationApi, hrSubDepartmentApi, hrDepartmentApi } from "../../services/inventoryApi";
+import { Field, Input } from "../../components/FormFields";
+import { hrDesignationApi, hrDepartmentApi } from "../../services/inventoryApi";
 
-const EMPTY = { subDepartmentId: "", name: "", level: "", responsibilities: "", active: true };
+const EMPTY = { departmentId: "", name: "", level: "", responsibilities: "", isActive: true };
 
 export default function HrDesignation() {
   const [designations, setDesignations] = useState([]);
-  const [subDepartments, setSubDepartments] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -16,20 +15,11 @@ export default function HrDesignation() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedDepartment, setSelectedDepartment] = useState("");
 
   useEffect(() => {
     fetchDesignations();
     fetchDepartments();
   }, []);
-
-  useEffect(() => {
-    if (selectedDepartment) {
-      fetchSubDepartments(selectedDepartment);
-    } else {
-      setSubDepartments([]);
-    }
-  }, [selectedDepartment]);
 
   async function fetchDesignations() {
     setLoading(true);
@@ -49,95 +39,59 @@ export default function HrDesignation() {
       const data = await hrDepartmentApi.getActive();
       setDepartments(data);
     } catch (err) {
-
-    }
-  }
-
-  async function fetchSubDepartments(departmentId) {
-    try {
-      const data = await hrSubDepartmentApi.getByDepartment(departmentId);
-      setSubDepartments(data);
-    } catch (err) {
-
+      console.error("Failed to fetch departments:", err);
     }
   }
 
   const filtered = designations.filter((x) =>
     x.name.toLowerCase().includes(search.toLowerCase()) ||
-    (x.subDepartmentName && x.subDepartmentName.toLowerCase().includes(search.toLowerCase())) ||
     (x.departmentName && x.departmentName.toLowerCase().includes(search.toLowerCase()))
   );
 
   function openAdd() {
     setForm({ ...EMPTY });
-    setSelectedDepartment("");
-    setSubDepartments([]);
     setModal({ mode: "add" });
   }
 
   function openEdit(row) {
-  setForm({
-    subDepartmentId: row.subDepartmentId,
-    name: row.name,
-    level: row.level || "",
-    responsibilities: row.responsibilities || "",
-    active: row.isActive,
-  });
-  setModal({ mode: "edit", id: row.id });
-  
-  // Find and set the department from the subDepartmentName
-  if (row.subDepartmentName) {
-    // Find which department this sub-department belongs to
-    // You need to fetch department ID from sub-department name
-    const findDepartment = async () => {
-      const allDepts = await hrDepartmentApi.getActive();
-      // This assumes you have a way to match sub-department to department
-      // For now, we'll fetch sub-department details
-      try {
-        const subDeptData = await hrSubDepartmentApi.getOne(row.subDepartmentId);
-        if (subDeptData && subDeptData.departmentId) {
-          setSelectedDepartment(subDeptData.departmentId);
-          fetchSubDepartments(subDeptData.departmentId);
-        }
-      } catch (err) {
+    setForm({
+      departmentId: row.departmentId || "",
+      name: row.name,
+      level: row.level || "",
+      responsibilities: row.responsibilities || "",
+      isActive: row.isActive !== undefined ? row.isActive : true,
+    });
+    setModal({ mode: "edit", id: row.id });
+  }
 
+  async function handleSave() {
+    if (!form.departmentId) return alert("Please select a department");
+    if (!form.name.trim()) return alert("Designation name is required");
+    setSaving(true);
+    try {
+      const isAdd = modal.mode === "add";
+      const payload = {
+        departmentId: parseInt(form.departmentId),
+        name: form.name.trim(),
+        level: form.level ? parseInt(form.level) : null,
+        responsibilities: form.responsibilities?.trim() || "",
+        isActive: form.isActive,
+      };
+      
+      if (isAdd) {
+        await hrDesignationApi.create(payload);
+      } else {
+        await hrDesignationApi.update(modal.id, payload);
       }
-    };
-    findDepartment();
-  }
-}
-
- async function handleSave() {
-  if (!form.subDepartmentId) return alert("Please select a sub-department");
-  if (!form.name.trim()) return alert("Designation name is required");
-  setSaving(true);
-  try {
-    const isAdd = modal.mode === "add";
-    const payload = {
-      subDepartmentId: parseInt(form.subDepartmentId),
-      name: form.name.trim(),
-      level: form.level ? parseInt(form.level) : null,
-      responsibilities: form.responsibilities?.trim() || "",
-      isActive: form.active,
-    };
-    
-    if (isAdd) {
-      await hrDesignationApi.create(payload);
-    } else {
-      await hrDesignationApi.update(modal.id, payload);
+      
+      await fetchDesignations();
+      setModal(null);
+    } catch (err) {
+      alert(err.message || "Save failed");
+    } finally {
+      setSaving(false);
     }
-    
-    // Refresh the list after save to get department and sub-department names
-    await fetchDesignations();
-    
-    setModal(null);
-    setSelectedDepartment("");
-  } catch (err) {
-    alert(err.message || "Save failed");
-  } finally {
-    setSaving(false);
   }
-}
 
   async function handleDelete(id) {
     try {
@@ -175,7 +129,7 @@ export default function HrDesignation() {
           <div className="inv-toolbar">
             <input
               className="inv-search"
-              placeholder="Search by name, sub-department or department..."
+              placeholder="Search by name or department..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -190,7 +144,6 @@ export default function HrDesignation() {
                 <tr>
                   <th>#</th>
                   <th>Department</th>
-                  <th>Sub Department</th>
                   <th>Designation</th>
                   <th>Level</th>
                   <th>Status</th>
@@ -199,15 +152,14 @@ export default function HrDesignation() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} className="inv-empty">Loading…</td></tr>
+                  <tr><td colSpan={6} className="inv-empty">Loading…</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="inv-empty">No records found</td></tr>
+                  <tr><td colSpan={6} className="inv-empty">No records found</td></tr>
                 ) : (
                   filtered.map((row, i) => (
                     <tr key={row.id}>
                       <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
                       <td>{row.departmentName || "—"}</td>
-                      <td>{row.subDepartmentName || "—"}</td>
                       <td className="inv-bold">{row.name}</td>
                       <td className="inv-muted-sm">{row.level || "—"}</td>
                       <td>
@@ -247,7 +199,6 @@ export default function HrDesignation() {
           title={modal.mode === "add" ? "Add Designation" : "Edit Designation"}
           onClose={() => {
             setModal(null);
-            setSelectedDepartment("");
           }}
           onSave={handleSave}
           saveLabel={saving ? "Saving…" : "Save"}
@@ -255,25 +206,12 @@ export default function HrDesignation() {
           <Field label="Department" required>
             <select
               className="inv-input"
-              value={selectedDepartment}
-              onChange={(e) => setSelectedDepartment(e.target.value)}
+              value={form.departmentId}
+              onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value }))}
             >
               <option value="">Select Department</option>
               {departments.map((dept) => (
                 <option key={dept.id} value={dept.id}>{dept.name} ({dept.code})</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Sub Department" required>
-            <select
-              className="inv-input"
-              value={form.subDepartmentId}
-              onChange={(e) => setForm((f) => ({ ...f, subDepartmentId: e.target.value }))}
-              disabled={!selectedDepartment}
-            >
-              <option value="">Select Sub Department</option>
-              {subDepartments.map((sub) => (
-                <option key={sub.id} value={sub.id}>{sub.name} ({sub.code})</option>
               ))}
             </select>
           </Field>
@@ -300,11 +238,20 @@ export default function HrDesignation() {
             />
           </Field>
           <Field label="Status">
-            <Toggle
-              value={form.active}
-              onChange={(v) => setForm((f) => ({ ...f, active: v }))}
-              label="Active"
-            />
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontSize: "13px", color: "#64748b" }}>Active</span>
+              <label className="inv-toggle">
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+                />
+                <span className="inv-toggle-slider"></span>
+              </label>
+              <span style={{ fontSize: "13px", color: form.isActive ? "#10b981" : "#ef4444" }}>
+                {form.isActive ? "Yes" : "No"}
+              </span>
+            </div>
           </Field>
         </Modal>
       )}

@@ -33,21 +33,21 @@ const PurchaseGRNDetail = require("./purchaseGRNDetail");
 const ConsumptionIssueDetail = require("./consumptionIssueDetail");
 
 // ========== HR Models from hrms folder ==========
-// Add this with your other requires
 const HrDepartment = require("./hrms/hrDepartment");
-const HrSubDepartment = require("./hrms/hrSubDepartment");
 const HrDesignation = require("./hrms/hrDesignation");
 const HrShift = require("./hrms/hrShift");
 const HrEmployee = require("./hrms/hrEmployeeModel");
 
+// ========== Associations ==========
 
-// Associations
+// Location Associations
 State.belongsTo(Country, { foreignKey: "countryId", as: "country" });
 Country.hasMany(State, { foreignKey: "countryId" });
 
 City.belongsTo(State, { foreignKey: "stateId", as: "state" });
 State.hasMany(City, { foreignKey: "stateId" });
 
+// Inventory Associations
 MainCategory.belongsTo(InventoryHead, { foreignKey: "headId", as: "inventoryHead" });
 InventoryHead.hasMany(MainCategory, { foreignKey: "headId" });
 
@@ -70,27 +70,56 @@ ConsumptionIssueDetail.belongsTo(ConsumptionIssue, { foreignKey: "consumptionIss
 OpeningStock.hasMany(OpeningStockDetail, { as: "details", foreignKey: "openingStockId", onDelete: "CASCADE" });
 OpeningStockDetail.belongsTo(OpeningStock, { foreignKey: "openingStockId" });
 
-// Add HR Associations
-HrSubDepartment.belongsTo(HrDepartment, { foreignKey: "departmentId", as: "department" });
-HrDepartment.hasMany(HrSubDepartment, { foreignKey: "departmentId", as: "subDepartments" });
-
-HrDesignation.belongsTo(HrSubDepartment, { foreignKey: "subDepartmentId", as: "subDepartment" });
-HrSubDepartment.hasMany(HrDesignation, { foreignKey: "subDepartmentId", as: "designations" });
-
-// Add associations
+// ========== HR Associations ==========
+// Employee belongs to Department and Designation
 HrEmployee.belongsTo(HrDepartment, { foreignKey: "departmentId", as: "department" });
 HrEmployee.belongsTo(HrDesignation, { foreignKey: "designationId", as: "designation" });
 
+// Department has many Employees
+HrDepartment.hasMany(HrEmployee, { foreignKey: "departmentId", as: "employees" });
+
+// Designation has many Employees
+HrDesignation.hasMany(HrEmployee, { foreignKey: "designationId", as: "employees" });
+
+// Designation belongs to Department (since we removed sub_department)
+HrDesignation.belongsTo(HrDepartment, { foreignKey: "department_id", as: "department" });
+HrDepartment.hasMany(HrDesignation, { foreignKey: "department_id", as: "designations" });
+
+// ========== Exports ==========
 module.exports = {
   sequelize,
-  Country, State, City, InventoryHead, Item, Department, Store, Process,
-  Uom, Make, Spec, SupplierType, Supplier, MainCategory, ItemPriceList,
-  PurchaseIndent, PurchaseIndentDetail, PurchaseOrder, PurchaseOrderDetail, PaymentTerm, 
-  PurchaseGRN, PurchaseGRNDetail, ConsumptionIssue, ConsumptionIssueDetail, 
-  OpeningStock, OpeningStockDetail, User, Role, Permission, Company,
+  Country, 
+  State, 
+  City, 
+  InventoryHead, 
+  Item, 
+  Department, 
+  Store, 
+  Process,
+  Uom, 
+  Make, 
+  Spec, 
+  SupplierType, 
+  Supplier, 
+  MainCategory, 
+  ItemPriceList,
+  PurchaseIndent, 
+  PurchaseIndentDetail, 
+  PurchaseOrder, 
+  PurchaseOrderDetail, 
+  PaymentTerm, 
+  PurchaseGRN, 
+  PurchaseGRNDetail, 
+  ConsumptionIssue, 
+  ConsumptionIssueDetail, 
+  OpeningStock, 
+  OpeningStockDetail, 
+  User, 
+  Role, 
+  Permission, 
+  Company,
   // HR Models
   HrDepartment,
-  HrSubDepartment,
   HrDesignation,
   HrShift,
   HrEmployee
