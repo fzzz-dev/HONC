@@ -1391,12 +1391,15 @@ function addPendingLinesToDetails() {
   }, 200); // Increased timeout to ensure DOM is fully updated
 }
 
-   // Filter POs for list view
+// Filter POs for list view - Search by PO No OR Supplier Name
 const filteredPosForDisplay = (pos || []).filter(po => {
-  if (searchTerm && !po?.poNo?.toLowerCase().includes(searchTerm.toLowerCase())) {
-    return false;
-  }
-  return true;
+  if (!searchTerm) return true;
+  
+  const searchLower = searchTerm.toLowerCase();
+  const poNoMatch = po?.poNo?.toLowerCase().includes(searchLower) || false;
+  const supplierMatch = po?.supplierName?.toLowerCase().includes(searchLower) || false;
+  
+  return poNoMatch || supplierMatch;
 });
 
   // 5. Conditional returns at the end
@@ -1519,7 +1522,7 @@ const filteredPosForDisplay = (pos || []).filter(po => {
             className="inv-input"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            placeholder="Type to search PO Number..."
+            placeholder="Search by PO No or Supplier Name..."
           />
         </div>
       </div>
