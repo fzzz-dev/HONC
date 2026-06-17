@@ -491,12 +491,14 @@ exports.bulkUpload = async (req, res) => {
     }
 
     let data = [];
+    let usedSheetName = '';
     const fileExt = path.extname(req.file.originalname).toLowerCase();
     
     try {
       if (fileExt === '.csv') {
         let csvData = fs.readFileSync(req.file.path, 'utf8');
         
+        // Remove BOM if present
         if (csvData.charCodeAt(0) === 0xFEFF) {
           csvData = csvData.slice(1);
         }
@@ -521,14 +523,82 @@ exports.bulkUpload = async (req, res) => {
             data.push(row);
           }
         }
+        usedSheetName = 'CSV File';
       } else {
+        // For Excel files - handle multiple sheets
         const workbook = XLSX.readFile(req.file.path, { 
           cellDates: false,
           raw: true
         });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
+        
+        const sheetNames = workbook.SheetNames;
+        console.log(`📊 Found ${sheetNames.length} sheets:`, sheetNames);
+        
+        // Strategy 1: Look for Employee Master sheet (priority order)
+        const prioritySheets = [
+          'Employee Master', 
+          'EmployeeMaster', 
+          'employee_master',
+          'Employees',
+          'Employee Data',
+          'Master Data'
+        ];
+        
+        let selectedSheet = null;
+        
+        // Check priority sheets first
+        for (const priority of prioritySheets) {
+          const found = sheetNames.find(name => 
+            name.toLowerCase().trim() === priority.toLowerCase().trim()
+          );
+          if (found) {
+            selectedSheet = found;
+            break;
+          }
+        }
+        
+        // If no priority sheet found, try case-insensitive search
+        if (!selectedSheet) {
+          const lowerSheetNames = sheetNames.map(name => name.toLowerCase());
+          const employeeKeywords = ['employee', 'master', 'staff', 'personnel', 'hr'];
+          
+          for (const keyword of employeeKeywords) {
+            const found = sheetNames.find(name => 
+              name.toLowerCase().includes(keyword)
+            );
+            if (found) {
+              selectedSheet = found;
+              break;
+            }
+          }
+        }
+        
+        // If still no sheet found, use the first sheet
+        if (!selectedSheet) {
+          selectedSheet = sheetNames[0];
+        }
+        
+        const worksheet = workbook.Sheets[selectedSheet];
         data = XLSX.utils.sheet_to_json(worksheet);
+        usedSheetName = selectedSheet;
+        
+        console.log(`📊 Using sheet: "${selectedSheet}" with ${data.length} rows`);
+        
+        // If no data found in selected sheet, try the next sheet
+        if (data.length === 0 && sheetNames.length > 1) {
+          for (const name of sheetNames) {
+            if (name !== selectedSheet) {
+              const ws = workbook.Sheets[name];
+              const wsData = XLSX.utils.sheet_to_json(ws);
+              if (wsData && wsData.length > 0) {
+                data = wsData;
+                usedSheetName = name;
+                console.log(`📊 Using fallback sheet: "${name}" with ${data.length} rows`);
+                break;
+              }
+            }
+          }
+        }
       }
     } catch (parseError) {
       console.error('Parse error:', parseError);
@@ -542,10 +612,11 @@ exports.bulkUpload = async (req, res) => {
     if (!data || data.length === 0) {
       return res.status(400).json({ 
         success: false, 
-        message: 'No data found in the uploaded file.' 
+        message: `No data found in the uploaded file. ${usedSheetName ? `Checked sheet: "${usedSheetName}"` : ''}` 
       });
     }
 
+    // Helper function to get column value by multiple possible names
     const getColumnValue = (row, ...possibleNames) => {
       for (const name of possibleNames) {
         if (row[name] !== undefined && row[name] !== '') {
@@ -561,6 +632,7 @@ exports.bulkUpload = async (req, res) => {
       return undefined;
     };
 
+    // Employment Type Mapping
     const employmentTypeMap = {
       'Full Time': 'Permanent',
       'Full time': 'Permanent',
@@ -583,13 +655,16 @@ exports.bulkUpload = async (req, res) => {
       successCount: 0,
       failedCount: 0,
       errors: [],
-      employees: []
+      employees: [],
+      sheetUsed: usedSheetName,
+      totalRows: data.length
     };
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
       
       try {
+        // Get values from CSV with flexible column mapping
         const employeeCode = getColumnValue(row, 'Employee Code', 'EmployeeCode', 'EmployeeCode*', 'Employee Code*');
         const firstName = getColumnValue(row, 'First Name', 'FirstName', 'FirstName*', 'First Name*');
         const lastName = getColumnValue(row, 'Last Name', 'LastName');
@@ -600,8 +675,8 @@ exports.bulkUpload = async (req, res) => {
         const contactPhone = getColumnValue(row, 'Contact Phone', 'ContactPhone');
         const contactEmail = getColumnValue(row, 'Contact Email', 'ContactEmail');
         const dateOfJoining = getColumnValue(row, 'Date of Joining', 'DateOfJoining');
-        const departmentName = getColumnValue(row, 'Department Name', 'DepartmentName', 'Department', 'DepartmentName*', 'Department Name*');
-        const designationName = getColumnValue(row, 'Designation Name', 'DesignationName', 'Designation', 'DesignationName*', 'Designation Name*');
+        const departmentName = getColumnValue(row, 'Department', 'DepartmentName', 'Department Name', 'DepartmentName*');
+        const designationName = getColumnValue(row, 'Designation', 'DesignationName', 'Designation Name', 'DesignationName*');
         
         let employmentType = getColumnValue(row, 'Employment Type', 'EmploymentType') || 'Permanent';
         employmentType = employmentTypeMap[employmentType] || 'Permanent';
@@ -610,18 +685,15 @@ exports.bulkUpload = async (req, res) => {
         const hra = parseFloat(getColumnValue(row, 'HRA', 'hra')) || 0;
         const allowances = parseFloat(getColumnValue(row, 'Allowances', 'allowances')) || 0;
         
-        // 🔥 FIX: Get Total Salary from CSV or auto-calculate
+        // Get Total Salary from CSV or auto-calculate
         let totalSalary = parseFloat(getColumnValue(row, 'Total Salary', 'TotalSalary', 'Total Salary (₹)')) || 0;
         
-        // Check if Total Salary column exists in the CSV
         const hasTotalSalaryColumn = Object.keys(row).some(key => 
           key.trim().toLowerCase() === 'total salary' || 
           key.trim().toLowerCase() === 'totalsalary' ||
           key.trim().toLowerCase() === 'total salary (₹)'
         );
         
-        // Only auto-calculate if the column doesn't exist at all
-        // If column exists, use the value from CSV (even if 0)
         if (!hasTotalSalaryColumn) {
           totalSalary = basicSalary + hra + allowances;
         }
@@ -641,12 +713,14 @@ exports.bulkUpload = async (req, res) => {
         const visitorsAllowed = getColumnValue(row, 'Visitors Allowed', 'VisitorsAllowed') === 'Yes' ? 'Yes' : 'No';
         const guest = getColumnValue(row, 'Guest', 'guest') === 'Yes' ? 'Yes' : 'No';
 
+        // Validate required fields
         if (!employeeCode) {
           throw new Error(`Employee Code is required. Available columns: ${Object.keys(row).join(', ')}`);
         }
         if (!firstName) throw new Error('First Name is required');
         if (!departmentName) throw new Error('Department Name is required');
 
+        // Find department
         const department = await HrDepartment.findOne({ 
           where: { name: departmentName.trim() } 
         });
@@ -657,6 +731,7 @@ exports.bulkUpload = async (req, res) => {
           throw new Error(`Department "${departmentName}" not found. Available: ${deptNames.join(', ')}`);
         }
 
+        // Find designation
         let designationId = null;
         if (designationName && designationName.trim()) {
           const designation = await HrDesignation.findOne({ 
@@ -677,6 +752,7 @@ exports.bulkUpload = async (req, res) => {
           designationId = designation.id;
         }
 
+        // Check existing employee
         const existingEmployee = await HrEmployee.findOne({
           where: { employeeCode: employeeCode.trim() }
         });
@@ -685,6 +761,7 @@ exports.bulkUpload = async (req, res) => {
           throw new Error(`Employee code "${employeeCode}" already exists`);
         }
 
+        // Create employee
         const employee = await HrEmployee.create({
           employeeCode: employeeCode.trim(),
           firstName: firstName.trim(),
@@ -702,7 +779,7 @@ exports.bulkUpload = async (req, res) => {
           basicSalary: basicSalary,
           hra: hra,
           allowances: allowances,
-          totalSalary: totalSalary,  // ← Uses CSV value or calculated
+          totalSalary: totalSalary,
           panNumber: panNumber ? panNumber.toUpperCase() : null,
           aadharNumber: aadharNumber ? aadharNumber.toString() : null,
           pfNumber: pfNumber ? pfNumber.toUpperCase() : null,
@@ -734,6 +811,7 @@ exports.bulkUpload = async (req, res) => {
       }
     }
 
+    // Clean up uploaded file
     try {
       if (req.file && req.file.path && fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
@@ -744,7 +822,7 @@ exports.bulkUpload = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Processed ${data.length} records. ${results.successCount} successful, ${results.failedCount} failed.`,
+      message: `Processed ${data.length} records from sheet "${usedSheetName}". ${results.successCount} successful, ${results.failedCount} failed.`,
       data: results
     });
 
