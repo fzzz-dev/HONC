@@ -288,6 +288,7 @@ const getAllPurchaseOrders = async (req, res) => {
         po.poType AS potype,
         po.transportCharges AS transportCharges,
         po.totalAmount AS totalAmount,
+        po.status AS status,  
         pi.indentNo AS indentNo,
         i.itemName AS itemName,
         u.name AS uom,
@@ -318,7 +319,7 @@ const getAllPurchaseOrders = async (req, res) => {
       data: results
     });
   } catch (error) {
-
+    console.error('Error in getAllPurchaseOrders:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -343,6 +344,7 @@ const getPurchaseOrderById = async (req, res) => {
         pod.discPrice AS discPrice,
         pod.totGst AS totGst,
         pod.totalAmount AS totalAmount,
+        po.status AS status,
         po.level1Approved AS level1Approved,
         po.level1ApprovedBy AS level1ApprovedBy,
         po.level1ApprovedDate AS level1ApprovedDate,

@@ -260,6 +260,7 @@ router.get('/purchase-order-report', async (req, res) => {
         po.supplierName AS supplier,
         po.deliveryDate AS deliverydate,
         po.poType AS potype,
+        po.status AS status,  -- 🔥 ADDED
         po.transportCharges AS transportCharges,
         po.totalAmount AS totalAmount,
         pod.indentNo,
@@ -313,10 +314,10 @@ router.get('/purchase-order-report', async (req, res) => {
       count: results.length
     });
   } catch (error) {
-
+    console.error('Error in purchase-order-report:', error);
     res.status(500).json({ success: false, message: error.message });
   }
-}); 
+});
 
 router.get('/purchase-order-report/export/csv', async (req, res) => {
   try {
@@ -329,6 +330,7 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
         po.supplierName AS 'Supplier',
         po.deliveryDate AS 'Delivery Date',
         po.poType AS 'PO Type',
+        po.status AS 'Status',  -- 🔥 ADDED
         po.transportCharges AS 'Transport Charges',
         po.totalAmount AS 'PO Total Amount',
         pod.indentNo AS 'Indent No',
@@ -375,7 +377,7 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
     
     const [results] = await sequelize.query(query, { replacements });
     
-    const headers = ['PO Number', 'PO Date', 'Supplier', 'Delivery Date', 'PO Type', 'Transport Charges', 'PO Total Amount', 'Indent No', 'Item Name', 'UOM', 'PO Qty', 'Rate', 'Discount', 'GST', 'Item Total Amount'];
+    const headers = ['PO Number', 'PO Date', 'Supplier', 'Delivery Date', 'PO Type', 'Status', 'Transport Charges', 'PO Total Amount', 'Indent No', 'Item Name', 'UOM', 'PO Qty', 'Rate', 'Discount', 'GST', 'Item Total Amount'];
     const csvRows = [headers.join(',')];
     
     const formatDate = (dateValue) => {
@@ -399,6 +401,7 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
         `"${(row['Supplier'] || '').toString().replace(/"/g, '""')}"`,
         `"${formatDate(row['Delivery Date'])}"`,
         `"${(row['PO Type'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['Status'] || '').toString().replace(/"/g, '""')}"`,  // 🔥 ADDED
         row['Transport Charges'] || 0,
         row['PO Total Amount'] || 0,
         `"${(row['Indent No'] || '').toString().replace(/"/g, '""')}"`,
@@ -419,7 +422,7 @@ router.get('/purchase-order-report/export/csv', async (req, res) => {
     res.send(BOM + csvRows.join('\n'));
     
   } catch (error) {
-
+    console.error('Error in purchase-order-report/export/csv:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

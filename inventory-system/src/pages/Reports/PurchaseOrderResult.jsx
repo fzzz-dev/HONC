@@ -81,7 +81,7 @@ export default function PurchaseOrderReportPage() {
           setAllSuppliers(sortedSuppliers);
         }
       } catch (err) {
-
+        console.error('Error fetching suppliers:', err);
       }
     };
     
@@ -110,7 +110,7 @@ export default function PurchaseOrderReportPage() {
         setFiltersApplied(false);
       }
     } catch (err) {
-
+      console.error('Error fetching report:', err);
       setError(err.message);
       setFiltersApplied(false);
     } finally {
@@ -168,8 +168,6 @@ export default function PurchaseOrderReportPage() {
   const groupedData = useMemo(() => {
     const groups = {};
     reportData.forEach(item => {
-
-      
       if (!groups[item.ponumber]) {
         groups[item.ponumber] = {
           poNo: item.ponumber,
@@ -177,13 +175,13 @@ export default function PurchaseOrderReportPage() {
           supplier: item.supplier,
           deliveryDate: item.deliverydate,
           poType: item.potype,
+          status: item.status,  // ← ADDED STATUS
           transportCharges: Number(item.transportCharges) || 0,
           totalAmount: Number(item.totalAmount) || 0,
           totalQty: 0,
           totalItems: 0,
           items: []
         };
-
       }
       
       groups[item.ponumber].items.push({
@@ -201,8 +199,6 @@ export default function PurchaseOrderReportPage() {
       groups[item.ponumber].totalItems += 1;
     });
     
-
-    
     return Object.values(groups).sort((a, b) => {
       if (!a.poDate && !b.poDate) return 0;
       if (!a.poDate) return 1;
@@ -210,36 +206,6 @@ export default function PurchaseOrderReportPage() {
       return new Date(b.poDate) - new Date(a.poDate);
     });
   }, [reportData]);
-
-  // Keyboard navigation for Arrow keys on PO rows
-  {/*useEffect(() => {
-    const handleKeyNavigation = (e) => {
-      const mainRows = document.querySelectorAll('.po-main-row');
-      const currentElement = document.activeElement;
-      const currentIndex = Array.from(mainRows).indexOf(currentElement);
-      
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (currentIndex < mainRows.length - 1) {
-          mainRows[currentIndex + 1].focus();
-        } else {
-          mainRows[0].focus();
-        }
-      }
-      
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (currentIndex > 0) {
-          mainRows[currentIndex - 1].focus();
-        } else {
-          mainRows[mainRows.length - 1].focus();
-        }
-      }
-    };
-    
-    document.addEventListener('keydown', handleKeyNavigation);
-    return () => document.removeEventListener('keydown', handleKeyNavigation);
-  }, [groupedData]);*/}
 
   // Tab index navigation - CYCLES BACK TO FIRST
   useEffect(() => {
@@ -414,6 +380,7 @@ export default function PurchaseOrderReportPage() {
                   <th>Supplier</th>
                   <th>Delivery Date</th>
                   <th>PO Type</th>
+                  <th>Status</th>  {/* ← NEW COLUMN */}
                   <th style={{ textAlign: "right" }}>Total Items</th>
                   <th style={{ textAlign: "right" }}>Total Qty</th>
                   <th style={{ textAlign: "right" }}>Total Amount</th>
@@ -447,6 +414,16 @@ export default function PurchaseOrderReportPage() {
                         <td>{po.supplier || "—"}</td>
                         <td>{po.deliveryDate || "—"}</td>
                         <td>{po.poType || "—"}</td>
+                        <td>
+                          <span className={`inv-badge ${
+                            po.status === 'Open' ? 'inv-badge-yes' : 
+                            po.status === 'Closed' ? 'inv-badge-no' :
+                            po.status === 'Partial' ? 'inv-badge-warning' : 
+                            'inv-badge-no'
+                          }`}>
+                            {po.status || "—"}
+                          </span>
+                        </td>  {/* ← NEW COLUMN */}
                         <td style={{ textAlign: "right" }}>{po.totalItems}</td>
                         <td style={{ textAlign: "right", fontWeight: 500 }}>{fmtQty(po.totalQty)}</td>
                         <td style={{ textAlign: "right", fontWeight: 500, color: "#10b981" }}>{fmt(po.totalAmount)}</td>
@@ -455,7 +432,7 @@ export default function PurchaseOrderReportPage() {
                       {/* Expanded Items Row */}
                       {isExpanded && (
                         <tr style={{ backgroundColor: "#fafafa" }}>
-                          <td colSpan={9} style={{ padding: 0 }}>
+                          <td colSpan={10} style={{ padding: 0 }}>  {/* ← Updated colSpan from 9 to 10 */}
                             <table className="inv-table" style={{ 
                               margin: 0, 
                               width: "100%", 
