@@ -99,32 +99,42 @@ export default function EmployeeReportPage() {
   }, [selectedDepartment]);
 
   // Fetch report data
-  const fetchReport = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = {};
-      if (searchTerm) params.searchTerm = searchTerm;
-      if (selectedDepartment) params.departmentId = selectedDepartment;
-      if (selectedDesignation) params.designationId = selectedDesignation;
-      
-      const result = await reportAPI.getEmployeeReport(params);
-      if (result.success) {
-        setReportData(result.data || []);
-        setFiltersApplied(true);
-      } else {
-        setError(result.message || "Failed to fetch report");
-        setFiltersApplied(false);
-      }
-    } catch (err) {
-      console.error('Error fetching report:', err);
-      setError(err.message || "Network error occurred");
+const fetchReport = useCallback(async () => {
+  setLoading(true);
+  setError(null);
+  try {
+    const params = {};
+    if (searchTerm) params.searchTerm = searchTerm;
+    if (selectedDepartment) params.departmentId = selectedDepartment;
+    if (selectedDesignation) params.designationId = selectedDesignation;
+    
+    const result = await reportAPI.getEmployeeReport(params);
+    if (result.success) {
+      // Sort by id ascending (oldest first = upload order)
+      const sortedData = [...(result.data || [])].sort((a, b) => {
+        // Sort by id if available (most reliable)
+        if (a.id && b.id) {
+          return a.id - b.id;
+        }
+        // Fallback to created_at
+        const dateA = new Date(a.created_at || a.createdAt || 0);
+        const dateB = new Date(b.created_at || b.createdAt || 0);
+        return dateA - dateB;
+      });
+      setReportData(sortedData);
+      setFiltersApplied(true);
+    } else {
+      setError(result.message || "Failed to fetch report");
       setFiltersApplied(false);
-    } finally {
-      setLoading(false);
     }
-  }, [searchTerm, selectedDepartment, selectedDesignation]);
-
+  } catch (err) {
+    console.error('Error fetching report:', err);
+    setError(err.message || "Network error occurred");
+    setFiltersApplied(false);
+  } finally {
+    setLoading(false);
+  }
+}, [searchTerm, selectedDepartment, selectedDesignation]);
   // Auto-fetch on component mount
   useEffect(() => {
     fetchReport();
