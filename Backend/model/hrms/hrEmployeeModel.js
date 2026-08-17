@@ -3,7 +3,7 @@ const sequelize = require('../../config/database');
 
 const HrEmployee = sequelize.define('HrEmployee', {
   id: {
-    type: DataTypes.BIGINT.UNSIGNED,
+    type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true
   },
@@ -49,11 +49,11 @@ const HrEmployee = sequelize.define('HrEmployee', {
     field: 'date_of_joining'
   },
   designationId: {
-    type: DataTypes.BIGINT.UNSIGNED,
+    type: DataTypes.INTEGER,
     field: 'designation_id'
   },
   departmentId: {
-    type: DataTypes.BIGINT.UNSIGNED,
+    type: DataTypes.INTEGER,
     field: 'department_id'
   },
   employmentType: {
