@@ -17,11 +17,15 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Create database if not exists
 async function ensureDatabaseExists() {
+  console.log("DB_HOST =", process.env.DB_HOST);
+  console.log("DB_USER =", process.env.DB_USER);
+  console.log("DB_PASSWORD =", process.env.DB_PASSWORD);
+  console.log("DB_NAME =", process.env.DB_NAME);
   const mysql = require("mysql2/promise");
   const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || "localhost",
+    host: process.env.DB_HOST || "127.0.0.1",
     user: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD,
+    password: process.env.DB_PASSWORD || "",
   });
 
   await connection.query(
@@ -234,14 +238,15 @@ async function startServer() {
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
-
-
+      console.log(`Server is running on port ${PORT}`);
 
     });
   } catch (err) {
 
+    console.error("Server Error:", err);
     process.exit(1);
   }
 }
 
 startServer();
+
