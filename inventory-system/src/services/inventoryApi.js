@@ -389,5 +389,4 @@ export const hrEmployeeApi = {
     return data;
   }
 };
-
  
