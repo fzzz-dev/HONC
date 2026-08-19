@@ -211,6 +211,13 @@ async function startServer() {
     app.use("/api/hr/employees", require("./routes/hrms/hrEmployeeRoutes"));
     app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
     app.use("/api/issue-types", require("./routes/issueTypeRoutes")); 
+
+    // ========== PRODUCTION MASTER ROUTES (NEW) ==========
+    app.use("/api/production-masters/colors", require("./routes/ProductionMasters/colorRoutes"));
+    app.use("/api/production-masters/counts", require("./routes/ProductionMasters/countsRoutes"));
+    app.use("/api/production-masters/yarn-types", require("./routes/ProductionMasters/yarnTypeRoutes"));
+    app.use("/api/production-masters/mills", require("./routes/ProductionMasters/millRoutes"));
+    app.use("/api/production-masters/processes", require("./routes/ProductionMasters/processRoutes"));
     
 
 

@@ -39,12 +39,12 @@ export default function HomePage() {
           animation: 'logoFloat 4s ease-in-out infinite'
         }}>
           <img
-            src="/logo-full.png"
-            alt="HONC Logo"
+            src="/Fiosun-logo-full.png"
+            alt="Fiosun Logo"
             style={{
               width: '140px',
               height: 'auto',
-              borderRadius: '0px',
+              borderRadius: '1px',
               display: 'block'
             }}
           />
@@ -68,7 +68,7 @@ export default function HomePage() {
             maxWidth: '500px',
             margin: '0 auto'
           }}>
-            Honc ERP System
+            Fiosun ERP System
           </p>
         </div>
 

@@ -38,6 +38,12 @@ const HrDesignation = require("./hrms/hrDesignation");
 const HrShift = require("./hrms/hrShift");
 const HrEmployee = require("./hrms/hrEmployeeModel");
 
+const Color = require("./productionMasters/Color");
+const Counts = require("./productionMasters/Counts");
+const YarnType = require("./productionMasters/YarnType");
+const Mill = require("./productionMasters/Mill");
+const ProductionProcess = require("./productionMasters/Process");
+
 // ========== Associations ==========
 
 // Location Associations
@@ -122,5 +128,11 @@ module.exports = {
   HrDepartment,
   HrDesignation,
   HrShift,
-  HrEmployee
+  HrEmployee,
+   // Production Models (NEW)
+  Color,
+  Counts,
+  YarnType,
+  Mill,
+  ProductionProcess,
 };
