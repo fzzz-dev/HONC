@@ -16,13 +16,22 @@ const sid = (v) => {
   return String(v);
 };
 
+const toTitleCase = (str) => {
+  if (!str) return "";
+  return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
 const emptyDetail = () => ({
   _rowId: Math.random(),
   colour: "",
   counts: "",
   yarnType: "",
-  orderQty: "0.000",
-  exShadeNo: ""
+  mill: "",
+  grnQty: "0.000",
+  phyQty: "0.000",
+  diffQty: "0.000",
+  noBags: "",
+  notes: ""
 });
 
 const emptyHeader = () => ({
@@ -30,9 +39,10 @@ const emptyHeader = () => ({
   date: getTodayDate(),
   customer: "",
   customerName: "",
-  enqRefNo: "",
-  refDate: "",
+  pdcNo: "",
+  pdcDate: "",
   styleRefNo: "",
+  vehicleNo: "",
   preparedBy: "",
   remarks: ""
 });
@@ -48,13 +58,32 @@ const Field = ({ label, children, horizontal = true }) => (
   </div>
 );
 
-export default function SalesOrder() {
+// Temporary Frontend Generator
+const getFinancialYear = () => {
+  const now = new Date();
+
+  const year =
+    now.getMonth() >= 3
+      ? now.getFullYear()
+      : now.getFullYear() - 1;
+
+  return `${String(year).slice(-2)}-${String(year + 1).slice(-2)}`;
+};
+
+let tempRunningNo = 0;
+
+const generateTempDocId = () => {
+  return `YRN/${String(tempRunningNo++)
+    .padStart(5, "0")}/${getFinancialYear()}`;
+};
+export default function YarnInward() {
   const { user } = useAuth();
   const [suppliers, setSuppliers] = useState([]);
   const [colors, setColors] = useState([]);
   const [counts, setCounts] = useState([]);
   const [yarnTypes, setYarnTypes] = useState([]);
-  const [salesOrders, setSalesOrders] = useState([]);
+  const [mills, setMills] = useState([]);
+  const [yarnInwards, setYarnInwards] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState(null);
   const [view, setView] = useState("form");
@@ -67,6 +96,7 @@ export default function SalesOrder() {
   const [formError, setFormError] = useState(null);
   const [lookupsLoaded, setLookupsLoaded] = useState(false);
 
+  // Refs for tab flow
   const addButtonRef = useRef(null);
   const viewListButtonRef = useRef(null);
   const saveButtonRef = useRef(null);
@@ -74,14 +104,17 @@ export default function SalesOrder() {
 
   useEffect(() => {
     loadLookups();
-    loadSalesOrders();
+    loadYarnInwards();
     openNew();
   }, []);
 
+  // Initial focus on tabIndex=1 when page loads
   useEffect(() => {
     setTimeout(() => {
       const firstField = document.querySelector('[tabIndex="1"]');
-      if (firstField) firstField.focus();
+      if (firstField) {
+        firstField.focus();
+      }
     }, 100);
   }, []);
 
@@ -119,44 +152,47 @@ export default function SalesOrder() {
     };
 
     document.addEventListener('keydown', handleTabKey);
-    return () => document.removeEventListener('keydown', handleTabKey);
+    return () => {
+      document.removeEventListener('keydown', handleTabKey);
+    };
   }, [details.length]);
 
   async function loadLookups() {
     try {
-      const [
-        suppliersData,
-        colorsData,
-        countsData,
-        yarnTypesData,
-      ] = await Promise.all([
-        supplierApi.getAll(),
-        productionApi.color.getActive(),
-        productionApi.counts.getActive(),
-        productionApi.yarnType.getActive(),
-      ]);
+       const [
+  suppliersData,
+  colorsData,
+  countsData,
+  yarnTypesData,
+  millsData
+] = await Promise.all([
+  supplierApi.getAll(),
+  productionApi.color.getAll(),
+  productionApi.counts.getAll(),
+  productionApi.yarnType.getAll(),
+  productionApi.mill.getAll()   // or productionApi.mills.getAll()
+]);
 
       setSuppliers(suppliersData || []);
       setColors(colorsData || []);
       setCounts(countsData || []);
       setYarnTypes(yarnTypesData || []);
-
+      setMills(millsData || []);
       setLookupsLoaded(true);
+
     } catch (e) {
       console.error(e);
-
       setLookupsLoaded(true);
     }
   }
 
-
-  async function loadSalesOrders() {
+  async function loadYarnInwards() {
     setLoadingList(true);
     try {
       // TODO: Replace with actual API call when backend is ready
-      // const data = await salesOrderApi.getAll();
-      // setSalesOrders(data);
-      setSalesOrders([]);
+      // const data = await enquiryApi.getAll();
+      // setEnquiries(data);
+      setYarnInwards([]);
     } catch (e) {
       setListError(e.message);
     } finally {
@@ -168,32 +204,44 @@ export default function SalesOrder() {
     setHeader({
       ...emptyHeader(),
       preparedBy: user?.name || "Admin",
-      docId: "SO-" + String(Date.now()).slice(-6)
+      docId: generateTempDocId() // Temporary auto-generation
     });
     setDetails([emptyDetail()]);
     setEditId(null);
     setView("form");
   }
 
-  function openEdit(salesOrder) {
-    setEditId(sid(salesOrder));
+  function openEdit(yarnInward) {
+    // TODO: Implement edit when backend is ready
+    setEditId(sid(yarnInward));
     setHeader({
-      ...salesOrder,
-      customer: sid(salesOrder.customer),
-      customerName: salesOrder.customerName || "",
+      ...yarnInward,
+      customer: sid(yarnInward.customer),
+      customerName: yarnInward.customerName || "",
     });
-    setDetails(salesOrder.details || [emptyDetail()]);
+    setDetails(yarnInward.details || [emptyDetail()]);
     setView("form");
   }
 
   function updateDetail(idx, field, val) {
     setDetails(prev => {
       const rows = [...prev];
-      rows[idx] = { ...rows[idx], [field]: val };
+
+      rows[idx] = {
+        ...rows[idx],
+        [field]: val
+      };
+
+      if (field === "grnQty" || field === "phyQty") {
+        const grn = Number(rows[idx].grnQty || 0);
+        const phy = Number(rows[idx].phyQty || 0);
+
+        rows[idx].diffQty = (grn - phy).toFixed(3);
+      }
+
       return rows;
     });
   }
-
   function addRow() {
     setDetails(prev => [...prev, { ...emptyDetail(), _rowId: Math.random() }]);
   }
@@ -205,12 +253,17 @@ export default function SalesOrder() {
   const handleSave = useCallback(async () => {
     if (!header.docId.trim()) return setFormError("Doc ID is required");
     if (!header.customer) return setFormError("Customer is required");
+    if (!header.pdcNo.trim())return setFormError("PDC No is required");
+    if (!header.pdcDate)return setFormError("PDC Date is required");
 
     for (const row of details) {
       if (!row.colour.trim()) return setFormError("Colour is required");
       if (!row.counts.trim()) return setFormError("Counts is required");
       if (!row.yarnType.trim()) return setFormError("Yarn Type is required");
-      if (Number(row.orderQty) <= 0) return setFormError("Order Quantity is required");
+      if (!row.Mill.trim())return setFormError("Mill is required");
+      if (Number(row.grnQty) <= 0)return setFormError("GRN Qty is required");
+      if (Number(row.phyQty) <= 0)return setFormError("PHY Qty is required");
+      if (!row.noBags)return setFormError("No. Bags is required");
     }
 
     const confirmSave = window.confirm("Do you want to save this record?");
@@ -237,12 +290,12 @@ export default function SalesOrder() {
     try {
       // TODO: Replace with actual API call when backend is ready
       // if (editId) {
-      //   await salesOrderApi.update(editId, payload);
+      //   await enquiryApi.update(editId, payload);
       // } else {
-      //   await salesOrderApi.create(payload);
+      //   await enquiryApi.create(payload);
       // }
-      console.log("Saving sales order:", payload);
-      await loadSalesOrders();
+      console.log("Saving Yarn Inward:", payload);
+      await loadYarnInwards();
       setSaveSuccessModal(true);
       setTimeout(() => {
         setSaveSuccessModal(false);
@@ -266,28 +319,38 @@ export default function SalesOrder() {
       }
     };
     document.addEventListener("keydown", listener);
-    return () => document.removeEventListener("keydown", listener);
+    return () => {
+      document.removeEventListener("keydown", listener);
+    };
   }, [handleSave, view]);
 
   async function handleDelete(id) {
-    if (!window.confirm("Delete this sales order?")) return;
+    if (!window.confirm("Delete this Yarn Inward?")) return;
     try {
       // TODO: Replace with actual API call when backend is ready
-      // await salesOrderApi.remove(id);
-      await loadSalesOrders();
+      // await enquiryApi.remove(id);
+      await loadYarnInwards();
     } catch (err) {
       alert(err.message);
     }
   }
 
-  const totalQty = details.reduce((s, r) => s + Number(r.orderQty || 0), 0);
+  const totalQty = details.reduce(
+    (sum, row) => sum + Number(row.diffQty || 0),
+    0
+  );
+  const totalBags = details.reduce(
+    (sum, row) => sum + Number(row.noBags || 0),
+    0
+  );
   const totalItems = details.filter(d => d.colour.trim()).length;
 
   const displayDetails = details;
 
+  // ─── Tab Index Calculation ───────────────────────────────────────────────────
   const getTabIndex = (rowIndex, fieldOffset, totalRows) => {
-    const headerFieldsCount = 6;
-    const fieldsPerRow = 5;
+    const headerFieldsCount = 6; // tabs 1-6 for header
+    const fieldsPerRow = 5; // Colour, Counts, Yarn Type, Enq Qty, Ex.shade No
     const rowStartTab = headerFieldsCount + (rowIndex * fieldsPerRow) + 1;
     return rowStartTab + fieldOffset;
   };
@@ -309,6 +372,7 @@ export default function SalesOrder() {
   const viewListTabIndex = getViewListTabIndex(totalRows);
   const saveTabIndex = getSaveTabIndex(totalRows);
 
+  // Focus on new row's Colour field when a row is added
   useEffect(() => {
     if (prevDetailsLengthRef.current === undefined) {
       prevDetailsLengthRef.current = details.length;
@@ -322,7 +386,9 @@ export default function SalesOrder() {
         const lastRowIndex = displayDetails.length - 1;
         const colourFieldTabIndex = getTabIndex(lastRowIndex, 0, displayDetails.length);
         const colourField = document.querySelector(`[tabIndex="${colourFieldTabIndex}"]`);
-        if (colourField) colourField.focus();
+        if (colourField) {
+          colourField.focus();
+        }
       }, 100);
     }
 
@@ -333,21 +399,21 @@ export default function SalesOrder() {
   // LIST VIEW
   // ─────────────────────────────────────────────────────────────────────────────
   if (view === "list") {
-    const filteredSalesOrders = salesOrders.filter(so =>
-      so.docId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      so.customerName?.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredYarnInwards = yarnInwards.filter(enq =>
+      enq.docId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      enq.customerName?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
       <div className="inv-page">
         <div className="inv-page-header">
           <div>
-            <h1 className="inv-page-title">Sales Orders</h1>
-            <p className="inv-page-sub">Manage customer sales orders</p>
+            <h1 className="inv-page-title">Yarn-Inwards</h1>
+            <p className="inv-page-sub">Manage customer enquiries</p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="inv-btn-secondary" onClick={() => alert("Export to Excel")}>Export to Excel</button>
-            <button className="inv-btn-primary" onClick={openNew}>+ New Sales Order</button>
+            <button className="inv-btn-primary" onClick={openNew}>+ New Yarn INward</button>
           </div>
         </div>
 
@@ -356,7 +422,7 @@ export default function SalesOrder() {
         <div className="inv-card" style={{ marginBottom: 16 }}>
           <div className="inv-card-body">
             <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
-              <label className="inv-label">Search Sales Order</label>
+              <label className="inv-label">Search Yarn Receipt </label>
               <input
                 className="inv-input"
                 value={searchTerm}
@@ -379,34 +445,44 @@ export default function SalesOrder() {
                     <th>Doc ID</th>
                     <th>Date</th>
                     <th>Customer</th>
-                    <th>Style Ref No</th>
+                    <th>PDC No</th>
+                    <th>PDC Date</th>
                     <th>Total Qty</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSalesOrders.length === 0 ? (
+                  {filteredYarnInwards.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: "center", padding: 40 }}>No records found</td>
+                      <td colSpan={8} style={{ textAlign: "center", padding: 40 }}>No records found</td>
                     </tr>
                   ) : (
-                    filteredSalesOrders.map((so, i) => (
-                      <tr key={sid(so)}>
+                    filteredYarnInwards.map((enq, i) => (
+                      <tr key={sid(enq)}>
                         <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
-                        <td style={{ fontWeight: 600, color: "var(--accent)" }}>{so.docId}</td>
-                        <td>{so.date}</td>
-                        <td>{so.customerName}</td>
-                        <td>{so.styleRefNo || "—"}</td>
-                        <td>{fmtQty(so.details?.reduce((s, d) => s + Number(d.orderQty || 0), 0) || 0)}</td>
+                        <td style={{ fontWeight: 600, color: "var(--accent)" }}>{enq.docId}</td>
+                        <td>{enq.date}</td>
+                        <td>{enq.customerName}</td>
+                        <td>{enq.pdcNo || "—"}</td>
+                        <td>{enq.pdcDate || "—"}</td>
+                        <td>{fmtQty(enq.details?.reduce((s, d) => s + Number(d.enqQty || 0), 0) || 0)}</td>
                         <td className="inv-actions-cell">
                           <div className="inv-actions">
-                            <button className="inv-btn-icon" onClick={() => openEdit(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                            <button
+                              className="inv-btn-icon"
+                              onClick={() => openEdit(enq)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                            >
                               <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </button>
-                            <button className="inv-btn-icon inv-btn-danger" onClick={() => handleDelete(sid(so))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                            <button
+                              className="inv-btn-icon inv-btn-danger"
+                              onClick={() => handleDelete(sid(enq))}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                            >
                               <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="3 6 5 6 21 6" />
                                 <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -436,14 +512,17 @@ export default function SalesOrder() {
     <div className="inv-page">
       <div className="inv-page-header">
         <div>
-          <h1 className="inv-page-title">{editId ? "Edit Sales Order" : "New Sales Order"}</h1>
-          <p className="inv-page-sub">Sales order management</p>
+          <h1 className="inv-page-title">{editId ? "Edit Yarn Inwards " : "Yarn Inwards"}</h1>
+          <p className="inv-page-sub">Customer enquiry management</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button
             ref={viewListButtonRef}
             className="inv-btn-secondary"
-            onClick={() => { setFormError(""); setView("list"); }}
+            onClick={() => {
+              setFormError("");
+              setView("list");
+            }}
             tabIndex={viewListTabIndex}
           >
             View List
@@ -455,7 +534,7 @@ export default function SalesOrder() {
             disabled={saving}
             tabIndex={saveTabIndex}
           >
-            {saving ? "Saving..." : "Save Sales Order"}
+            {saving ? "Saving..." : "Save Yarn Inward"}
           </button>
         </div>
       </div>
@@ -468,11 +547,22 @@ export default function SalesOrder() {
           <div className="inv-card-body">
             <FormGrid>
               <Field label="Doc ID (Auto)">
-                <input className="inv-input" value={header.docId} readOnly style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }} />
+                <input
+                  className="inv-input"
+                  value={header.docId}
+                  readOnly
+                  style={{ background: "#f8f7ff", color: "#4f46e5", fontWeight: 600 }}
+                />
               </Field>
 
               <Field label="Date *">
-                <input className="inv-input" tabIndex={1} type="date" value={header.date} onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} />
+                <input
+                  className="inv-input"
+                  tabIndex={1}
+                  type="date"
+                  value={header.date}
+                  onChange={e => setHeader(h => ({ ...h, date: e.target.value }))}
+                />
               </Field>
 
               <Field label="Customer *">
@@ -482,24 +572,49 @@ export default function SalesOrder() {
                   value={header.customer}
                   onChange={(val) => {
                     const supplier = suppliers.find(s => sid(s) === val);
-                    setHeader(h => ({ ...h, customer: val, customerName: supplier?.name || supplier?.supplierName || "" }));
+                    setHeader(h => ({
+                      ...h,
+                      customer: val,
+                      customerName: supplier?.name || supplier?.supplierName || ""
+                    }));
                   }}
-                  options={suppliers.map(s => ({ value: sid(s), label: s.name || s.supplierName }))}
+                  options={suppliers.map(s => ({
+                    value: sid(s),
+                    label: s.name || s.supplierName
+                  }))}
                   placeholder="Select Customer"
                   menuPortalTarget={document.body}
                 />
               </Field>
 
-              <Field label="Enq Ref No">
-                <input className="inv-input" tabIndex={3} value={header.enqRefNo} onChange={e => setHeader(h => ({ ...h, enqRefNo: e.target.value }))} placeholder="Reference number" />
+              <Field label="PDC No*">
+                <input
+                  className="inv-input"
+                  tabIndex={3}
+                  value={header.pdcNo}
+                  onChange={e => setHeader(h => ({ ...h, pdcNo: e.target.value }))}
+                  placeholder="PDC number"
+                />
               </Field>
 
-              <Field label="Ref Date">
-                <input className="inv-input" tabIndex={4} type="date" value={header.refDate} onChange={e => setHeader(h => ({ ...h, refDate: e.target.value }))} />
+              <Field label="PDC Date*">
+                <input
+                  className="inv-input"
+                  tabIndex={4}
+                  type="date"
+                  value={header.pdcDate}
+                  onChange={e => setHeader(h => ({ ...h, pdcDate: e.target.value }))}
+                />
               </Field>
 
               <Field label="Style Ref No">
-                <input className="inv-input" tabIndex={5} value={header.styleRefNo} onChange={e => setHeader(h => ({ ...h, styleRefNo: e.target.value }))} placeholder="Style reference" />
+                <input
+                  className="inv-input"
+                  tabIndex={5}
+                  value={header.styleRefNo}
+                  onChange={e => setHeader(h => ({ ...h, styleRefNo: e.target.value }))}
+                  placeholder="Style reference"
+                />
               </Field>
             </FormGrid>
           </div>
@@ -509,22 +624,34 @@ export default function SalesOrder() {
         <div className="inv-card" style={{ padding: 0, overflow: "hidden" }}>
           <div className="inv-card-body" style={{ minHeight: "400px", padding: 0 }}>
             <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "16px 20px", background: "#fcfdfe", borderBottom: "1px solid #e2e8f0" }}>
-              <button ref={addButtonRef} className="inv-btn-primary inv-btn-sm" onClick={addRow} tabIndex={addButtonTabIndex} style={{ borderRadius: 4 }}>
+              <button
+                ref={addButtonRef}
+                className="inv-btn-primary inv-btn-sm"
+                onClick={addRow}
+                tabIndex={addButtonTabIndex}
+                style={{ borderRadius: 4 }}
+              >
                 + Add Row
               </button>
             </div>
             <div style={{ overflowX: "auto" }}>
               <table className="inv-table-premium">
                 <thead>
+
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
                     <th style={{ minWidth: 150 }}>Colour *</th>
                     <th style={{ minWidth: 150 }}>Counts *</th>
                     <th style={{ minWidth: 150 }}>Yarn Type *</th>
-                    <th style={{ width: 120, textAlign: "right" }}>Order Qty *</th>
-                    <th style={{ minWidth: 150 }}>Ex.shade No</th>
+                    <th style={{ minWidth: 150 }}>Mill *</th>
+                    <th style={{ width: 120, textAlign: "right" }}>GRN Qty *</th>
+                    <th style={{ width: 120, textAlign: "right" }}>PHY Qty *</th>
+                    <th style={{ width: 120, textAlign: "right" }}>Diff Qty *</th>
+                    <th style={{ width: 100, textAlign: "center" }}>No Bags *</th>
+                    <th style={{ minWidth: 200 }}>Notes</th>
                     <th style={{ width: 40 }}></th>
                   </tr>
+
                 </thead>
                 <tbody>
                   {displayDetails.map((row, idx) => (
@@ -572,17 +699,73 @@ export default function SalesOrder() {
                           menuPortalTarget={document.body}
                         />
                       </td>
-
                       <td>
-                        <input className="inv-input-cell" type="number" step="1.00" tabIndex={getTabIndex(idx, 3, totalRows)} value={row.orderQty} onChange={e => updateDetail(idx, "orderQty", e.target.value)} onBlur={e => updateDetail(idx, "orderQty", Number(e.target.value || 0).toFixed(3))} style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }} />
-                      </td>
-
+                        <SearchSelect
+                          tabIndex={getTabIndex(idx, 3, totalRows)}
+                          value={row.mill}
+                          onChange={(val) => updateDetail(idx, "mill", val)}
+                          options={mills.map(y => ({
+                            value: y.name,
+                            label: y.name
+                          }))}
+                          placeholder="Select Mill"
+                          menuPortalTarget={document.body}
+                        />
+                      </td>    
                       <td>
-                        <input className="inv-input-cell" tabIndex={getTabIndex(idx, 4, totalRows)} value={row.exShadeNo} onChange={e => updateDetail(idx, "exShadeNo", e.target.value)} placeholder="Shade No" />
+                        <input
+                          className="inv-input-cell"
+                          type="number"
+                          step="0.001"
+                          value={row.grnQty}
+                          onChange={e => updateDetail(idx, "grnQty", e.target.value)}
+                        />
                       </td>
-
+                      <td>
+                        <input
+                          className="inv-input-cell"
+                          type="number"
+                          step="0.001"
+                          value={row.phyQty}
+                          onChange={e => updateDetail(idx, "phyQty", e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="inv-input-cell"
+                          value={row.diffQty}
+                          readOnly
+                          style={{
+                            background: "#f8f7ff",
+                            color: "#2563eb",
+                            fontWeight: 600,
+                            textAlign: "right"
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="inv-input-cell"
+                          type="number"
+                          value={row.noBags}
+                          onChange={e => updateDetail(idx, "noBags", e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="inv-input-cell"
+                          value={row.notes}
+                          onChange={e => updateDetail(idx, "notes", e.target.value)}
+                          placeholder="Notes"
+                        />
+                      </td>
                       <td style={{ textAlign: "center" }}>
-                        <button className="inv-btn-icon inv-btn-danger" onClick={() => removeRow(idx)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#ef4444", padding: "4px" }}>
+                        <button
+                          className="inv-btn-icon inv-btn-danger"
+                          onClick={() => removeRow(idx)}
+                          style={{ border: "none", background: "transparent", cursor: "pointer", color: "#ef4444", padding: "4px" }}
+                          tabIndex={getTabIndex(idx, 5, totalRows)}
+                        >
                           ✕
                         </button>
                       </td>
@@ -597,27 +780,112 @@ export default function SalesOrder() {
         {/* Summary Card */}
         <div className="inv-card">
           <div className="inv-card-body">
-            <div style={{ display: "flex", gap: 40, padding: "10px 20px", justifyContent: "space-between" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: 20,
+                padding: "10px 20px"
+              }}
+            >
+
               <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>Total Line Items</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#1e293b" }}>{details.filter(d => d.colour.trim()).length}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>
+                  Total Line Items
+                </div>
+
+                <div style={{ fontSize: 24, fontWeight: 700 }}>
+                  {details.filter(d => d.colour.trim()).length}
+                </div>
               </div>
+
               <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>Total Order Qty</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(totalQty)}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>
+                  Total Diff Qty
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 24,
+                    fontWeight: 700,
+                    color: "#2563eb"
+                  }}
+                >
+                  {fmtQty(totalQty)}
+                </div>
               </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>
+                  Total Bags
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 24,
+                    fontWeight: 700,
+                    color: "#059669"
+                  }}
+                >
+                  {totalBags}
+                </div>
+              </div>
+
             </div>
 
-            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
-                <div className="inv-field-v">
-                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
-                  <input className="inv-input" value={header.preparedBy || ""} onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))} placeholder="Name of preparer" tabIndex={-1} />
-                </div>
-                <div className="inv-field-v">
-                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Remarks</label>
-                  <textarea className="inv-input" style={{ height: 40, resize: "none", fontSize: "13px", padding: "12px" }} value={header.remarks || ""} onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))} placeholder="Enter any remarks..." tabIndex={-1} />
-                </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 24,
+                marginTop: 24,
+                paddingTop: 20,
+                borderTop: "1px solid #f1f5f9",
+              }}
+            >
+              {/* Vehicle No */}
+              <div className="inv-field-v">
+                <label className="inv-label">Vehicle No</label>
+                <input
+                  className="inv-input"
+                  value={header.vehicleNo || ""}
+                  onChange={(e) =>
+                    setHeader((h) => ({ ...h, vehicleNo: e.target.value }))
+                  }
+                  placeholder="Enter Vehicle Number"
+                />
+              </div>
+
+              {/* Prepared By */}
+              <div className="inv-field-v">
+                <label className="inv-label">Prepared By</label>
+                <input
+                  className="inv-input"
+                  value={header.preparedBy || ""}
+                  onChange={(e) =>
+                    setHeader((h) => ({ ...h, preparedBy: e.target.value }))
+                  }
+                />
+              </div>
+
+              {/* Remarks */}
+              <div
+                className="inv-field-v"
+                style={{ gridColumn: "1 / span 2" }}
+              >
+                <label className="inv-label">Remarks</label>
+                <textarea
+                  className="inv-input"
+                  style={{
+                    height: 60,
+                    resize: "vertical",
+                  }}
+                  value={header.remarks || ""}
+                  onChange={(e) =>
+                    setHeader((h) => ({ ...h, remarks: e.target.value }))
+                  }
+                  placeholder="Enter any remarks..."
+                />
               </div>
             </div>
           </div>
@@ -626,11 +894,22 @@ export default function SalesOrder() {
 
       {/* Success Modal */}
       {saveSuccessModal && (
-        <Modal title="Success" onClose={() => { setSaveSuccessModal(false); setView("list"); }} onSave={() => { setSaveSuccessModal(false); setView("list"); }} saveLabel="Go to List">
+        <Modal
+          title="Success"
+          onClose={() => {
+            setSaveSuccessModal(false);
+            setView("list");
+          }}
+          onSave={() => {
+            setSaveSuccessModal(false);
+            setView("list");
+          }}
+          saveLabel="Go to List"
+        >
           <div style={{ textAlign: "center", padding: 20 }}>
             <div style={{ fontSize: 48, color: "#10b981" }}>✓</div>
             <h3 style={{ fontSize: 18, fontWeight: 600 }}>Saved Successfully!</h3>
-            <p style={{ color: "#64748b" }}>The Sales Order has been recorded.</p>
+            <p style={{ color: "#64748b" }}>The Enquiry has been recorded.</p>
           </div>
         </Modal>
       )}

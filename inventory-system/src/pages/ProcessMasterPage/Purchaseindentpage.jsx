@@ -686,7 +686,7 @@ const calculateIndentStatus = (indent) => {
 
       {formError && <div className="inv-error-banner" style={{ marginBottom: 16 }}>{formError}</div>}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0px" }}>
         {/* Header Card */}
         <div className="inv-card">
           <div className="inv-card-body">

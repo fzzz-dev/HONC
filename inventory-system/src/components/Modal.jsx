@@ -17,8 +17,8 @@ const styles = {
     borderRadius: "16px",
     border: "1px solid #eef2f6",
     width: "85%",
-    maxWidth: "560px",
-    maxHeight: "50vh",
+    maxWidth: "900px",
+    maxHeight: "90vh",
     overflow: "hidden",
     boxShadow:
       "0 20px 35px -8px rgba(0, 0, 0, 0.2), 0 5px 12px -4px rgba(0, 0, 0, 0.1)",

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { supplierApi } from "../../services/inventoryApi";
+import { productionApi } from "../../services/productionApi";
 import Modal from "../../components/Modal";
 import { SearchSelect } from "../../components/FormFields";
 
@@ -54,6 +55,9 @@ const Field = ({ label, children, horizontal = true }) => (
 export default function Quotation() {
   const { user } = useAuth();
   const [suppliers, setSuppliers] = useState([]);
+  const [colors, setColors] = useState([]);
+  const [counts, setCounts] = useState([]);
+  const [yarnTypes, setYarnTypes] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState(null);
@@ -88,7 +92,7 @@ export default function Quotation() {
   useEffect(() => {
     const handleTabKey = (e) => {
       if (e.key !== 'Tab') return;
-      
+
       const focusableElements = Array.from(
         document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
       ).filter(el => {
@@ -99,12 +103,12 @@ export default function Quotation() {
         const tabB = parseInt(b.getAttribute('tabIndex'));
         return tabA - tabB;
       });
-      
+
       if (focusableElements.length === 0) return;
-      
+
       const currentElement = document.activeElement;
       const currentIndex = focusableElements.indexOf(currentElement);
-      
+
       if (!e.shiftKey) {
         if (currentIndex === focusableElements.length - 1 || currentIndex === -1) {
           e.preventDefault();
@@ -117,18 +121,34 @@ export default function Quotation() {
         }
       }
     };
-    
+
     document.addEventListener('keydown', handleTabKey);
     return () => document.removeEventListener('keydown', handleTabKey);
   }, [details.length]);
 
   async function loadLookups() {
     try {
-      const suppliersData = await supplierApi.getAll();
+      const [
+        suppliersData,
+        colorsData,
+        countsData,
+        yarnTypesData,
+      ] = await Promise.all([
+        supplierApi.getAll(),
+        productionApi.color.getActive(),
+        productionApi.counts.getActive(),
+        productionApi.yarnType.getActive(),
+      ]);
+
       setSuppliers(suppliersData || []);
+      setColors(colorsData || []);
+      setCounts(countsData || []);
+      setYarnTypes(yarnTypesData || []);
+
       setLookupsLoaded(true);
     } catch (e) {
-      console.error("Error loading suppliers:", e);
+      console.error(e);
+
       setLookupsLoaded(true);
     }
   }
@@ -148,8 +168,8 @@ export default function Quotation() {
   }
 
   async function openNew() {
-    setHeader({ 
-      ...emptyHeader(), 
+    setHeader({
+      ...emptyHeader(),
       preparedBy: user?.name || "Admin",
       docId: "QUOT-" + String(Date.now()).slice(-6)
     });
@@ -450,7 +470,7 @@ export default function Quotation() {
 
       {formError && <div className="inv-error-banner" style={{ marginBottom: 16 }}>{formError}</div>}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0px" }}>
         {/* Header Card */}
         <div className="inv-card">
           <div className="inv-card-body">
@@ -527,15 +547,44 @@ export default function Quotation() {
                       <td style={{ textAlign: "center" }}>{idx + 1}</td>
 
                       <td>
-                        <input className="inv-input-cell" tabIndex={getTabIndex(idx, 0, totalRows)} value={row.colour} onChange={e => updateDetail(idx, "colour", e.target.value)} placeholder="Colour" />
+                        <SearchSelect
+                          tabIndex={getTabIndex(idx, 0, totalRows)}
+                          value={row.colour}
+                          onChange={(val) => updateDetail(idx, "colour", val)}
+                          options={colors.map(c => ({
+                            value: c.name,
+                            label: c.name
+                          }))}
+                          placeholder="Select Colour"
+                          menuPortalTarget={document.body}
+                        />
+                      </td>
+                      <td>
+                        <SearchSelect
+                          tabIndex={getTabIndex(idx, 1, totalRows)}
+                          value={row.counts}
+                          onChange={(val) => updateDetail(idx, "counts", val)}
+                          options={counts.map(c => ({
+                            value: c.name,
+                            label: c.name
+                          }))}
+                          placeholder="Select Counts"
+                          menuPortalTarget={document.body}
+                        />
                       </td>
 
                       <td>
-                        <input className="inv-input-cell" tabIndex={getTabIndex(idx, 1, totalRows)} value={row.counts} onChange={e => updateDetail(idx, "counts", e.target.value)} placeholder="Counts" />
-                      </td>
-
-                      <td>
-                        <input className="inv-input-cell" tabIndex={getTabIndex(idx, 2, totalRows)} value={row.yarnType} onChange={e => updateDetail(idx, "yarnType", e.target.value)} placeholder="Yarn Type" />
+                        <SearchSelect
+                          tabIndex={getTabIndex(idx, 2, totalRows)}
+                          value={row.yarnType}
+                          onChange={(val) => updateDetail(idx, "yarnType", val)}
+                          options={yarnTypes.map(y => ({
+                            value: y.name,
+                            label: y.name
+                          }))}
+                          placeholder="Select Yarn Type"
+                          menuPortalTarget={document.body}
+                        />
                       </td>
 
                       <td>

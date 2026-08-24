@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Modal from "../../components/Modal";
 import { Field, Input, Toggle } from "../../components/FormFields";
 import { productionApi } from "../../services/productionApi";
-
+import { ChromePicker } from "react-color";
 const EMPTY = { name: "", code: "", hexCode: "", description: "", active: true };
 
 export default function Color() {
@@ -14,11 +14,74 @@ export default function Color() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-
+  const rgb = getRgb(form.hexCode);
+  const hsl = getHsl(form.hexCode);
   useEffect(() => {
     fetchItems();
   }, []);
 
+  function hexToRgb(hex) {
+    if (!hex) return "";
+
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+
+    return `${r}, ${g}, ${b}`;
+  }
+  function getRgb(hex) {
+    if (!hex || hex.length !== 7) return null;
+
+    return {
+      r: parseInt(hex.slice(1, 3), 16),
+      g: parseInt(hex.slice(3, 5), 16),
+      b: parseInt(hex.slice(5, 7), 16),
+    };
+  }
+
+  function getHsl(hex) {
+    if (!hex || hex.length !== 7) return null;
+
+    let r = parseInt(hex.substr(1, 2), 16) / 255;
+    let g = parseInt(hex.substr(3, 2), 16) / 255;
+    let b = parseInt(hex.substr(5, 2), 16) / 255;
+
+    let max = Math.max(r, g, b);
+    let min = Math.min(r, g, b);
+
+    let h, s, l = (max + min) / 2;
+
+    if (max === min) {
+      h = s = 0;
+    } else {
+      let d = max - min;
+
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+      switch (max) {
+
+        case r:
+          h = (g - b) / d + (g < b ? 6 : 0);
+          break;
+
+        case g:
+          h = (b - r) / d + 2;
+          break;
+
+        case b:
+          h = (r - g) / d + 4;
+          break;
+      }
+
+      h /= 6;
+    }
+
+    return {
+      h: Math.round(h * 360),
+      s: Math.round(s * 100),
+      l: Math.round(l * 100)
+    };
+  }
   async function fetchItems() {
     setLoading(true);
     setError(null);
@@ -87,7 +150,7 @@ export default function Color() {
 
   async function handleDelete(id) {
     if (!window.confirm("Permanently delete this color? This action cannot be undone.")) return;
-    
+
     try {
       await productionApi.color.hardDelete(id);
       setItems((prev) => prev.filter((x) => x.id !== id));
@@ -225,19 +288,127 @@ export default function Color() {
               placeholder="Enter color name"
             />
           </Field>
-          <Field label="Hex Code">
-            <Input
-              value={form.hexCode}
-              onChange={(v) => setForm((f) => ({ ...f, hexCode: v }))}
-              placeholder="e.g., #FF0000"
-            />
-          </Field>
+
           <Field label="Description">
             <Input
               value={form.description}
               onChange={(v) => setForm((f) => ({ ...f, description: v }))}
               placeholder="Description (optional)"
             />
+          </Field>
+
+          <Field label="Hex code">
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "340px 1fr",
+                gap: "20px",
+                alignItems: "start"
+              }}
+            >
+
+              <div>
+
+                <ChromePicker
+                  disableAlpha
+                  color={form.hexCode || "#FFFFFF"}
+                  onChange={(color) => {
+                    setForm((f) => ({
+                      ...f,
+                      hexCode: color.hex.toUpperCase(),
+                      code: `R-${color.rgb.r},G-${color.rgb.g},B-${color.rgb.b}`,
+                    }));
+                  }}
+                />
+              </div>
+
+              <div>
+
+                <Input
+                  value={form.hexCode}
+                  placeholder="#FF0000"
+                  onChange={(v) => {
+                    const hex = v.toUpperCase();
+                    const rgb = getRgb(hex);
+
+                    setForm((f) => ({
+                      ...f,
+                      hexCode: hex,
+                      code: rgb ? `${rgb.r},${rgb.g},${rgb.b}` : "",
+                    }));
+                  }}
+                />
+
+                <div
+                  style={{
+                    marginTop: 15,
+                    padding: 18,
+                    border: "1px solid #ddd",
+                    borderRadius: 8
+                  }}
+                >
+
+                  <div
+                    style={{
+                      height: 80,
+                      borderRadius: 8,
+                      background: form.hexCode || "#fff",
+                      border: "1px solid #ccc",
+                      marginBottom: 15
+                    }}
+                  />
+
+                  <table style={{ width: "100%" }}>
+
+                    <tbody>
+
+                      <tr>
+
+                        <td><b>HEX</b></td>
+
+                        <td>{form.hexCode || "-"}</td>
+
+                      </tr>
+
+                      <tr>
+
+                        <td><b>RGB</b></td>
+
+                        <td>
+
+                          {rgb
+                            ? `${rgb.r}, ${rgb.g}, ${rgb.b}`
+                            : "-"}
+
+                        </td>
+
+                      </tr>
+
+                      <tr>
+
+                        <td><b>HSL</b></td>
+
+                        <td>
+
+                          {hsl
+                            ? `${hsl.h}°, ${hsl.s}%, ${hsl.l}%`
+                            : "-"}
+
+                        </td>
+
+                      </tr>
+
+                    </tbody>
+
+                  </table>
+
+                </div>
+
+              </div>
+
+            </div>
+
           </Field>
           <Field label="Status">
             <Toggle
