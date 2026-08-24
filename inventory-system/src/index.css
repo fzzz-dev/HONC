@@ -781,3 +781,25 @@ div[class*="modal"]:not(.inv-modal-overlay) {
 .inv-card:last-of-type {
   position: relative;
 }
+
+/* Focus styles for select elements - BEST APPROACH */
+.inv-filter-select:focus {
+  outline: none !important;
+  border-color: #3b6ef8 !important;
+  box-shadow: 0 0 0 3px rgba(59, 110, 248, 0.4) !important;
+  border-radius: 4px;
+}
+
+/* For all focusable elements with tabindex */
+[tabindex]:focus {
+  outline: none !important;
+  border-color: #3b6ef8 !important;
+  box-shadow: 0 0 0 3px rgba(59, 110, 248, 0.4) !important;
+}
+
+/* Specifically for your filter selects */
+select.inv-filter-select:focus-visible {
+  outline: none !important;
+  border-color: #3b6ef8 !important;
+  box-shadow: 0 0 0 3px rgba(59, 110, 248, 0.4) !important;
+}

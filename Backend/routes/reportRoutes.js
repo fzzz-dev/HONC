@@ -1257,4 +1257,291 @@ router.put('/approve-level1/:id', async (req, res) => {
   }
 });
 
+// ==================== EMPLOYEE REPORT ====================
+
+// ─── GET /api/reports/employee-report ──────────────────────────────────────
+router.get('/employee-report', async (req, res) => {
+  try {
+    const { searchTerm, departmentId, designationId, status } = req.query;
+    
+    let query = `
+      SELECT 
+        e.id,
+        e.employee_code,
+        e.first_name,
+        e.last_name,
+        CONCAT(e.first_name, ' ', COALESCE(e.last_name, '')) AS full_name,
+        e.father_name,
+        e.date_of_birth,
+        e.gender,
+        e.blood_group,
+        e.contact_phone,
+        e.contact_email,
+        e.date_of_joining,
+        e.department_id,
+        d.name AS department_name,
+        e.designation_id,
+        des.name AS designation_name,
+        e.employment_type,
+        e.basic_salary,
+        e.hra,
+        e.allowances,
+        e.total_salary,
+        e.pan_number,
+        e.aadhar_number,
+        e.pf_number,
+        e.bank_name,
+        e.bank_account_no,
+        e.ifsc_code,
+        e.account_holder_name,
+        e.bank_branch,
+        e.present_address,
+        e.permanent_address,
+        e.remarks,
+        e.is_active,
+        e.management_staff,
+        e.visitors_allowed,
+        e.guest,
+        e.created_at,
+        e.updated_at,
+        e.photo_url
+      FROM hr_employee_master e
+      LEFT JOIN hr_department d ON e.department_id = d.id AND d.is_active = 1
+      LEFT JOIN hr_designation des ON e.designation_id = des.id AND des.is_active = 1
+      WHERE 1=1
+    `;
+    
+    const replacements = {};
+    
+    // Search term - search in employee_code, first_name, last_name, contact_phone
+    if (searchTerm) {
+      query += ` AND (
+        e.employee_code LIKE :searchTerm OR 
+        e.first_name LIKE :searchTerm OR 
+        e.last_name LIKE :searchTerm OR 
+        e.contact_phone LIKE :searchTerm
+      )`;
+      replacements.searchTerm = `%${searchTerm}%`;
+    }
+    
+    // Department filter
+    if (departmentId) {
+      query += ` AND e.department_id = :departmentId`;
+      replacements.departmentId = parseInt(departmentId);
+    }
+    
+    // Designation filter
+    if (designationId) {
+      query += ` AND e.designation_id = :designationId`;
+      replacements.designationId = parseInt(designationId);
+    }
+    
+    // Status filter (default to show all, but can filter)
+    if (status !== undefined && status !== '') {
+      query += ` AND e.is_active = :status`;
+      replacements.status = parseInt(status);
+    }
+    
+    query += ` ORDER BY e.employee_code ASC`;
+    
+    const [results] = await sequelize.query(query, { replacements });
+    
+    res.json({
+      success: true,
+      data: results,
+      count: results.length
+    });
+  } catch (error) {
+    console.error('Error in employee-report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── GET /api/reports/employee-report/departments ──────────────────────────
+router.get('/employee-report/departments', async (req, res) => {
+  try {
+    const [results] = await sequelize.query(`
+      SELECT 
+        id, 
+        name, 
+        code 
+      FROM hr_department 
+      WHERE is_active = 1 
+      ORDER BY name ASC
+    `);
+    
+    res.json({
+      success: true,
+      data: results
+    });
+  } catch (error) {
+    console.error('Error fetching departments for employee report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── GET /api/reports/employee-report/designations ─────────────────────────
+router.get('/employee-report/designations', async (req, res) => {
+  try {
+    const { departmentId } = req.query;
+    
+    let query = `
+      SELECT 
+        id, 
+        name, 
+        level 
+      FROM hr_designation 
+      WHERE is_active = 1
+    `;
+    
+    const replacements = {};
+    
+    if (departmentId) {
+      query += ` AND department_id = :departmentId`;
+      replacements.departmentId = parseInt(departmentId);
+    }
+    
+    query += ` ORDER BY name ASC`;
+    
+    const [results] = await sequelize.query(query, { replacements });
+    
+    res.json({
+      success: true,
+      data: results
+    });
+  } catch (error) {
+    console.error('Error fetching designations for employee report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── GET /api/reports/employee-report/export/csv ────────────────────────────
+router.get('/employee-report/export/csv', async (req, res) => {
+  try {
+    const { searchTerm, departmentId, designationId, status } = req.query;
+    
+    let query = `
+      SELECT 
+        e.employee_code AS 'Employee Code',
+        e.first_name AS 'First Name',
+        e.last_name AS 'Last Name',
+        CONCAT(e.first_name, ' ', COALESCE(e.last_name, '')) AS 'Full Name',
+        e.date_of_birth AS 'Date of Birth',
+        e.gender AS 'Gender',
+        e.contact_phone AS 'Contact Phone',
+        e.contact_email AS 'Contact Email',
+        d.name AS 'Department',
+        des.name AS 'Designation',
+        e.employment_type AS 'Employment Type',
+        e.total_salary AS 'Total Salary',
+        e.management_staff AS 'Management Staff',
+        CASE WHEN e.is_active = 1 THEN 'Active' ELSE 'Inactive' END AS 'Status',
+        e.date_of_joining AS 'Date of Joining',
+        e.pan_number AS 'PAN Number',
+        e.aadhar_number AS 'Aadhar Number',
+        e.bank_name AS 'Bank Name',
+        e.bank_account_no AS 'Account Number',
+        e.ifsc_code AS 'IFSC Code'
+      FROM hr_employee_master e
+      LEFT JOIN hr_department d ON e.department_id = d.id AND d.is_active = 1
+      LEFT JOIN hr_designation des ON e.designation_id = des.id AND des.is_active = 1
+      WHERE 1=1
+    `;
+    
+    const replacements = {};
+    
+    if (searchTerm) {
+      query += ` AND (
+        e.employee_code LIKE :searchTerm OR 
+        e.first_name LIKE :searchTerm OR 
+        e.last_name LIKE :searchTerm OR 
+        e.contact_phone LIKE :searchTerm
+      )`;
+      replacements.searchTerm = `%${searchTerm}%`;
+    }
+    
+    if (departmentId) {
+      query += ` AND e.department_id = :departmentId`;
+      replacements.departmentId = parseInt(departmentId);
+    }
+    
+    if (designationId) {
+      query += ` AND e.designation_id = :designationId`;
+      replacements.designationId = parseInt(designationId);
+    }
+    
+    if (status !== undefined && status !== '') {
+      query += ` AND e.is_active = :status`;
+      replacements.status = parseInt(status);
+    }
+    
+    query += ` ORDER BY e.employee_code ASC`;
+    
+    const [results] = await sequelize.query(query, { replacements });
+    
+    if (results.length === 0) {
+      return res.status(404).json({ success: false, message: 'No data to export' });
+    }
+    
+    const headers = [
+      'Employee Code', 'First Name', 'Last Name', 'Full Name', 
+      'Date of Birth', 'Gender', 'Contact Phone', 'Contact Email',
+      'Department', 'Designation', 'Employment Type', 'Total Salary',
+      'Management Staff', 'Status', 'Date of Joining',
+      'PAN Number', 'Aadhar Number', 'Bank Name', 'Account Number', 'IFSC Code'
+    ];
+    
+    const csvRows = [headers.join(',')];
+    
+    const formatDate = (dateValue) => {
+      if (!dateValue) return '';
+      try {
+        const date = new Date(dateValue);
+        if (isNaN(date.getTime())) return '';
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+      } catch (e) {
+        return '';
+      }
+    };
+    
+    for (const row of results) {
+      const values = [
+        `"${(row['Employee Code'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['First Name'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['Last Name'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['Full Name'] || '').toString().replace(/"/g, '""')}"`,
+        `"${formatDate(row['Date of Birth'])}"`,
+        `"${(row['Gender'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['Contact Phone'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['Contact Email'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['Department'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['Designation'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['Employment Type'] || '').toString().replace(/"/g, '""')}"`,
+        row['Total Salary'] || 0,
+        `"${(row['Management Staff'] || 'No').toString().replace(/"/g, '""')}"`,
+        `"${(row['Status'] || 'Active').toString().replace(/"/g, '""')}"`,
+        `"${formatDate(row['Date of Joining'])}"`,
+        `"${(row['PAN Number'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['Aadhar Number'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['Bank Name'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['Account Number'] || '').toString().replace(/"/g, '""')}"`,
+        `"${(row['IFSC Code'] || '').toString().replace(/"/g, '""')}"`
+      ];
+      csvRows.push(values.join(','));
+    }
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=employee_report_${new Date().toISOString().split('T')[0]}.csv`);
+    const BOM = '\uFEFF';
+    res.send(BOM + csvRows.join('\n'));
+    
+  } catch (error) {
+    console.error('Error in employee-report/export/csv:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

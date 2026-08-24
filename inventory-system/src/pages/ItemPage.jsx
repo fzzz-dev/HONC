@@ -82,6 +82,164 @@ export default function ItemPage() {
     loadAll();
   }, []);
 
+  // ── Trap tab navigation inside main page (only tabIndex 1-7) ────────────────
+useEffect(() => {
+  const handleTabKey = (e) => {
+    // Only trap when NO modal is open
+    if (modal || deleteConfirm || bulkUploadResult || makeModalOpen || specModalOpen) {
+      return;
+    }
+
+    if (e.key !== 'Tab') return;
+
+    const mainPage = document.querySelector('.inv-page');
+    if (!mainPage) return;
+
+    const focusableElements = mainPage.querySelectorAll(
+      '[tabindex="1"], [tabindex="2"], [tabindex="3"], [tabindex="4"], [tabindex="5"], [tabindex="6"], [tabindex="7"]'
+    );
+
+    const enabledElements = Array.from(focusableElements)
+      .filter(el => el.offsetParent !== null && !el.disabled)
+      .sort((a, b) => {
+        const tabA = parseInt(a.getAttribute('tabindex'));
+        const tabB = parseInt(b.getAttribute('tabindex'));
+        return tabA - tabB;
+      });
+
+    if (enabledElements.length === 0) return;
+
+    const firstElement = enabledElements[0];
+    const lastElement = enabledElements[enabledElements.length - 1];
+
+    if (e.shiftKey && document.activeElement === firstElement) {
+      e.preventDefault();
+      lastElement.focus();
+    } else if (!e.shiftKey && document.activeElement === lastElement) {
+      e.preventDefault();
+      firstElement.focus();
+    } else if (!mainPage.contains(document.activeElement)) {
+      e.preventDefault();
+      firstElement.focus();
+    }
+  };
+
+  const handleFocusOut = (e) => {
+    if (modal || deleteConfirm || bulkUploadResult || makeModalOpen || specModalOpen) {
+      return;
+    }
+
+    const mainPage = document.querySelector('.inv-page');
+    if (!mainPage) return;
+
+    setTimeout(() => {
+      if (!mainPage.contains(document.activeElement)) {
+        const firstFocusable = mainPage.querySelector(
+          '[tabindex="1"], [tabindex="2"], [tabindex="3"], [tabindex="4"], [tabindex="5"], [tabindex="6"], [tabindex="7"]'
+        );
+        if (firstFocusable && firstFocusable.offsetParent !== null && !firstFocusable.disabled) {
+          firstFocusable.focus();
+        }
+      }
+    }, 0);
+  };
+
+  setTimeout(() => {
+    if (!modal && !deleteConfirm && !bulkUploadResult && !makeModalOpen && !specModalOpen) {
+      const mainPage = document.querySelector('.inv-page');
+      if (mainPage) {
+        const firstElement = mainPage.querySelector('[tabindex="1"]');
+        if (firstElement && firstElement.offsetParent !== null && !firstElement.disabled) {
+          firstElement.focus();
+        }
+      }
+    }
+  }, 100);
+
+  document.addEventListener('keydown', handleTabKey);
+  document.addEventListener('focusout', handleFocusOut);
+
+  return () => {
+    document.removeEventListener('keydown', handleTabKey);
+    document.removeEventListener('focusout', handleFocusOut);
+  };
+}, [modal, deleteConfirm, bulkUploadResult, makeModalOpen, specModalOpen]);
+
+// ── Trap tab navigation inside Add/Edit Modal ──────────────────────────────
+useEffect(() => {
+  const handleTabKey = (e) => {
+    if (!modal) return;
+    if (e.key !== 'Tab') return;
+
+    const modalElement = document.querySelector('.inv-modal-overlay');
+    if (!modalElement) return;
+
+    const focusableElements = modalElement.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+
+    const enabledElements = Array.from(focusableElements).filter(
+      el => el.offsetParent !== null && !el.disabled
+    );
+
+    if (enabledElements.length === 0) return;
+
+    const firstElement = enabledElements[0];
+    const lastElement = enabledElements[enabledElements.length - 1];
+
+    if (e.shiftKey && document.activeElement === firstElement) {
+      e.preventDefault();
+      lastElement.focus();
+    } else if (!e.shiftKey && document.activeElement === lastElement) {
+      e.preventDefault();
+      firstElement.focus();
+    } else if (!modalElement.contains(document.activeElement)) {
+      e.preventDefault();
+      firstElement.focus();
+    }
+  };
+
+  const handleFocusOut = (e) => {
+    if (!modal) return;
+    
+    const modalElement = document.querySelector('.inv-modal-overlay');
+    if (!modalElement) return;
+
+    setTimeout(() => {
+      if (!modalElement.contains(document.activeElement)) {
+        const firstFocusable = modalElement.querySelector(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (firstFocusable && firstFocusable.offsetParent !== null && !firstFocusable.disabled) {
+          firstFocusable.focus();
+        }
+      }
+    }, 0);
+  };
+
+  setTimeout(() => {
+    if (modal) {
+      const modalElement = document.querySelector('.inv-modal-overlay');
+      if (modalElement) {
+        const firstInput = modalElement.querySelector(
+          'input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+        );
+        if (firstInput && firstInput.offsetParent !== null && !firstInput.disabled) {
+          firstInput.focus();
+        }
+      }
+    }
+  }, 150);
+
+  document.addEventListener('keydown', handleTabKey);
+  document.addEventListener('focusout', handleFocusOut);
+
+  return () => {
+    document.removeEventListener('keydown', handleTabKey);
+    document.removeEventListener('focusout', handleFocusOut);
+  };
+}, [modal]);
+
   async function loadAll() {
     setLoading(true);
     setError(null);
@@ -453,7 +611,7 @@ const filtered = items
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="inv-page">
+    <div className="inv-page" >
       <div className="inv-page-header">
         <div>
           <h1 className="inv-page-title">Item</h1>
@@ -462,14 +620,15 @@ const filtered = items
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="inv-btn-ghost" onClick={exportToExcel}>
+          <button className="inv-btn-ghost" tabIndex={1} onClick={exportToExcel}>
             Export as Excel
           </button>
-          <button className="inv-btn-ghost" onClick={handleDownloadTemplate}>
+          <button className="inv-btn-ghost" tabIndex={2} onClick={handleDownloadTemplate}>
             Download Template
           </button>
           <button
             className="inv-btn-ghost"
+            tabIndex={3}
             onClick={() => bulkFileRef.current?.click()}
           >
             Bulk Upload
@@ -481,7 +640,7 @@ const filtered = items
             style={{ display: "none" }}
             onChange={handleBulkFileChange}
           />
-          <button className="inv-btn-primary" onClick={openAdd}>
+          <button className="inv-btn-primary" tabIndex={4} onClick={openAdd}>
             + Add Item
           </button>
         </div>
@@ -505,10 +664,12 @@ const filtered = items
             className="inv-search"
             placeholder="Search items..."
             value={search}
+            tabIndex={5}
             onChange={(e) => setSearch(e.target.value)}
           />
           <select
-            className="inv-filter-select"
+            className="inv-filter-select focus-ring"
+            tabIndex={6}
             value={filterHead}
             onChange={(e) => {
               setFilterHead(e.target.value);
@@ -523,7 +684,8 @@ const filtered = items
             ))}
           </select>
           <select
-            className="inv-filter-select"
+            className="inv-filter-select focus-ring"
+            tabIndex={7}
             value={filterGroup}
             onChange={(e) => setFilterGroup(e.target.value)}
           >
@@ -540,7 +702,7 @@ const filtered = items
         </div>
 
         <div className="inv-table-wrap inv-scroll-x">
-          <table className="inv-table inv-table-wide">
+          <table className="inv-table inv-table-wide" tabIndex={-1}>
             <thead>
               <tr>
                 <th style={{ paddingRight: 16 }}>Image</th>
@@ -624,6 +786,7 @@ const filtered = items
         <td>
           <div className="inv-actions">
             <button
+              tabIndex={-1}
               className="inv-btn-icon"
               onClick={() => openEdit(row)}
               title="Edit"
@@ -644,6 +807,7 @@ const filtered = items
               </svg>
             </button>
             <button
+              tabIndex={-1} 
               className="inv-btn-icon inv-btn-danger"
               onClick={() => setDeleteConfirm(row.id || row._id)}
               title="Delete"
@@ -680,6 +844,21 @@ const filtered = items
       
       {/* Add / Edit Modal */}
       {modal && (
+         <div 
+            className="inv-modal-overlay" 
+            tabIndex="-1"
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+              overflow: "auto"}}>     
         <Modal
           title={modal.mode === "add" ? "Add Item" : "Edit Item"}
           onClose={() => setModal(null)}
@@ -963,7 +1142,9 @@ const filtered = items
             </div>
           </Field>
         </Modal>
+      </div>
       )}
+       
 
       {/* Delete Confirm Modal */}
       {deleteConfirm && (

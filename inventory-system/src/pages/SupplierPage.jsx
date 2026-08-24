@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React,{useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { addCountry, fetchCountries } from "../slices/countrySlice";
 import { addState, fetchStates } from "../slices/stateSlice";
@@ -447,7 +447,7 @@ export function AddressFormPage({ address, onSave, onCancel, countries = [], sta
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
       <span>
         {label}
-        {required && <span style={{ color: "var(--danger, #e53e3e)", marginLeft: 2 }}>*</span>}
+        {required && <span style={{ color: "var(--danger, #e53e3e)", marginLeft: 2 }}></span>}
       </span>
       <button
         type="button"
@@ -926,6 +926,7 @@ export default function SupplierPage() {
   const [paymentTerms, setPaymentTerms] = useState([]);
   const [mainCategories, setMainCategories] = useState([]);
   const [bulkUploadResult, setBulkUploadResult] = useState(null);
+  const [categorySearch, setCategorySearch] = useState("");
 
   const bulkFileRef = useRef();
   const dispatch = useDispatch();
@@ -1331,7 +1332,7 @@ async function handleSave() {
             <Field
               label={
                 <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
-                  <span>Party category *</span>
+                  <span>Party category</span>
                   <button type="button" className="inv-btn-ghost" onClick={() => setTypeManagement(true)} style={{ padding: "0 4px", fontSize: "10px", color: "var(--primary)", border: "none" }}>+ Manage</button>
                 </div>
               }
@@ -1344,7 +1345,7 @@ async function handleSave() {
             </Field>
           </div>
           <div style={{ marginBottom: 16 }}>
-            <Field label="Party name *" required>
+            <Field label="Party name" required>
               <Input value={form.supplierName} onChange={(v) => setForm((f) => ({ ...f, supplierName: v }))} placeholder="e.g. Steel India Ltd." style={{ width: "100%" }} />
             </Field>
           </div>
@@ -1377,34 +1378,95 @@ async function handleSave() {
           </div>
 
           <SectionLabel>Purchase category mapping</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 16px", marginBottom: 16, maxHeight: 160, overflowY: "auto", padding: "8px 0" }}>
+          <div style={{ marginBottom: 12 }}>
+  <input
+    type="text"
+    className="inv-input"
+    placeholder=" Search categories..."
+    value={categorySearch}
+    onChange={(e) => setCategorySearch(e.target.value)}
+    style={{ 
+      maxWidth: "300px", 
+      padding: "8px 14px",
+      fontSize: "13px",
+      borderRadius: "6px",
+      border: "1px solid #e2e8f0",
+      backgroundColor: "#ffffff"
+    }}
+  />
+  {categorySearch && (
+    <span style={{ fontSize: "12px", color: "#64748b", marginLeft: "12px" }}>
+      Found {mainCategoryOptions.filter(c => c.label.toLowerCase().includes(categorySearch.toLowerCase())).length} matching categories
+    </span>
+  )}
+          </div>
+          <div style={{ 
+            display: "flex", 
+            flexWrap: "wrap", 
+            gap: "10px 16px", 
+            marginBottom: 16, 
+            maxHeight: 160, 
+            overflowY: "auto", 
+            padding: "8px 12px",
+            border: "1px solid #e2e8f0",
+            borderRadius: "6px",
+            backgroundColor: "#fafafa"
+          }}>
             {mainCategoryOptions.length === 0 ? (
-              <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>No main categories available</span>
+              <span style={{ fontSize: 13, color: "var(--text-secondary)", padding: "8px 12px" }}>No main categories available</span>
             ) : (
-              mainCategoryOptions.map((c) => {
-                const checked = form.purchaseCategoryIds.map(String).includes(c.id);
-                return (
-                  <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => {
-                        setForm((f) => {
-                          const set = new Set(f.purchaseCategoryIds.map(String));
-                          if (set.has(c.id)) set.delete(c.id);
-                          else set.add(c.id);
-                          return { ...f, purchaseCategoryIds: [...set] };
-                        });
-                      }}
-                    />
-                    {c.label}
-                  </label>
-                );
-              })
+              mainCategoryOptions
+                .filter(c => c.label.toLowerCase().includes(categorySearch.toLowerCase()))
+                .sort((a, b) => a.label.localeCompare(b.label))
+                .map((c, index, array) => {
+                  const checked = form.purchaseCategoryIds.map(String).includes(c.id);
+                  const isLast = index === array.length - 1;
+                  return (
+                    <React.Fragment key={c.id}>
+                      <label 
+                        style={{ 
+                          display: "flex", 
+                          alignItems: "center", 
+                          gap: 6, 
+                          fontSize: 13, 
+                          cursor: "pointer",
+                          padding: "4px 10px",
+                          borderRadius: "4px",
+                          backgroundColor: checked ? "#eef2ff" : "transparent",
+                          border: checked ? "1px solid #3b6ef8" : "1px solid transparent",
+                          transition: "all 0.2s"
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setForm((f) => {
+                              const set = new Set(f.purchaseCategoryIds.map(String));
+                              if (set.has(c.id)) set.delete(c.id);
+                              else set.add(c.id);
+                              return { ...f, purchaseCategoryIds: [...set] };
+                            });
+                          }}
+                        />
+                        {c.label}
+                      </label>
+                      {!isLast && (
+                        <div style={{
+                          width: "1px",
+                          height: "24px",
+                          backgroundColor: "#e2e8f0",
+                          alignSelf: "center",
+                          flexShrink: 0
+                        }} />
+                      )}
+                    </React.Fragment>
+                  );
+                })
             )}
           </div>
 
-          <SectionLabel>Addresses</SectionLabel>
+<SectionLabel>Addresses</SectionLabel>
 {/* Debug - show count */}
 <div style={{ fontSize: 10, color: "gray", marginBottom: 5 }}>
   Addresses in xform: {form.addresses?.length || 0}

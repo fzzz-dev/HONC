@@ -48,6 +48,7 @@ import HrDepartment from "./pages/hrms/HrDepartment";
 import HrDesignation from "./pages/hrms/HrDesignation";
 import HrShift from "./pages/hrms/HrShift";
 import HrEmployee from "./pages/hrms/HrEmployee";
+import EmployeeReportPage from "./pages/Reports/EmployeeReport"
 
 // ========== PRODUCTION MASTER PAGES  ==========
 import Color from "./pages/ProductionMasters/Color";
@@ -146,6 +147,7 @@ export default function App() {
                 <Route path="/po-level1-pending" element={<POLevel1Pending />} />
                 <Route path="/po-level2-pending" element={<POLevel2Pending />} />
                 <Route path="/consumption-issue-report" element={<ConsumptionIssueReportPage />} />
+                <Route path="/Employee-Report" element={<EmployeeReportPage />} />
 
                 {/* ── HRMS ── */}
                 <Route path="/hr/department" element={<HrDepartment />} />

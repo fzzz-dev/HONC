@@ -161,6 +161,7 @@ const ViewEmployeeDetails = ({ employee, onClose }) => {
               <InfoRow label="Employee Code" value={employee.employeeCode} />
               <InfoRow label="First Name" value={employee.firstName} />
               <InfoRow label="Last Name" value={employee.lastName} />
+              <InfoRow label="Father's Name" value={employee.fatherName || "—"} />
               <InfoRow label="Date of Birth" value={employee.dateOfBirth ? new Date(employee.dateOfBirth).toLocaleDateString() : "—"} />
               <InfoRow label="Gender" value={employee.gender} />
               <InfoRow label="Blood Group" value={employee.bloodGroup || "—"} />
@@ -175,6 +176,8 @@ const ViewEmployeeDetails = ({ employee, onClose }) => {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
               <InfoRow label="Phone Number" value={employee.contactPhone} />
               <InfoRow label="Email Address" value={employee.contactEmail} />
+              <InfoRow label="Present Address" value={employee.presentAddress} />
+              <InfoRow label="Permanent Address" value={employee.permanentAddress} />
             </div>
           </Section>
 
@@ -186,45 +189,10 @@ const ViewEmployeeDetails = ({ employee, onClose }) => {
               <InfoRow label="Management Staff" value={employee.managementStaff === "Yes" ? "✓ Yes" : "✗ No"} />
               <InfoRow label="Visitors Allowed" value={employee.visitorsAllowed === "Yes" ? "✓ Yes" : "✗ No"} />
               <InfoRow label="Guest Access" value={employee.guest === "Yes" ? "✓ Yes" : "✗ No"} />
-            </div>
-          </Section>
-
-          {/* Compensation */}
-          <Section title="Compensation">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
               <InfoRow label="Basic Salary" value={employee.basicSalary ? `₹${parseFloat(employee.basicSalary).toLocaleString('en-IN')}` : "—"} />
               <InfoRow label="HRA" value={employee.hra ? `₹${parseFloat(employee.hra).toLocaleString('en-IN')}` : "—"} />
               <InfoRow label="Allowances" value={employee.allowances ? `₹${parseFloat(employee.allowances).toLocaleString('en-IN')}` : "—"} />
               <InfoRow label="Total Salary" value={employee.totalSalary ? `₹${parseFloat(employee.totalSalary).toLocaleString('en-IN')}` : "—"} />
-            </div>
-          </Section>
-
-          {/* Banking Information */}
-          <Section title="Banking Information">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
-              <InfoRow label="Account Holder Name" value={employee.accountHolderName} />
-              <InfoRow label="Bank Name" value={employee.bankName} />
-              <InfoRow label="Bank Branch" value={employee.bankBranch} />
-              <InfoRow label="Account Number" value={employee.bankAccountNo} />
-              <InfoRow label="IFSC Code" value={employee.ifscCode} />
-            </div>
-          </Section>
-
-          {/* Identification Documents */}
-          <Section title="Identification Documents">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-              <InfoRow label="PAN Number" value={employee.panNumber} />
-              <InfoRow label="Aadhar Number" value={employee.aadharNumber} />
-              <InfoRow label="PF Number" value={employee.pfNumber} />
-            </div>
-          </Section>
-
-          {/* Address Information */}
-          <Section title="Address Information">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "12px" }}>
-              <InfoRow label="Present Address" value={employee.presentAddress} />
-              <InfoRow label="Permanent Address" value={employee.permanentAddress} />
-              <InfoRow label="Remarks" value={employee.remarks} />
             </div>
           </Section>
 
@@ -273,7 +241,7 @@ export default function HrEmployee() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoUploadStatus, setPhotoUploadStatus] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
-  const [viewingEmployee, setViewingEmployee] = useState(null); // New state for view modal
+  const [viewingEmployee, setViewingEmployee] = useState(null);
   
   // Bulk Upload States
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
@@ -296,17 +264,29 @@ export default function HrEmployee() {
   }, [selectedDepartment]);
 
   async function fetchEmployees() {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await hrEmployeeApi.getAll();
-      setEmployees(data);
-    } catch (err) {
-      setError(err.message || "Failed to load employees");
-    } finally {
-      setLoading(false);
-    }
+  setLoading(true);
+  setError(null);
+  try {
+    const data = await hrEmployeeApi.getAll();
+    // Sort by id ascending (oldest first = upload order)
+    // This preserves the order in which records were inserted
+    const sortedData = [...data].sort((a, b) => {
+      // If you have 'id' field (most reliable)
+      if (a.id && b.id) {
+        return a.id - b.id;
+      }
+      // Fallback to created_at if id is not available
+      const dateA = new Date(a.createdAt || a.created_at || 0);
+      const dateB = new Date(b.createdAt || b.created_at || 0);
+      return dateA - dateB;
+    });
+    setEmployees(sortedData);
+  } catch (err) {
+    setError(err.message || "Failed to load employees");
+  } finally {
+    setLoading(false);
   }
+}
 
   async function fetchDepartments() {
     try {
@@ -335,6 +315,7 @@ export default function HrEmployee() {
     }
   }
 
+  // Filtered employees - maintains the upload order
   const filtered = employees.filter((x) =>
     x.firstName?.toLowerCase().includes(search.toLowerCase()) ||
     x.lastName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -358,60 +339,60 @@ export default function HrEmployee() {
   }
 
   function openEdit(row) {
-  setForm({
-    employeeCode: row.employeeCode,
-    firstName: row.firstName,
-    lastName: row.lastName || "",
-    fatherName: row.fatherName || "",  // ← ADD THIS
-    dateOfBirth: row.dateOfBirth?.split('T')[0] || "",
-    gender: row.gender || "Male",
-    bloodGroup: row.bloodGroup || "",
-    contactPhone: row.contactPhone || "",
-    contactEmail: row.contactEmail || "",
-    dateOfJoining: row.dateOfJoining?.split('T')[0] || "",
-    designationId: row.designationId || "",
-    departmentId: row.departmentId || "",
-    employmentType: row.employmentType || "Permanent",
-    basicSalary: row.basicSalary || "",
-    hra: row.hra || "",
-    allowances: row.allowances || "",
-    totalSalary: row.totalSalary || "",
-    panNumber: row.panNumber || "",
-    aadharNumber: row.aadharNumber || "",
-    pfNumber: row.pfNumber || "",
-    bankName: row.bankName || "",
-    bankAccountNo: row.bankAccountNo || "",
-    ifscCode: row.ifscCode || "",
-    accountHolderName: row.accountHolderName || "",
-    bankBranch: row.bankBranch || "",
-    presentAddress: row.presentAddress || "",
-    permanentAddress: row.permanentAddress || "",
-    remarks: row.remarks || "",
-    active: row.isActive,
-    managementStaff: row.managementStaff || "No",
-    visitorsAllowed: row.visitorsAllowed || "No",
-    guest: row.guest || "No",
-    photoFile: null,
-  });
-  
-  setEditId(row.id);
-  setPhotoUploadStatus(null);
-  
-  if (row.photoUrl) {
-    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const baseBackendUrl = backendUrl.replace('/api', '');
-    setPhotoPreview(`${baseBackendUrl}${row.photoUrl}`);
-  } else {
-    setPhotoPreview(null);
+    setForm({
+      employeeCode: row.employeeCode,
+      firstName: row.firstName,
+      lastName: row.lastName || "",
+      fatherName: row.fatherName || "",
+      dateOfBirth: row.dateOfBirth?.split('T')[0] || "",
+      gender: row.gender || "Male",
+      bloodGroup: row.bloodGroup || "",
+      contactPhone: row.contactPhone || "",
+      contactEmail: row.contactEmail || "",
+      dateOfJoining: row.dateOfJoining?.split('T')[0] || "",
+      designationId: row.designationId || "",
+      departmentId: row.departmentId || "",
+      employmentType: row.employmentType || "Permanent",
+      basicSalary: row.basicSalary || "",
+      hra: row.hra || "",
+      allowances: row.allowances || "",
+      totalSalary: row.totalSalary || "",
+      panNumber: row.panNumber || "",
+      aadharNumber: row.aadharNumber || "",
+      pfNumber: row.pfNumber || "",
+      bankName: row.bankName || "",
+      bankAccountNo: row.bankAccountNo || "",
+      ifscCode: row.ifscCode || "",
+      accountHolderName: row.accountHolderName || "",
+      bankBranch: row.bankBranch || "",
+      presentAddress: row.presentAddress || "",
+      permanentAddress: row.permanentAddress || "",
+      remarks: row.remarks || "",
+      active: row.isActive,
+      managementStaff: row.managementStaff || "No",
+      visitorsAllowed: row.visitorsAllowed || "No",
+      guest: row.guest || "No",
+      photoFile: null,
+    });
+    
+    setEditId(row.id);
+    setPhotoUploadStatus(null);
+    
+    if (row.photoUrl) {
+      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const baseBackendUrl = backendUrl.replace('/api', '');
+      setPhotoPreview(`${baseBackendUrl}${row.photoUrl}`);
+    } else {
+      setPhotoPreview(null);
+    }
+    
+    if (row.departmentId) {
+      setSelectedDepartment(row.departmentId);
+      fetchDesignations(row.departmentId);
+    }
+    
+    setView("form");
   }
-  
-  if (row.departmentId) {
-    setSelectedDepartment(row.departmentId);
-    fetchDesignations(row.departmentId);
-  }
-  
-  setView("form");
-}
 
   const handleSave = useCallback(async () => {
     if (!form.firstName.trim()) {
@@ -425,40 +406,40 @@ export default function HrEmployee() {
     setSaving(true);
     setPhotoUploadStatus(null);
 
-     const payload = {
-  employeeCode: form.employeeCode,
-  firstName: form.firstName.trim(),
-  lastName: form.lastName?.trim() || "",
-  fatherName: form.fatherName?.trim() || "",  // ← ADD THIS
-  dateOfBirth: form.dateOfBirth || null,
-  gender: form.gender,
-  bloodGroup: form.bloodGroup || null,
-  contactPhone: form.contactPhone || null,
-  contactEmail: form.contactEmail || null,
-  dateOfJoining: form.dateOfJoining || null,
-  designationId: form.designationId ? parseInt(form.designationId) : null,
-  departmentId: form.departmentId ? parseInt(form.departmentId) : null,
-  employmentType: form.employmentType,
-  basicSalary: form.basicSalary ? parseFloat(form.basicSalary) : 0,
-  hra: form.hra ? parseFloat(form.hra) : 0,
-  allowances: form.allowances ? parseFloat(form.allowances) : 0,
-  totalSalary: form.totalSalary ? parseFloat(form.totalSalary) : 0,
-  panNumber: form.panNumber || null,
-  aadharNumber: form.aadharNumber || null,
-  pfNumber: form.pfNumber || null,
-  bankName: form.bankName || null,
-  bankAccountNo: form.bankAccountNo || null,
-  ifscCode: form.ifscCode || null,
-  accountHolderName: form.accountHolderName || null,
-  bankBranch: form.bankBranch || null,
-  presentAddress: form.presentAddress || null,
-  permanentAddress: form.permanentAddress || null,
-  remarks: form.remarks || null,
-  isActive: form.active,
-  managementStaff: form.managementStaff,
-  visitorsAllowed: form.visitorsAllowed,
-  guest: form.guest,
-};
+    const payload = {
+      employeeCode: form.employeeCode,
+      firstName: form.firstName.trim(),
+      lastName: form.lastName?.trim() || "",
+      fatherName: form.fatherName?.trim() || "",
+      dateOfBirth: form.dateOfBirth || null,
+      gender: form.gender,
+      bloodGroup: form.bloodGroup || null,
+      contactPhone: form.contactPhone || null,
+      contactEmail: form.contactEmail || null,
+      dateOfJoining: form.dateOfJoining || null,
+      designationId: form.designationId ? parseInt(form.designationId) : null,
+      departmentId: form.departmentId ? parseInt(form.departmentId) : null,
+      employmentType: form.employmentType,
+      basicSalary: form.basicSalary ? parseFloat(form.basicSalary) : 0,
+      hra: form.hra ? parseFloat(form.hra) : 0,
+      allowances: form.allowances ? parseFloat(form.allowances) : 0,
+      totalSalary: form.totalSalary ? parseFloat(form.totalSalary) : 0,
+      panNumber: form.panNumber || null,
+      aadharNumber: form.aadharNumber || null,
+      pfNumber: form.pfNumber || null,
+      bankName: form.bankName || null,
+      bankAccountNo: form.bankAccountNo || null,
+      ifscCode: form.ifscCode || null,
+      accountHolderName: form.accountHolderName || null,
+      bankBranch: form.bankBranch || null,
+      presentAddress: form.presentAddress || null,
+      permanentAddress: form.permanentAddress || null,
+      remarks: form.remarks || null,
+      isActive: form.active,
+      managementStaff: form.managementStaff,
+      visitorsAllowed: form.visitorsAllowed,
+      guest: form.guest,
+    };
 
     try {
       let employeeId;
@@ -483,7 +464,6 @@ export default function HrEmployee() {
             setPhotoUploadStatus(null);
           }, 3000);
         } catch (photoErr) {
-
           setPhotoUploadStatus('error');
           setTimeout(() => {
             setPhotoUploadStatus(null);
@@ -501,7 +481,6 @@ export default function HrEmployee() {
       }, 2000);
 
     } catch (err) {
-
       setFormError(err.message || "Save failed");
     } finally {
       setSaving(false);
@@ -518,208 +497,207 @@ export default function HrEmployee() {
     }
   }
 
-const exportToExcel = () => {
-  const headers = [
-    "S.No",
-    "Employee Code",
-    "First Name", 
-    "Last Name",
-    "Blood Group",
-    "Date of Birth",
-    "Gender",
-    "Date of Joining",
-    "Department",
-    "Designation",
-    "Employment Type",
-    "Status",
-    "Contact Phone",
-    "Contact Email",
-    "Management Staff",
-    "Visitors Allowed",
-    "Guest",
-    "Basic Salary (₹)",
-    "HRA (₹)",
-    "Allowances (₹)",
-    "Total Salary (₹)",
-    "Account Holder Name",
-    "Bank Name",
-    "Bank Branch",
-    "Account Number",
-    "IFSC Code",
-    "PAN Number",
-    "Aadhar Number",
-    "PF Number",
-    "Present Address",
-    "Permanent Address",
-    "Remarks",
-    "Created Date",
-    "Last Updated"
-  ];
+  const exportToExcel = () => {
+    const headers = [
+      "S.No",
+      "Employee Code",
+      "First Name", 
+      "Last Name",
+      "Father's Name",
+      "Blood Group",
+      "Date of Birth",
+      "Gender",
+      "Date of Joining",
+      "Department",
+      "Designation",
+      "Employment Type",
+      "Status",
+      "Contact Phone",
+      "Contact Email",
+      "Management Staff",
+      "Visitors Allowed",
+      "Guest",
+      "Basic Salary (₹)",
+      "HRA (₹)",
+      "Allowances (₹)",
+      "Total Salary (₹)",
+      "Account Holder Name",
+      "Bank Name",
+      "Bank Branch",
+      "Account Number",
+      "IFSC Code",
+      "PAN Number",
+      "Aadhar Number",
+      "PF Number",
+      "Present Address",
+      "Permanent Address",
+      "Remarks",
+      "Created Date",
+      "Last Updated"
+    ];
 
-  const escapeCsv = (str) => {
-    if (str === null || str === undefined || str === '') return '""';
-    const stringValue = String(str);
-    // Handle if value contains comma, newline or double quote
-    if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
-      return `"${stringValue.replace(/"/g, '""')}"`;
-    }
-    return `"${stringValue}"`;
+    const escapeCsv = (str) => {
+      if (str === null || str === undefined || str === '') return '""';
+      const stringValue = String(str);
+      if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return `"${stringValue}"`;
+    };
+
+    const rows = filtered.map((emp, index) => {
+      const basicSalary = parseFloat(emp.basicSalary) || 0;
+      const hra = parseFloat(emp.hra) || 0;
+      const allowances = parseFloat(emp.allowances) || 0;
+      const totalSalary = basicSalary + hra + allowances;
+      
+      return [
+        index + 1,
+        emp.employeeCode || '',
+        emp.firstName || '',
+        emp.lastName || '',
+        emp.fatherName || '',
+        emp.bloodGroup || '',
+        emp.dateOfBirth ? new Date(emp.dateOfBirth).toLocaleDateString('en-IN') : '',
+        emp.gender || '',
+        emp.dateOfJoining ? new Date(emp.dateOfJoining).toLocaleDateString('en-IN') : '',
+        emp.departmentName || '',
+        emp.designationName || '',
+        emp.employmentType || '',
+        emp.isActive ? 'Active' : 'Inactive',
+        emp.contactPhone || '',
+        emp.contactEmail || '',
+        emp.managementStaff === 'Yes' ? 'Yes' : 'No',
+        emp.visitorsAllowed === 'Yes' ? 'Yes' : 'No',
+        emp.guest === 'Yes' ? 'Yes' : 'No',
+        basicSalary.toLocaleString('en-IN'),
+        hra.toLocaleString('en-IN'),
+        allowances.toLocaleString('en-IN'),
+        totalSalary.toLocaleString('en-IN'),
+        emp.accountHolderName || '',
+        emp.bankName || '',
+        emp.bankBranch || '',
+        emp.bankAccountNo || '',
+        emp.ifscCode || '',
+        emp.panNumber || '',
+        emp.aadharNumber || '',
+        emp.pfNumber || '',
+        (emp.presentAddress || '').replace(/\n/g, ' ').replace(/\r/g, ' '),
+        (emp.permanentAddress || '').replace(/\n/g, ' ').replace(/\r/g, ' '),
+        (emp.remarks || '').replace(/\n/g, ' ').replace(/\r/g, ' '),
+        emp.createdAt ? new Date(emp.createdAt).toLocaleString('en-IN') : '',
+        emp.updatedAt ? new Date(emp.updatedAt).toLocaleString('en-IN') : ''
+      ].map(escapeCsv).join(',');
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(','), ...rows].join('\n');
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = `employees_export_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
-  const rows = filtered.map((emp, index) => {
-    const basicSalary = parseFloat(emp.basicSalary) || 0;
-    const hra = parseFloat(emp.hra) || 0;
-    const allowances = parseFloat(emp.allowances) || 0;
-    const totalSalary = basicSalary + hra + allowances;
-    
-    return [
-      index + 1,
-      emp.employeeCode || '',
-      emp.firstName || '',
-      emp.lastName || '',
-      emp.bloodGroup || '',
-      emp.dateOfBirth ? new Date(emp.dateOfBirth).toLocaleDateString('en-IN') : '',
-      emp.gender || '',
-      emp.dateOfJoining ? new Date(emp.dateOfJoining).toLocaleDateString('en-IN') : '',
-      emp.departmentName || '',
-      emp.designationName || '',
-      emp.employmentType || '',
-      emp.isActive ? 'Active' : 'Inactive',
-      emp.contactPhone || '',
-      emp.contactEmail || '',
-      emp.managementStaff === 'Yes' ? 'Yes' : 'No',
-      emp.visitorsAllowed === 'Yes' ? 'Yes' : 'No',
-      emp.guest === 'Yes' ? 'Yes' : 'No',
-      basicSalary.toLocaleString('en-IN'),
-      hra.toLocaleString('en-IN'),
-      allowances.toLocaleString('en-IN'),
-      totalSalary.toLocaleString('en-IN'),
-      emp.accountHolderName || '',
-      emp.bankName || '',
-      emp.bankBranch || '',
-      emp.bankAccountNo || '',
-      emp.ifscCode || '',
-      emp.panNumber || '',
-      emp.aadharNumber || '',
-      emp.pfNumber || '',
-      (emp.presentAddress || '').replace(/\n/g, ' ').replace(/\r/g, ' '),
-      (emp.permanentAddress || '').replace(/\n/g, ' ').replace(/\r/g, ' '),
-      (emp.remarks || '').replace(/\n/g, ' ').replace(/\r/g, ' '),
-      emp.createdAt ? new Date(emp.createdAt).toLocaleString('en-IN') : '',
-      emp.updatedAt ? new Date(emp.updatedAt).toLocaleString('en-IN') : ''
-    ].map(escapeCsv).join(',');
-  });
-
-  // Add BOM for UTF-8 to handle special characters properly
-  const csvContent = "\uFEFF" + [headers.join(','), ...rows].join('\n');
-  
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  const url = URL.createObjectURL(blob);
-  link.href = url;
-  link.download = `employees_export_${new Date().toISOString().split('T')[0]}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
-const handleBulkUpload = async () => {
-  if (!bulkFile) {
-    alert("Please select an Excel file to upload");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append('file', bulkFile);
-
-  setBulkUploading(true);
-  setBulkUploadProgress('uploading');
-  setBulkUploadResult(null);
-
-  try {
-    const response = await hrEmployeeApi.bulkUpload(formData);
-    // Remove this line: console.log("Bulk upload response:", response);
-    
-    setBulkUploadResult({
-      success: response.success || true,
-      data: response.data,
-      message: response.message || 'Bulk upload completed successfully',
-      errors: response.data?.errors || response.errors || []
-    });
-    setBulkUploadProgress('complete');
-    
-    if (response.data?.successCount > 0) {
-      await fetchEmployees();
+  const handleBulkUpload = async () => {
+    if (!bulkFile) {
+      alert("Please select an Excel file to upload");
+      return;
     }
-    
-    if (response.data?.failedCount === 0) {
-      setTimeout(() => {
-        setShowBulkUploadModal(false);
-        setBulkFile(null);
-        setBulkUploadResult(null);
-        setBulkUploadProgress(null);
-      }, 3000);
-    }
-  } catch (err) {
-    setBulkUploadResult({
-      success: false,
-      message: err.response?.data?.message || err.message || 'Bulk upload failed',
-      errors: err.response?.data?.data?.errors || err.response?.data?.errors || []
-    });
-    setBulkUploadProgress('error');
-  } finally {
-    setBulkUploading(false);
-  }
-};
 
-const downloadSampleTemplate = () => {
-  const headers = [
-    "Employee Code", "First Name", "Last Name", "Father Name", "Date of Birth", "Gender", 
-    "Blood Group", "Contact Phone", "Contact Email", "Date of Joining", 
-    "Department Name", "Designation Name", "Employment Type", 
-    "Basic Salary", "HRA", "Allowances", "Total Salary",
-    "PAN Number", "Aadhar Number", "PF Number", 
-    "Bank Name", "Bank Account No", "IFSC Code", "Account Holder Name", 
-    "Bank Branch", "Present Address", "Permanent Address", "Remarks", 
-    "Management Staff", "Visitors Allowed", "Guest"
-  ];
-  
-  const sampleRows = [
-    [
-      "HG-RE-TPR-001", "John", "Doe", "Robert Doe", "01-01-1990", "Male", 
-      "O+", "9876543210", "john@example.com", "01-01-2024", 
-      "Information Technology", "Frontend Developer", "Permanent", 
-      "50000", "20000", "10000", "80000",
-      "ABCDE1234F", "123456789012", "PF123456", 
-      "SBI", "1234567890", "SBIN0012345", "John Doe", 
-      "Main Branch", "123 Main St, City", "Same as Present", "Good employee", 
-      "No", "No", "No"
-    ],
-    [
-      "HG-RE-TPR-002", "Jane", "Smith", "Michael Smith", "15-05-1992", "Female", 
-      "A+", "9876543211", "jane@example.com", "01-02-2024", 
-      "Admin", "Office Manager", "Permanent", 
-      "60000", "25000", "15000", "100000",
-      "XYZAB5678G", "987654321098", "PF789012", 
-      "HDFC", "9876543210", "HDFC0012345", "Jane Smith", 
-      "City Branch", "456 Park Ave, City", "Same as Present", "Experienced manager", 
-      "Yes", "Yes", "No"
-    ]
-  ];
-  
-  const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
-  const csvRows = [headers.join(","), ...sampleRows.map(row => row.map(escapeCsv).join(","))];
-  const csvContent = "\uFEFF" + csvRows.join("\n");
-  
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "employee_bulk_upload_template.csv";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
+    const formData = new FormData();
+    formData.append('file', bulkFile);
+
+    setBulkUploading(true);
+    setBulkUploadProgress('uploading');
+    setBulkUploadResult(null);
+
+    try {
+      const response = await hrEmployeeApi.bulkUpload(formData);
+      
+      setBulkUploadResult({
+        success: response.success || true,
+        data: response.data,
+        message: response.message || 'Bulk upload completed successfully',
+        errors: response.data?.errors || response.errors || []
+      });
+      setBulkUploadProgress('complete');
+      
+      if (response.data?.successCount > 0) {
+        await fetchEmployees();
+      }
+      
+      if (response.data?.failedCount === 0) {
+        setTimeout(() => {
+          setShowBulkUploadModal(false);
+          setBulkFile(null);
+          setBulkUploadResult(null);
+          setBulkUploadProgress(null);
+        }, 3000);
+      }
+    } catch (err) {
+      setBulkUploadResult({
+        success: false,
+        message: err.response?.data?.message || err.message || 'Bulk upload failed',
+        errors: err.response?.data?.data?.errors || err.response?.data?.errors || []
+      });
+      setBulkUploadProgress('error');
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
+  const downloadSampleTemplate = () => {
+    const headers = [
+      "Employee Code", "First Name", "Last Name", "Father Name", "Date of Birth", "Gender", 
+      "Blood Group", "Contact Phone", "Contact Email", "Date of Joining", 
+      "Department Name", "Designation Name", "Employment Type", 
+      "Basic Salary", "HRA", "Allowances", "Total Salary",
+      "PAN Number", "Aadhar Number", "PF Number", 
+      "Bank Name", "Bank Account No", "IFSC Code", "Account Holder Name", 
+      "Bank Branch", "Present Address", "Permanent Address", "Remarks", 
+      "Management Staff", "Visitors Allowed", "Guest"
+    ];
+    
+    const sampleRows = [
+      [
+        "HG-RE-TPR-001", "John", "Doe", "Robert Doe", "01-01-1990", "Male", 
+        "O+", "9876543210", "john@example.com", "01-01-2024", 
+        "Information Technology", "Frontend Developer", "Permanent", 
+        "50000", "20000", "10000", "80000",
+        "ABCDE1234F", "123456789012", "PF123456", 
+        "SBI", "1234567890", "SBIN0012345", "John Doe", 
+        "Main Branch", "123 Main St, City", "Same as Present", "Good employee", 
+        "No", "No", "No"
+      ],
+      [
+        "HG-RE-TPR-002", "Jane", "Smith", "Michael Smith", "15-05-1992", "Female", 
+        "A+", "9876543211", "jane@example.com", "01-02-2024", 
+        "Admin", "Office Manager", "Permanent", 
+        "60000", "25000", "15000", "100000",
+        "XYZAB5678G", "987654321098", "PF789012", 
+        "HDFC", "9876543210", "HDFC0012345", "Jane Smith", 
+        "City Branch", "456 Park Ave, City", "Same as Present", "Experienced manager", 
+        "Yes", "Yes", "No"
+      ]
+    ];
+    
+    const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+    const csvRows = [headers.join(","), ...sampleRows.map(row => row.map(escapeCsv).join(","))];
+    const csvContent = "\uFEFF" + csvRows.join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "employee_bulk_upload_template.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const spinnerStyle = `
     @keyframes spin {
@@ -746,7 +724,7 @@ const downloadSampleTemplate = () => {
               onClick={() => setShowBulkUploadModal(true)}
               style={{ background: "#10b981", color: "white", borderColor: "#10b981" }}
             >
-               Bulk Upload
+              Bulk Upload
             </button>
             <button className="inv-btn-primary" onClick={openAdd}>
               + Add Employee
@@ -782,32 +760,28 @@ const downloadSampleTemplate = () => {
             <div style={{ textAlign: "center", padding: 40 }}>Loading...</div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table className="inv-table" style={{ minWidth: "1600px" }}>
+              <table className="inv-table" style={{ minWidth: "1000px" }}>
                 <thead>
                   <tr>
-                    <th>#</th>
+                    <th style={{ width: 50 }}>#</th>
                     <th>Emp Code</th>
                     <th>Full Name</th>
-                    <th>Father Name</th>
-                    <th>Blood Group</th>
+                    <th>Father's Name</th>
+                    <th>Date of Birth</th>
+                    <th>Gender</th>
+                    <th>Contact Phone</th>
+                    <th>Contact Email</th>
                     <th>Department</th>
                     <th>Designation</th>
-                    <th>Phone</th>
-                    <th>Email</th>
-                    <th>PAN</th>
-                    <th>Aadhar</th>
-                    <th>PF No</th>
-                    <th>Bank Name</th>
-                    <th>Account No</th>
-                    <th>IFSC</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                    <th>Employment Type</th>
+                    <th style={{ textAlign: "center" }}>Status</th>
+                    <th style={{ textAlign: "center" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={16} style={{ textAlign: "center", padding: 40 }}>
+                      <td colSpan={13} style={{ textAlign: "center", padding: 40 }}>
                         No records found
                       </td>
                     </tr>
@@ -815,27 +789,23 @@ const downloadSampleTemplate = () => {
                     filtered.map((row, i) => (
                       <tr key={row.id}>
                         <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
-                        <td className="inv-bold">{row.employeeCode}</td>
+                        <td className="inv-bold" style={{ color: "#3b6ef8" }}>{row.employeeCode}</td>
                         <td className="inv-bold">{row.firstName} {row.lastName || ""}</td>
                         <td>{row.fatherName || "—"}</td>
-                        <td>{row.bloodGroup || "—"}</td>
-                        <td>{row.departmentName || "—"}</td>
-                        <td>{row.designationName || "—"}</td>
+                        <td>{row.dateOfBirth ? new Date(row.dateOfBirth).toLocaleDateString('en-IN') : "—"}</td>
+                        <td style={{ textAlign: "center" }}>{row.gender || "—"}</td>
                         <td>{row.contactPhone || "—"}</td>
                         <td>{row.contactEmail || "—"}</td>
-                        <td>{row.panNumber || "—"}</td>
-                        <td>{row.aadharNumber || "—"}</td>
-                        <td>{row.pfNumber || "—"}</td>
-                        <td>{row.bankName || "—"}</td>
-                        <td>{row.bankAccountNo || "—"}</td>
-                        <td>{row.ifscCode || "—"}</td>
-                        <td>
+                        <td>{row.departmentName || "—"}</td>
+                        <td>{row.designationName || "—"}</td>
+                        <td>{row.employmentType || "—"}</td>
+                        <td style={{ textAlign: "center" }}>
                           <span className={`inv-badge ${row.isActive ? "inv-badge-yes" : "inv-badge-no"}`}>
                             {row.isActive ? "Active" : "Inactive"}
                           </span>
                         </td>
-                        <td>
-                          <div className="inv-actions">
+                        <td style={{ textAlign: "center" }}>
+                          <div className="inv-actions" style={{ justifyContent: "center" }}>
                             <button 
                               className="inv-btn-icon" 
                               title="View Details" 
@@ -944,7 +914,7 @@ const downloadSampleTemplate = () => {
                       onClick={downloadSampleTemplate}
                       style={{ fontSize: "13px" }}
                     >
-                       Download Sample Template
+                      Download Sample Template
                     </button>
                   </div>
 
@@ -1261,7 +1231,7 @@ const downloadSampleTemplate = () => {
               className="inv-input"
               value={form.employeeCode}
               onChange={(v) => setForm((f) => ({ ...f, employeeCode: v.target.value.toUpperCase() }))}
-              placeholder="HG-RE-TPR-001"  // ← Add this placeholder
+              placeholder="HG-RE-TPR-001"
               disabled={!!editId}
               style={{ background: editId ? "#f1f5f9" : "white" }}
             />
@@ -1303,6 +1273,7 @@ const downloadSampleTemplate = () => {
               <option value="B-">B-</option>
               <option value="O+">O+</option>
               <option value="O-">O-</option>
+              <option value="A1B+">A1B</option>
               <option value="AB+">AB+</option>
               <option value="AB-">AB-</option>
             </select>
@@ -1411,11 +1382,6 @@ const downloadSampleTemplate = () => {
               <option value={false}>Inactive</option>
             </select>
           </Field>
-        </FormGrid>
-      </Section>
-
-      <Section title="Management & Access Settings">
-        <FormGrid cols={2}>
           <Field label="Management Staff">
             <select
               className="inv-input"
@@ -1450,56 +1416,56 @@ const downloadSampleTemplate = () => {
       </Section>
 
       <Section title="Compensation">
-  <FormGrid cols={3}>
-    <Field label="Basic Salary">
-      <input
-        className="inv-input"
-        value={form.basicSalary}
-        onChange={(v) => setForm((f) => ({ ...f, basicSalary: v.target.value }))}
-        placeholder="Basic Salary"
-        type="number"
-        step="0.01"
-      />
-    </Field>
-    <Field label="HRA">
-      <input
-        className="inv-input"
-        value={form.hra}
-        onChange={(v) => setForm((f) => ({ ...f, hra: v.target.value }))}
-        placeholder="HRA Amount"
-        type="number"
-        step="0.01"
-      />
-    </Field>
-    <Field label="Allowances">
-      <input
-        className="inv-input"
-        value={form.allowances}
-        onChange={(v) => setForm((f) => ({ ...f, allowances: v.target.value }))}
-        placeholder="Other Allowances"
-        type="number"
-        step="0.01"
-      />
-    </Field>
-    <Field label="Total Salary">
-      <input
-        className="inv-input"
-        value={form.totalSalary || ((parseFloat(form.basicSalary) || 0) + (parseFloat(form.hra) || 0) + (parseFloat(form.allowances) || 0)).toFixed(2)}
-        onChange={(e) => setForm((f) => ({ ...f, totalSalary: e.target.value }))}
-        placeholder="Total Salary"
-        type="number"
-        step="0.01"
-        style={{ 
-          fontWeight: 600, 
-          color: "#3b6ef8",
-          border: "1px solid #e2e8f0",
-          borderRadius: "4px",
-          padding: "6px 12px"
-        }}
-      />
-    </Field>
-  </FormGrid>
-</Section>
+        <FormGrid cols={3}>
+          <Field label="Basic Salary">
+            <input
+              className="inv-input"
+              value={form.basicSalary}
+              onChange={(v) => setForm((f) => ({ ...f, basicSalary: v.target.value }))}
+              placeholder="Basic Salary"
+              type="number"
+              step="0.01"
+            />
+          </Field>
+          <Field label="HRA">
+            <input
+              className="inv-input"
+              value={form.hra}
+              onChange={(v) => setForm((f) => ({ ...f, hra: v.target.value }))}
+              placeholder="HRA Amount"
+              type="number"
+              step="0.01"
+            />
+          </Field>
+          <Field label="Allowances">
+            <input
+              className="inv-input"
+              value={form.allowances}
+              onChange={(v) => setForm((f) => ({ ...f, allowances: v.target.value }))}
+              placeholder="Other Allowances"
+              type="number"
+              step="0.01"
+            />
+          </Field>
+          <Field label="Total Salary">
+            <input
+              className="inv-input"
+              value={form.totalSalary || ((parseFloat(form.basicSalary) || 0) + (parseFloat(form.hra) || 0) + (parseFloat(form.allowances) || 0)).toFixed(2)}
+              onChange={(e) => setForm((f) => ({ ...f, totalSalary: e.target.value }))}
+              placeholder="Total Salary"
+              type="number"
+              step="0.01"
+              style={{ 
+                fontWeight: 600, 
+                color: "#3b6ef8",
+                border: "1px solid #e2e8f0",
+                borderRadius: "4px",
+                padding: "6px 12px"
+              }}
+            />
+          </Field>
+        </FormGrid>
+      </Section>
 
       <Section title="Banking Information">
         <FormGrid cols={2}>

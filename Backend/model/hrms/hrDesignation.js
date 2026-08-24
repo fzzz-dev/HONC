@@ -4,12 +4,12 @@ const sequelize = require('../../config/database');
 
 const HrDesignation = sequelize.define('HrDesignation', {
   id: {
-    type: DataTypes.BIGINT.UNSIGNED,
+    type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true
   },
   department_id: {
-    type: DataTypes.BIGINT.UNSIGNED,
+    type: DataTypes.INTEGER,
     allowNull: false,
     field: 'department_id'
   },
