@@ -92,7 +92,6 @@ export default function Quotation() {
   useEffect(() => {
     const handleTabKey = (e) => {
       if (e.key !== 'Tab') return;
-
       const focusableElements = Array.from(
         document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
       ).filter(el => {
@@ -121,7 +120,6 @@ export default function Quotation() {
         }
       }
     };
-
     document.addEventListener('keydown', handleTabKey);
     return () => document.removeEventListener('keydown', handleTabKey);
   }, [details.length]);

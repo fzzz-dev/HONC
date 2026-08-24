@@ -88,7 +88,6 @@ export default function SalesOrder() {
   useEffect(() => {
     const handleTabKey = (e) => {
       if (e.key !== 'Tab') return;
-
       const focusableElements = Array.from(
         document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
       ).filter(el => {
@@ -117,7 +116,6 @@ export default function SalesOrder() {
         }
       }
     };
-
     document.addEventListener('keydown', handleTabKey);
     return () => document.removeEventListener('keydown', handleTabKey);
   }, [details.length]);
@@ -148,7 +146,6 @@ export default function SalesOrder() {
       setLookupsLoaded(true);
     }
   }
-
 
   async function loadSalesOrders() {
     setLoadingList(true);

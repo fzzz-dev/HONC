@@ -150,7 +150,6 @@ export default function Color() {
 
   async function handleDelete(id) {
     if (!window.confirm("Permanently delete this color? This action cannot be undone.")) return;
-
     try {
       await productionApi.color.hardDelete(id);
       setItems((prev) => prev.filter((x) => x.id !== id));
@@ -288,7 +287,6 @@ export default function Color() {
               placeholder="Enter color name"
             />
           </Field>
-
           <Field label="Description">
             <Input
               value={form.description}

@@ -71,7 +71,6 @@ export default function Enquiry() {
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [formError, setFormError] = useState(null);
   const [lookupsLoaded, setLookupsLoaded] = useState(false);
-
   // Refs for tab flow
   const addButtonRef = useRef(null);
   const viewListButtonRef = useRef(null);
@@ -97,7 +96,6 @@ export default function Enquiry() {
   useEffect(() => {
     const handleTabKey = (e) => {
       if (e.key !== 'Tab') return;
-
       const focusableElements = Array.from(
         document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
       ).filter(el => {
@@ -126,7 +124,6 @@ export default function Enquiry() {
         }
       }
     };
-
     document.addEventListener('keydown', handleTabKey);
     return () => {
       document.removeEventListener('keydown', handleTabKey);
