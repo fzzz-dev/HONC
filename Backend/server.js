@@ -29,7 +29,7 @@ async function ensureDatabaseExists() {
   });
 
   await connection.query(
-    `CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME || "inventory_db"}\`;`,
+    `CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME}\`;`,
   );
   await connection.end();
   
@@ -61,7 +61,7 @@ const seedData = async () => {
 };
 
 const ensureItemMovementTypeColumn = async () => {
-  const dbName = process.env.DB_NAME || "inventory_db";
+  const dbName = process.env.DB_NAME;
   const [rows] = await sequelize.query(
     `SELECT COLUMN_NAME
      FROM INFORMATION_SCHEMA.COLUMNS
@@ -243,16 +243,16 @@ async function startServer() {
       });
     });
 
-    const PORT = process.env.PORT || 5000;
+    const PORT = process.env.PORT;
     app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+
+
 
     });
   } catch (err) {
 
-    console.error("Server Error:", err);
     process.exit(1);
-  }
+}
 }
 
 startServer();
