@@ -39,7 +39,6 @@ const Icons = {
   SlideLeft: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>,
   SlideRight: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>,
   //HRMS Icons
-  //HRsubdept: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-component-icon lucide-component"><path d="M15.536 11.293a1 1 0 0 0 0 1.414l2.376 2.377a1 1 0 0 0 1.414 0l2.377-2.377a1 1 0 0 0 0-1.414l-2.377-2.377a1 1 0 0 0-1.414 0z"/><path d="M2.297 11.293a1 1 0 0 0 0 1.414l2.377 2.377a1 1 0 0 0 1.414 0l2.377-2.377a1 1 0 0 0 0-1.414L6.088 8.916a1 1 0 0 0-1.414 0z"/><path d="M8.916 17.912a1 1 0 0 0 0 1.415l2.377 2.376a1 1 0 0 0 1.414 0l2.377-2.376a1 1 0 0 0 0-1.415l-2.377-2.376a1 1 0 0 0-1.414 0z"/><path d="M8.916 4.674a1 1 0 0 0 0 1.414l2.377 2.376a1 1 0 0 0 1.414 0l2.377-2.376a1 1 0 0 0 0-1.414l-2.377-2.377a1 1 0 0 0-1.414 0z"/></svg>,
   HRdept: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-building-icon lucide-building"><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M12 6h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M8 6h.01"/><path d="M9 22v-3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/><rect x="4" y="2" width="16" height="20" rx="2"/></svg>,
   HRdesg: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-round-key-icon lucide-user-round-key"><path d="M19 11v6"/><path d="M19 13h2"/><path d="M2 21a8 8 0 0 1 12.868-6.349"/><circle cx="10" cy="8" r="5"/><circle cx="19" cy="19" r="2"/></svg>,
   HRshift: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock-fading-icon lucide-clock-fading"><path d="M12 2a10 10 0 0 1 7.38 16.75"/><path d="M12 6v6l4 2"/><path d="M2.5 8.875a10 10 0 0 0-.5 3"/><path d="M2.83 16a10 10 0 0 0 2.43 3.4"/><path d="M4.636 5.235a10 10 0 0 1 .891-.857"/><path d="M8.644 21.42a10 10 0 0 0 7.631-.38"/></svg>,
@@ -68,7 +67,7 @@ const MASTERS = [
   { path: "/store", label: "Store Master", icon: Icons.Store },
   { path: "/department", label: "Department Master", icon: Icons.Dept },
   { path: "/process", label: "Process Master", icon: Icons.Process },
-  { path:"/Issues", label: "issues", icon: Icons.Issues}
+  { path:"/Issues", label: "Issues", icon: Icons.Issues}
 ];
 
 const ADMIN = [
@@ -92,6 +91,21 @@ const HRMS = [
   { path: "/hr/designation", label: "Designation", icon: Icons.HRdesg },
   { path: "/hr/shift", label: "Shift", icon: Icons.HRshift },
   { path: "/hr/employee", label: "Employee", icon: Icons.HRemp },
+];
+
+const ProductionMasters = [
+  { path: "/production/colors", label: "Colors", icon: Icons.Color },
+  { path: "/production/counts", label: "Counts", icon: Icons.Counts },
+  { path: "/production/yarn-types", label: "Yarn Types", icon: Icons.YarnType },
+  { path: "/production/mills", label: "Mills", icon: Icons.Mill },
+  { path: "/production/processes", label: "Processes", icon: Icons.PRprocess },
+];
+
+const ProductionTransactions = [
+  { path: "/production/enquiry", label: "Enquiry", icon: Icons.Enquiry },
+  { path: "/production/quotation", label: "Quotation", icon: Icons.Quotation },
+  { path: "/production/sales-order", label: "Sales Order", icon: Icons.SalesOrder },
+  { path: "/production/yarn-inward", label: "Yarn Inward", icon: Icons.YarnInward },
 ];
 
 function NavGroup({ label, items, navigate, pathname, onHover, onLeave, isOpen, onToggle }) {
@@ -291,6 +305,8 @@ export default function Sidebar() {
   const filteredAdmin = ADMIN.filter(a => hasAccess(a.path));
   const filteredReports = REPORTS.filter(r => hasAccess(r.path));
   const filteredHRMS = HRMS.filter(h => hasAccess(h.path));
+  const filteredProductionMasters = ProductionMasters.filter(p => hasAccess(p.path));
+  const filteredProductionTransactions = ProductionTransactions.filter(p => hasAccess(p.path));
 
   if (!isVisible) {
     return (
@@ -305,9 +321,17 @@ export default function Sidebar() {
       <div style={{ color: 'white', display: 'flex', justifyContent: 'flex-end', padding: '0px 0px 10px 10px', cursor: 'pointer' }} onClick={toggleSidebar}>
         <Icons.SlideLeft />
       </div>
+
       <div 
         className="inv-logo" 
-        style={{ cursor: 'pointer', padding: '32px 0', border: 'none' }} 
+        style={{ 
+          cursor: 'pointer', 
+          padding: '16px 0', 
+          border: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }} 
         onClick={() => navigate('/')}
         tabIndex={-1}
         onKeyDown={(e) => { 
@@ -321,7 +345,16 @@ export default function Sidebar() {
           }
         }}
       >
-        <img src="/logo-full-white.png" alt="HONC" style={{ width: '100px', height: 'auto', borderRadius: '0', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }} />
+        <img 
+          src="/Fiosun-logo.png" 
+          alt="FIOSUN" 
+          style={{ 
+            width: '50px', 
+            height: '36px', 
+            borderRadius: '0',
+            objectFit: 'contain'
+          }} 
+        />
       </div>
 
       <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '10px 0' }}>
@@ -383,6 +416,30 @@ export default function Sidebar() {
             onLeave={() => setHoveredLabel(null)}
             isOpen={openSection === 'hrms'}
             onToggle={() => toggleSection('hrms')}
+          />
+        )}
+        {filteredProductionMasters.length > 0 && (
+          <NavGroup 
+            label="Production Masters" 
+            items={filteredProductionMasters} 
+            navigate={navigate} 
+            pathname={pathname} 
+            onHover={handleMouseEnter} 
+            onLeave={() => setHoveredLabel(null)}
+            isOpen={openSection === 'production'}
+            onToggle={() => toggleSection('production')}
+          />
+        )}
+          {filteredProductionTransactions.length > 0 && (
+          <NavGroup 
+            label="Production Transactions" 
+            items={filteredProductionTransactions} 
+            navigate={navigate} 
+            pathname={pathname} 
+            onHover={handleMouseEnter} 
+            onLeave={() => setHoveredLabel(null)}
+            isOpen={openSection === 'production-transactions'}
+            onToggle={() => toggleSection('production-transactions')}
           />
         )}
       </div>

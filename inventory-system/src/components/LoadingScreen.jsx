@@ -4,9 +4,9 @@ const LoadingScreen = () => {
   return (
     <div className="loading-screen">
       <div className="loader-content">
-        <img src="/logo-full-white.png" alt="HONC Logo" className="loader-logo" />
+        <img src="/Fiosun-logo-full" alt="Fiosun" className="loader-logo" />
         <div className="loader-spinner"></div>
-        <p className="loader-text">Initializing HONC Ecosystem...</p>
+        <p className="loader-text">Initializing ERP Ecosystem...</p>
       </div>
     </div>
   );

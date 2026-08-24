@@ -50,6 +50,18 @@ import HrShift from "./pages/hrms/HrShift";
 import HrEmployee from "./pages/hrms/HrEmployee";
 import EmployeeReportPage from "./pages/Reports/EmployeeReport"
 
+// ========== PRODUCTION MASTER PAGES  ==========
+import Color from "./pages/ProductionMasters/Color";
+import Counts from "./pages/ProductionMasters/Counts";
+import YarnType from "./pages/ProductionMasters/YarnType";
+import Mill from "./pages/ProductionMasters/Mill";
+import Process from "./pages/ProductionMasters/Process";
+
+//=========== PRODUCTION TRANSACTION PAGES =========
+import Enquiry from "./pages/ProductionTransactions/Enquiry";
+import Quotation from "./pages/ProductionTransactions/Quotation";
+import SalesOrder from "./pages/ProductionTransactions/SalesOrder";
+
 import "./index.css";
 
 function AuthenticatedLayout({ children }) {
@@ -102,7 +114,19 @@ export default function App() {
                 <Route path="/store" element={<StoreMasterPage />} />
                 <Route path="/department" element={<DepartmentMasterPage />} />
                 <Route path="/process" element={<ProcessMasterPage />} />
-                <Route path= "/Issues" element={<IssueTypePage/>} />
+                <Route path="/Issues" element={<IssueTypePage />} />
+
+                {/* ── Production Masters ── */}
+                <Route path="/production/colors" element={<Color />} />
+                <Route path="/production/counts" element={<Counts />} />
+                <Route path="/production/yarn-types" element={<YarnType />} />
+                <Route path="/production/mills" element={<Mill />} />
+                <Route path="/production/processes" element={<Process />} />
+
+                {/* ── Production Transactions ── */}
+                <Route path="/production/enquiry" element={<Enquiry />} />
+                <Route path="/production/quotation" element={<Quotation/>} />
+                <Route path="/production/sales-order" element={<SalesOrder/>} />
 
                 {/* ── Transactions ── */}
                 <Route path="/purchase-indent" element={<PurchaseIndentPage />} />
@@ -130,6 +154,7 @@ export default function App() {
                 <Route path="/hr/designation" element={<HrDesignation />} />
                 <Route path="/hr/shift" element={<HrShift />} />
                 <Route path="/hr/employee" element={<HrEmployee />} />
+
 
                 <Route path="*" element={<Navigate to="/inv-head" replace />} />
               </Routes>

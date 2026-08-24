@@ -5,10 +5,10 @@
 :root {
   --bg: #f4f5f7;
   --surface: #ffffff;
-  --sidebar: #1a1f2e;
-  --sidebar-hover: #252c3d;
-  --sidebar-active: #2e3a52;
-  --accent: #3b6ef8;
+  --sidebar: #0eadcd;
+  --sidebar-hover: #f5f6fa;
+  --sidebar-active: #eceef3;
+  --accent: #47e8fa;
   --primary: var(--accent);
   --accent-light: #eef2ff;
   --text: #1a1f2e;
@@ -37,7 +37,7 @@ body {
 /* ── Sidebar ─────────────────────────────────────────── */
 .inv-sidebar {
   width: 160px; min-width: 160px;
-  background: #0f172a;
+  background: #020c20;
   display: flex; flex-direction: column;
   overflow: visible; /* Allow tooltips to break out */
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -50,6 +50,7 @@ body {
 .no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
+  color: #ffffff;
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -86,7 +87,7 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.05); 
   border-radius: 12px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  color: #94a3b8;
+  color: #fbfdff;
   font-size: 20px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
