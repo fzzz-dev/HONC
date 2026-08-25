@@ -4,6 +4,7 @@ import { supplierApi } from "../../services/inventoryApi";
 import { productionApi } from "../../services/productionApi";
 import Modal from "../../components/Modal";
 import { SearchSelect } from "../../components/FormFields";
+import { enquiryApi } from "../../services/transactionApi";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -161,9 +162,8 @@ export default function Enquiry() {
     setLoadingList(true);
     try {
       // TODO: Replace with actual API call when backend is ready
-      // const data = await enquiryApi.getAll();
-      // setEnquiries(data);
-      setEnquiries([]);
+      const data = await enquiryApi.getAll();
+      setEnquiries(data);
     } catch (e) {
       setListError(e.message);
     } finally {
@@ -172,11 +172,14 @@ export default function Enquiry() {
   }
 
   async function openNew() {
+    const nextNo = await enquiryApi.getNextNumber();
+
     setHeader({
       ...emptyHeader(),
       preparedBy: user?.name || "Admin",
-      docId: "ENQ-" + String(Date.now()).slice(-6) // Temporary auto-generation
+      docId: nextNo.docId      // <-- only the string
     });
+
     setDetails([emptyDetail()]);
     setEditId(null);
     setView("form");
@@ -190,7 +193,12 @@ export default function Enquiry() {
       customer: sid(enquiry.customer),
       customerName: enquiry.customerName || "",
     });
-    setDetails(enquiry.details || [emptyDetail()]);
+    setDetails(
+      (enquiry.details || []).map(d => ({
+        ...d,
+        _rowId: Math.random()
+      }))
+    );
     setView("form");
   }
 
@@ -208,6 +216,9 @@ export default function Enquiry() {
 
   function removeRow(idx) {
     setDetails(prev => prev.filter((_, i) => i !== idx));
+    if (details.length === 1) {
+      setDetails([emptyDetail()]);
+    }
   }
 
   const handleSave = useCallback(async () => {
@@ -215,7 +226,7 @@ export default function Enquiry() {
     if (!header.customer) return setFormError("Customer is required");
 
     for (const row of details) {
-      if (!row.colour.trim()) return setFormError("Colour is required");
+      if (!row.colour?.trim()) return setFormError("Colour is required");
       if (!row.counts.trim()) return setFormError("Counts is required");
       if (!row.yarnType.trim()) return setFormError("Yarn Type is required");
       if (Number(row.enqQty) <= 0) return setFormError("Enquiry Quantity is required");
@@ -244,11 +255,11 @@ export default function Enquiry() {
 
     try {
       // TODO: Replace with actual API call when backend is ready
-      // if (editId) {
-      //   await enquiryApi.update(editId, payload);
-      // } else {
-      //   await enquiryApi.create(payload);
-      // }
+      if (editId) {
+        await enquiryApi.update(editId, payload);
+      } else {
+        await enquiryApi.create(payload);
+      }
       console.log("Saving enquiry:", payload);
       await loadEnquiries();
       setSaveSuccessModal(true);
@@ -283,7 +294,7 @@ export default function Enquiry() {
     if (!window.confirm("Delete this enquiry?")) return;
     try {
       // TODO: Replace with actual API call when backend is ready
-      // await enquiryApi.remove(id);
+      await enquiryApi.remove(id);
       await loadEnquiries();
     } catch (err) {
       alert(err.message);
@@ -686,14 +697,14 @@ export default function Enquiry() {
         {/* Summary Card */}
         <div className="inv-card">
           <div className="inv-card-body">
-            <div style={{ display: "flex", gap: 40, padding: "10px 20px", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", gap: 10, padding: "10px 20px", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>Total Line Items</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#1e293b" }}>{details.filter(d => d.colour.trim()).length}</div>
+                <div style={{ fontSize: 10, color: "#64748b" }}>Total Line Items</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b" }}>{details.filter(d => d.colour.trim()).length}</div>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>Total Enquiry Qty</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(totalQty)}</div>
+                <div style={{ fontSize: 10, color: "#64748b" }}>Total Enquiry Qty</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(totalQty)}</div>
               </div>
             </div>
 

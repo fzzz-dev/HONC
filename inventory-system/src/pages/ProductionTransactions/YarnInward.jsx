@@ -91,6 +91,7 @@ export default function YarnInward() {
   const [header, setHeader] = useState(emptyHeader());
   const [details, setDetails] = useState([emptyDetail()]);
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [formError, setFormError] = useState(null);
@@ -159,19 +160,19 @@ export default function YarnInward() {
 
   async function loadLookups() {
     try {
-       const [
-  suppliersData,
-  colorsData,
-  countsData,
-  yarnTypesData,
-  millsData
-] = await Promise.all([
-  supplierApi.getAll(),
-  productionApi.color.getAll(),
-  productionApi.counts.getAll(),
-  productionApi.yarnType.getAll(),
-  productionApi.mill.getAll()   // or productionApi.mills.getAll()
-]);
+      const [
+        suppliersData,
+        colorsData,
+        countsData,
+        yarnTypesData,
+        millsData
+      ] = await Promise.all([
+        supplierApi.getAll(),
+        productionApi.color.getAll(),
+        productionApi.counts.getAll(),
+        productionApi.yarnType.getAll(),
+        productionApi.mill.getAll()   // or productionApi.mills.getAll()
+      ]);
 
       setSuppliers(suppliersData || []);
       setColors(colorsData || []);
@@ -211,16 +212,13 @@ export default function YarnInward() {
     setView("form");
   }
 
-  function openEdit(yarnInward) {
-    // TODO: Implement edit when backend is ready
-    setEditId(sid(yarnInward));
-    setHeader({
-      ...yarnInward,
-      customer: sid(yarnInward.customer),
-      customerName: yarnInward.customerName || "",
-    });
-    setDetails(yarnInward.details || [emptyDetail()]);
-    setView("form");
+  function updateHeader(field, value) {
+    setHeader(prev => ({
+      ...prev,
+      [field]: value
+    }));
+
+    setIsDirty(true);
   }
 
   function updateDetail(idx, field, val) {
@@ -241,29 +239,93 @@ export default function YarnInward() {
 
       return rows;
     });
+
+    setIsDirty(true);
   }
+
+  const moveToNextTab = (currentTabIndex) => {
+    setTimeout(() => {
+      const next = document.querySelector(
+        `[tabIndex="${currentTabIndex + 1}"]`
+      );
+
+      if (next) {
+        next.focus();
+      }
+    }, 50);
+  };
+
+  const handleEnterAsTab = (e) => {
+    if (e.key !== "Enter") return;
+
+    e.preventDefault();
+
+    const current = Number(e.target.tabIndex);
+
+    setTimeout(() => {
+      const next = document.querySelector(
+        `[tabIndex="${current + 1}"]`
+      );
+
+      if (next) {
+        next.focus();
+      }
+    }, 0);
+  };
+
+  const moveNextField = (e) => {
+    if (e.key !== "Enter") return;
+
+    e.preventDefault();
+
+    const currentTab = Number(e.target.tabIndex);
+
+    const next = document.querySelector(
+      `[tabindex="${currentTab + 1}"]`
+    );
+
+    if (next) {
+      next.focus();
+    }
+  };
+
   function addRow() {
     setDetails(prev => [...prev, { ...emptyDetail(), _rowId: Math.random() }]);
+    setIsDirty(true);
   }
 
   function removeRow(idx) {
     setDetails(prev => prev.filter((_, i) => i !== idx));
+    setIsDirty(true);
   }
+
+  function openEdit(yarnInward) {
+    // TODO: Implement edit when backend is ready
+    setEditId(sid(yarnInward));
+    setHeader({
+      ...yarnInward,
+      customer: sid(yarnInward.customer),
+      customerName: yarnInward.customerName || "",
+    });
+    setDetails(yarnInward.details || [emptyDetail()]);
+    setView("form");
+  }
+
 
   const handleSave = useCallback(async () => {
     if (!header.docId.trim()) return setFormError("Doc ID is required");
     if (!header.customer) return setFormError("Customer is required");
-    if (!header.pdcNo.trim())return setFormError("PDC No is required");
-    if (!header.pdcDate)return setFormError("PDC Date is required");
+    if (!header.pdcNo.trim()) return setFormError("PDC No is required");
+    if (!header.pdcDate) return setFormError("PDC Date is required");
 
     for (const row of details) {
-      if (!row.colour.trim()) return setFormError("Colour is required");
-      if (!row.counts.trim()) return setFormError("Counts is required");
-      if (!row.yarnType.trim()) return setFormError("Yarn Type is required");
-      if (!row.Mill.trim())return setFormError("Mill is required");
-      if (Number(row.grnQty) <= 0)return setFormError("GRN Qty is required");
-      if (Number(row.phyQty) <= 0)return setFormError("PHY Qty is required");
-      if (!row.noBags)return setFormError("No. Bags is required");
+      if (!String(row.colour || "").trim()) return setFormError("Colour is required");
+      if (!String(row.counts || "").trim()) return setFormError("Counts is required");
+      if (!String(row.yarnType || "").trim()) return setFormError("Yarn Type is required");
+      if (!String(row.mill || "").trim()) return setFormError("Mill is required");
+      if (Number(row.grnQty) <= 0) return setFormError("GRN Qty is required");
+      if (Number(row.phyQty) <= 0) return setFormError("PHY Qty is required");
+      if (!row.noBags) return setFormError("No. Bags is required");
     }
 
     const confirmSave = window.confirm("Do you want to save this record?");
@@ -295,7 +357,13 @@ export default function YarnInward() {
       //   await enquiryApi.create(payload);
       // }
       console.log("Saving Yarn Inward:", payload);
+      await productionApi.yarnInward.create(payload);
+
+      // Form is now saved
+      setIsDirty(false);
+
       await loadYarnInwards();
+
       setSaveSuccessModal(true);
       setTimeout(() => {
         setSaveSuccessModal(false);
@@ -324,6 +392,37 @@ export default function YarnInward() {
     };
   }, [handleSave, view]);
 
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (!isDirty) return;
+
+      e.preventDefault();
+      e.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isDirty]);
+
+  const navigateWithConfirm = (callback) => {
+    if (!isDirty) {
+      callback();
+      return;
+    }
+
+    const leave = window.confirm(
+      "You have unsaved changes. Leave without saving?"
+    );
+
+    if (leave) {
+      setIsDirty(false);
+      callback();
+    }
+  };
+
   async function handleDelete(id) {
     if (!window.confirm("Delete this Yarn Inward?")) return;
     try {
@@ -335,7 +434,17 @@ export default function YarnInward() {
     }
   }
 
-  const totalQty = details.reduce(
+  const totalGrnQty = details.reduce(
+    (sum, row) => sum + Number(row.grnQty || 0),
+    0
+  );
+
+  const totalPhyQty = details.reduce(
+    (sum, row) => sum + Number(row.phyQty || 0),
+    0
+  );
+
+  const totalDiffQty = details.reduce(
     (sum, row) => sum + Number(row.diffQty || 0),
     0
   );
@@ -350,13 +459,13 @@ export default function YarnInward() {
   // ─── Tab Index Calculation ───────────────────────────────────────────────────
   const getTabIndex = (rowIndex, fieldOffset, totalRows) => {
     const headerFieldsCount = 6; // tabs 1-6 for header
-    const fieldsPerRow = 5; // Colour, Counts, Yarn Type, Enq Qty, Ex.shade No
+    const fieldsPerRow = 8; // Colour, Counts, Yarn Type, 
     const rowStartTab = headerFieldsCount + (rowIndex * fieldsPerRow) + 1;
     return rowStartTab + fieldOffset;
   };
 
   const getAddButtonTabIndex = (totalRows) => {
-    return 6 + (totalRows * 5) + 1;
+    return 6 + (totalRows * 8) + 1;
   };
 
   const getViewListTabIndex = (totalRows) => {
@@ -413,7 +522,14 @@ export default function YarnInward() {
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="inv-btn-secondary" onClick={() => alert("Export to Excel")}>Export to Excel</button>
-            <button className="inv-btn-primary" onClick={openNew}>+ New Yarn INward</button>
+            <button
+              className="inv-btn-primary"
+              onClick={() =>
+                navigateWithConfirm(() => {
+                  openNew();
+                })
+              }
+            >+ New Yarn INward</button>
           </div>
         </div>
 
@@ -470,7 +586,11 @@ export default function YarnInward() {
                           <div className="inv-actions">
                             <button
                               className="inv-btn-icon"
-                              onClick={() => openEdit(enq)}
+                              onClick={() =>
+                                navigateWithConfirm(() => {
+                                  openEdit(enq);
+                                })
+                              }
                               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -519,10 +639,12 @@ export default function YarnInward() {
           <button
             ref={viewListButtonRef}
             className="inv-btn-secondary"
-            onClick={() => {
-              setFormError("");
-              setView("list");
-            }}
+            onClick={() =>
+              navigateWithConfirm(() => {
+                setFormError("");
+                setView("list");
+              })
+            }
             tabIndex={viewListTabIndex}
           >
             View List
@@ -561,7 +683,8 @@ export default function YarnInward() {
                   tabIndex={1}
                   type="date"
                   value={header.date}
-                  onChange={e => setHeader(h => ({ ...h, date: e.target.value }))}
+                  onChange={e => updateHeader("date", e.target.value)}
+                  onKeyDown={moveNextField}
                 />
               </Field>
 
@@ -572,18 +695,22 @@ export default function YarnInward() {
                   value={header.customer}
                   onChange={(val) => {
                     const supplier = suppliers.find(s => sid(s) === val);
-                    setHeader(h => ({
-                      ...h,
-                      customer: val,
-                      customerName: supplier?.name || supplier?.supplierName || ""
-                    }));
+
+                    updateHeader("customer", val);
+
+                    updateHeader(
+                      "customerName",
+                      supplier?.name || supplier?.supplierName || ""
+                    );
                   }}
+
                   options={suppliers.map(s => ({
                     value: sid(s),
                     label: s.name || s.supplierName
                   }))}
                   placeholder="Select Customer"
                   menuPortalTarget={document.body}
+                  onKeyDown={moveNextField}
                 />
               </Field>
 
@@ -592,8 +719,9 @@ export default function YarnInward() {
                   className="inv-input"
                   tabIndex={3}
                   value={header.pdcNo}
-                  onChange={e => setHeader(h => ({ ...h, pdcNo: e.target.value }))}
+                  onChange={e => updateHeader("pdcNo", e.target.value)}
                   placeholder="PDC number"
+                  onKeyDown={moveNextField}
                 />
               </Field>
 
@@ -603,7 +731,8 @@ export default function YarnInward() {
                   tabIndex={4}
                   type="date"
                   value={header.pdcDate}
-                  onChange={e => setHeader(h => ({ ...h, pdcDate: e.target.value }))}
+                  onChange={e => updateHeader("pdcDate", e.target.value)}
+                  onKeyDown={moveNextField}
                 />
               </Field>
 
@@ -612,8 +741,9 @@ export default function YarnInward() {
                   className="inv-input"
                   tabIndex={5}
                   value={header.styleRefNo}
-                  onChange={e => setHeader(h => ({ ...h, styleRefNo: e.target.value }))}
+                  onChange={e => updateHeader("styleRefNo", e.target.value)}
                   placeholder="Style reference"
+                  onKeyDown={moveNextField}
                 />
               </Field>
             </FormGrid>
@@ -662,13 +792,17 @@ export default function YarnInward() {
                         <SearchSelect
                           tabIndex={getTabIndex(idx, 0, totalRows)}
                           value={row.colour}
-                          onChange={(val) => updateDetail(idx, "colour", val)}
+                          onChange={(val) => {
+                            updateDetail(idx, "colour", val);
+                            moveToNextTab(getTabIndex(idx, 0, totalRows));
+                          }}
                           options={colors.map(c => ({
                             value: c.name,
                             label: c.name
                           }))}
                           placeholder="Select Colour"
                           menuPortalTarget={document.body}
+                          onKeyDown={moveNextField}
                         />
                       </td>
 
@@ -676,13 +810,17 @@ export default function YarnInward() {
                         <SearchSelect
                           tabIndex={getTabIndex(idx, 1, totalRows)}
                           value={row.counts}
-                          onChange={(val) => updateDetail(idx, "counts", val)}
+                          onChange={(val) => {
+                            updateDetail(idx, "counts", val);
+                            moveToNextTab(getTabIndex(idx, 1, totalRows));
+                          }}
                           options={counts.map(c => ({
                             value: c.name,
                             label: c.name
                           }))}
                           placeholder="Select Counts"
                           menuPortalTarget={document.body}
+                          onKeyDown={moveNextField}
                         />
                       </td>
 
@@ -690,35 +828,34 @@ export default function YarnInward() {
                         <SearchSelect
                           tabIndex={getTabIndex(idx, 2, totalRows)}
                           value={row.yarnType}
-                          onChange={(val) => updateDetail(idx, "yarnType", val)}
+                          onChange={(val) => {
+                            updateDetail(idx, "yarnType", val);
+                            moveToNextTab(getTabIndex(idx, 2, totalRows));
+                          }}
                           options={yarnTypes.map(y => ({
                             value: y.name,
                             label: y.name
                           }))}
                           placeholder="Select Yarn Type"
                           menuPortalTarget={document.body}
+                          onKeyDown={moveNextField}
                         />
                       </td>
                       <td>
                         <SearchSelect
                           tabIndex={getTabIndex(idx, 3, totalRows)}
                           value={row.mill}
-                          onChange={(val) => updateDetail(idx, "mill", val)}
+                          onChange={(val) => {
+                            updateDetail(idx, "mill", val);
+                            moveToNextTab(getTabIndex(idx, 3, totalRows));
+                          }}
                           options={mills.map(y => ({
                             value: y.name,
                             label: y.name
                           }))}
                           placeholder="Select Mill"
                           menuPortalTarget={document.body}
-                        />
-                      </td>    
-                      <td>
-                        <input
-                          className="inv-input-cell"
-                          type="number"
-                          step="0.001"
-                          value={row.grnQty}
-                          onChange={e => updateDetail(idx, "grnQty", e.target.value)}
+                          onKeyDown={moveNextField}
                         />
                       </td>
                       <td>
@@ -726,8 +863,21 @@ export default function YarnInward() {
                           className="inv-input-cell"
                           type="number"
                           step="0.001"
+                          tabIndex={getTabIndex(idx, 4, totalRows)}
+                          value={row.grnQty}
+                          onChange={(e) => updateDetail(idx, "grnQty", e.target.value)}
+                          onKeyDown={handleEnterAsTab}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="inv-input-cell"
+                          type="number"
+                          step="0.001"
+                          tabIndex={getTabIndex(idx, 5, totalRows)}
                           value={row.phyQty}
-                          onChange={e => updateDetail(idx, "phyQty", e.target.value)}
+                          onChange={(e) => updateDetail(idx, "phyQty", e.target.value)}
+                          onKeyDown={handleEnterAsTab}
                         />
                       </td>
                       <td>
@@ -741,21 +891,27 @@ export default function YarnInward() {
                             fontWeight: 600,
                             textAlign: "right"
                           }}
+
                         />
                       </td>
                       <td>
                         <input
                           className="inv-input-cell"
                           type="number"
+                          tabIndex={getTabIndex(idx, 6, totalRows)}
                           value={row.noBags}
-                          onChange={e => updateDetail(idx, "noBags", e.target.value)}
+                          onChange={(e) => updateDetail(idx, "noBags", e.target.value)}
+                          onKeyDown={handleEnterAsTab}
+                          placeholder="No of Bags"
                         />
                       </td>
                       <td>
                         <input
                           className="inv-input-cell"
+                          tabIndex={getTabIndex(idx, 7, totalRows)}
                           value={row.notes}
-                          onChange={e => updateDetail(idx, "notes", e.target.value)}
+                          onChange={(e) => updateDetail(idx, "notes", e.target.value)}
+                          onKeyDown={handleEnterAsTab}
                           placeholder="Notes"
                         />
                       </td>
@@ -764,7 +920,7 @@ export default function YarnInward() {
                           className="inv-btn-icon inv-btn-danger"
                           onClick={() => removeRow(idx)}
                           style={{ border: "none", background: "transparent", cursor: "pointer", color: "#ef4444", padding: "4px" }}
-                          tabIndex={getTabIndex(idx, 5, totalRows)}
+                          tabIndex={getTabIndex(idx, 8, totalRows)}
                         >
                           ✕
                         </button>
@@ -783,46 +939,73 @@ export default function YarnInward() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: 20,
-                padding: "10px 20px"
+                gridTemplateColumns: "repeat(5, max-content)",
+                justifyContent: "space-between",
+                gap: "12px",
+                padding: "8px 16px",
+                alignItems: "center",
               }}
             >
 
               <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>
+                <div style={{ fontSize: 10, color: "#64748b" }}>
                   Total Line Items
                 </div>
 
-                <div style={{ fontSize: 24, fontWeight: 700 }}>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>
                   {details.filter(d => d.colour.trim()).length}
                 </div>
               </div>
-
               <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>
+                <div style={{ fontSize: 10, color: "#64748b" }}>
+                  Total GRN Qty
+                </div>
+
+                <div style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "#0f766e"
+                }}>
+                  {fmtQty(totalGrnQty)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: "#64748b" }}>
+                  Total PHY Qty
+                </div>
+
+                <div style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "#9333ea"
+                }}>
+                  {fmtQty(totalPhyQty)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: "#64748b" }}>
                   Total Diff Qty
                 </div>
 
                 <div
                   style={{
-                    fontSize: 24,
+                    fontSize: 16,
                     fontWeight: 700,
                     color: "#2563eb"
                   }}
                 >
-                  {fmtQty(totalQty)}
+                  {fmtQty(totalDiffQty)}
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>
+                <div style={{ fontSize: 10, color: "#64748b" }}>
                   Total Bags
                 </div>
 
                 <div
                   style={{
-                    fontSize: 24,
+                    fontSize: 18,
                     fontWeight: 700,
                     color: "#059669"
                   }}
@@ -849,9 +1032,7 @@ export default function YarnInward() {
                 <input
                   className="inv-input"
                   value={header.vehicleNo || ""}
-                  onChange={(e) =>
-                    setHeader((h) => ({ ...h, vehicleNo: e.target.value }))
-                  }
+                  onChange={e => updateHeader("vehicleNo", e.target.value.toUpperCase())}
                   placeholder="Enter Vehicle Number"
                 />
               </div>
@@ -862,9 +1043,7 @@ export default function YarnInward() {
                 <input
                   className="inv-input"
                   value={header.preparedBy || ""}
-                  onChange={(e) =>
-                    setHeader((h) => ({ ...h, preparedBy: e.target.value }))
-                  }
+                  onChange={e => updateHeader("preparedBy", e.target.value)}
                 />
               </div>
 
@@ -881,9 +1060,7 @@ export default function YarnInward() {
                     resize: "vertical",
                   }}
                   value={header.remarks || ""}
-                  onChange={(e) =>
-                    setHeader((h) => ({ ...h, remarks: e.target.value }))
-                  }
+                  onChange={e => updateHeader("remarks", e.target.value)}
                   placeholder="Enter any remarks..."
                 />
               </div>

@@ -44,6 +44,10 @@ const YarnType = require("./productionMasters/YarnType");
 const Mill = require("./productionMasters/Mill");
 const ProductionProcess = require("./productionMasters/Process");
 
+// ========== ProductionTransactions ===========
+const Enquiry = require("./ProductionTransactions/enquiry");
+const EnquiryDetail = require("./ProductionTransactions/enquiryDetail");
+
 // ========== Associations ==========
 
 // Location Associations
@@ -91,48 +95,55 @@ HrDesignation.hasMany(HrEmployee, { foreignKey: "designationId", as: "employees"
 HrDesignation.belongsTo(HrDepartment, { foreignKey: "department_id", as: "department" });
 HrDepartment.hasMany(HrDesignation, { foreignKey: "department_id", as: "designations" });
 
+// =============ProductionTransactions Associations ================
+Enquiry.hasMany(EnquiryDetail, { foreignKey: "enquiryId", as: "details", onDelete: "CASCADE" });
+EnquiryDetail.belongsTo(Enquiry, { foreignKey: "enquiryId" });
+
 // ========== Exports ==========
 module.exports = {
   sequelize,
-  Country, 
-  State, 
-  City, 
-  InventoryHead, 
-  Item, 
-  Department, 
-  Store, 
+  Country,
+  State,
+  City,
+  InventoryHead,
+  Item,
+  Department,
+  Store,
   Process,
-  Uom, 
-  Make, 
-  Spec, 
-  SupplierType, 
-  Supplier, 
-  MainCategory, 
+  Uom,
+  Make,
+  Spec,
+  SupplierType,
+  Supplier,
+  MainCategory,
   ItemPriceList,
-  PurchaseIndent, 
-  PurchaseIndentDetail, 
-  PurchaseOrder, 
-  PurchaseOrderDetail, 
-  PaymentTerm, 
-  PurchaseGRN, 
-  PurchaseGRNDetail, 
-  ConsumptionIssue, 
-  ConsumptionIssueDetail, 
-  OpeningStock, 
-  OpeningStockDetail, 
-  User, 
-  Role, 
-  Permission, 
+  PurchaseIndent,
+  PurchaseIndentDetail,
+  PurchaseOrder,
+  PurchaseOrderDetail,
+  PaymentTerm,
+  PurchaseGRN,
+  PurchaseGRNDetail,
+  ConsumptionIssue,
+  ConsumptionIssueDetail,
+  OpeningStock,
+  OpeningStockDetail,
+  User,
+  Role,
+  Permission,
   Company,
   // HR Models
   HrDepartment,
   HrDesignation,
   HrShift,
   HrEmployee,
-   // Production Models (NEW)
+  // Production Models (NEW)
   Color,
   Counts,
   YarnType,
   Mill,
   ProductionProcess,
+  //ProductionTransactions
+  Enquiry,
+  EnquiryDetail,
 };

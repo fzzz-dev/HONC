@@ -3,7 +3,8 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
 const sequelize = require("./config/database");
-const models = require("./model");
+
+
 
 dotenv.config();
 
@@ -32,7 +33,7 @@ async function ensureDatabaseExists() {
     `CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME}\`;`,
   );
   await connection.end();
-  
+
 
 }
 
@@ -138,12 +139,12 @@ async function ensureSchemaEnhancements() {
 
     let addedCount = 0;
     for (const [table, col, ddl] of patches) {
-      const targetTable = dbTables.find(t => 
-        t.toLowerCase() === table.toLowerCase() || 
-        t.toLowerCase() === table.toLowerCase() + "s" || 
+      const targetTable = dbTables.find(t =>
+        t.toLowerCase() === table.toLowerCase() ||
+        t.toLowerCase() === table.toLowerCase() + "s" ||
         (table.toLowerCase().endsWith("s") && t.toLowerCase() === table.toLowerCase().slice(0, -1))
       );
-      
+
       if (targetTable) {
         try {
           await sequelize.query(`ALTER TABLE \`${targetTable}\` ${ddl}`);
@@ -166,10 +167,10 @@ async function ensureSchemaEnhancements() {
 async function startServer() {
   try {
 
-    
+
     await ensureDatabaseExists();
 
-    
+
     await sequelize.authenticate();
 
     await ensureSchemaEnhancements();
@@ -211,10 +212,10 @@ async function startServer() {
     app.use("/api/level", require("./routes/levelRoutes"));
     app.use("/api/hr/departments", require("./routes/hrms/hrDepartmentRoutes"));
     app.use("/api/hr/designations", require("./routes/hrms/hrDesignationRoutes"));
-    app.use("/api/hr/shifts", require("./routes/hrms/hrShiftRoutes"));  
+    app.use("/api/hr/shifts", require("./routes/hrms/hrShiftRoutes"));
     app.use("/api/hr/employees", require("./routes/hrms/hrEmployeeRoutes"));
     app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
-    app.use("/api/issue-types", require("./routes/issueTypeRoutes")); 
+    app.use("/api/issue-types", require("./routes/issueTypeRoutes"));
 
     // ========== PRODUCTION MASTER ROUTES (NEW) ==========
     app.use("/api/production-masters/colors", require("./routes/ProductionMasters/colorRoutes"));
@@ -222,7 +223,11 @@ async function startServer() {
     app.use("/api/production-masters/yarn-types", require("./routes/ProductionMasters/yarnTypeRoutes"));
     app.use("/api/production-masters/mills", require("./routes/ProductionMasters/millRoutes"));
     app.use("/api/production-masters/processes", require("./routes/ProductionMasters/processRoutes"));
-    
+
+    // ========= Production Tranactions Routes ===========
+    app.use("/api/enquiries", require("./routes/ProductionTransactions/enquiryRoutes"));
+
+    console.log("Enquiry route registered");
 
 
     // Test routes
@@ -234,6 +239,10 @@ async function startServer() {
       res.json({ status: "OK", message: "Server is running (SQL Mode)" });
     });
 
+    app.get('/api/enquiries', (req, res) => {
+      res.json({ message: 'Success' });
+    });
+
     // Global error handler
     app.use((err, req, res, next) => {
 
@@ -242,18 +251,21 @@ async function startServer() {
         message: err.message || "Internal Server Error",
       });
     });
+    const listEndpoints = require("express-list-endpoints");
 
-    const PORT = process.env.PORT;
-    app.listen(PORT, () => {
+    console.log(listEndpoints(app));
+    const PORT = process.env.PORT || 5000;
 
-
-
+    const server = app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
     });
-  } catch (err) {
 
-    process.exit(1);
-}
+    console.log("After app.listen");
+  } catch (err) {
+    console.error("SERVER START ERROR:");
+    console.error(err);
+  }
 }
 
 startServer();
-
+console.log("End of server.js");
