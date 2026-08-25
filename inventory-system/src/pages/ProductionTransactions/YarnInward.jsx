@@ -26,8 +26,12 @@ const emptyDetail = () => ({
   colour: "",
   counts: "",
   yarnType: "",
-  enqQty: "0.000",
-  exShadeNo: ""
+  mill: "",
+  grnQty: "0.000",
+  phyQty: "0.000",
+  diffQty: "0.000",
+  noBags: "",
+  notes: ""
 });
 
 const emptyHeader = () => ({
@@ -35,9 +39,10 @@ const emptyHeader = () => ({
   date: getTodayDate(),
   customer: "",
   customerName: "",
-  enqRefNo: "",
-  refDate: "",
+  pdcNo: "",
+  pdcDate: "",
   styleRefNo: "",
+  vehicleNo: "",
   preparedBy: "",
   remarks: ""
 });
@@ -53,13 +58,32 @@ const Field = ({ label, children, horizontal = true }) => (
   </div>
 );
 
-export default function Enquiry() {
+// Temporary Frontend Generator
+const getFinancialYear = () => {
+  const now = new Date();
+
+  const year =
+    now.getMonth() >= 3
+      ? now.getFullYear()
+      : now.getFullYear() - 1;
+
+  return `${String(year).slice(-2)}-${String(year + 1).slice(-2)}`;
+};
+
+let tempRunningNo = 0;
+
+const generateTempDocId = () => {
+  return `YRN/${String(tempRunningNo++)
+    .padStart(5, "0")}/${getFinancialYear()}`;
+};
+export default function YarnInward() {
   const { user } = useAuth();
   const [suppliers, setSuppliers] = useState([]);
   const [colors, setColors] = useState([]);
   const [counts, setCounts] = useState([]);
   const [yarnTypes, setYarnTypes] = useState([]);
-  const [enquiries, setEnquiries] = useState([]);
+  const [mills, setMills] = useState([]);
+  const [yarnInwards, setYarnInwards] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState(null);
   const [view, setView] = useState("form");
@@ -71,6 +95,7 @@ export default function Enquiry() {
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [formError, setFormError] = useState(null);
   const [lookupsLoaded, setLookupsLoaded] = useState(false);
+
   // Refs for tab flow
   const addButtonRef = useRef(null);
   const viewListButtonRef = useRef(null);
@@ -79,7 +104,7 @@ export default function Enquiry() {
 
   useEffect(() => {
     loadLookups();
-    loadEnquiries();
+    loadYarnInwards();
     openNew();
   }, []);
 
@@ -96,6 +121,7 @@ export default function Enquiry() {
   useEffect(() => {
     const handleTabKey = (e) => {
       if (e.key !== 'Tab') return;
+
       const focusableElements = Array.from(
         document.querySelectorAll('[tabIndex]:not([tabIndex="-1"])')
       ).filter(el => {
@@ -124,6 +150,7 @@ export default function Enquiry() {
         }
       }
     };
+
     document.addEventListener('keydown', handleTabKey);
     return () => {
       document.removeEventListener('keydown', handleTabKey);
@@ -132,23 +159,25 @@ export default function Enquiry() {
 
   async function loadLookups() {
     try {
-      const [
-        suppliersData,
-        colorsData,
-        countsData,
-        yarnTypesData
-      ] = await Promise.all([
-        supplierApi.getAll(),
-        productionApi.color.getAll(),
-        productionApi.counts.getAll(),
-        productionApi.yarnType.getAll()
-      ]);
+       const [
+  suppliersData,
+  colorsData,
+  countsData,
+  yarnTypesData,
+  millsData
+] = await Promise.all([
+  supplierApi.getAll(),
+  productionApi.color.getAll(),
+  productionApi.counts.getAll(),
+  productionApi.yarnType.getAll(),
+  productionApi.mill.getAll()   // or productionApi.mills.getAll()
+]);
 
       setSuppliers(suppliersData || []);
       setColors(colorsData || []);
       setCounts(countsData || []);
       setYarnTypes(yarnTypesData || []);
-
+      setMills(millsData || []);
       setLookupsLoaded(true);
 
     } catch (e) {
@@ -157,13 +186,13 @@ export default function Enquiry() {
     }
   }
 
-  async function loadEnquiries() {
+  async function loadYarnInwards() {
     setLoadingList(true);
     try {
       // TODO: Replace with actual API call when backend is ready
       // const data = await enquiryApi.getAll();
       // setEnquiries(data);
-      setEnquiries([]);
+      setYarnInwards([]);
     } catch (e) {
       setListError(e.message);
     } finally {
@@ -175,33 +204,44 @@ export default function Enquiry() {
     setHeader({
       ...emptyHeader(),
       preparedBy: user?.name || "Admin",
-      docId: "ENQ-" + String(Date.now()).slice(-6) // Temporary auto-generation
+      docId: generateTempDocId() // Temporary auto-generation
     });
     setDetails([emptyDetail()]);
     setEditId(null);
     setView("form");
   }
 
-  function openEdit(enquiry) {
+  function openEdit(yarnInward) {
     // TODO: Implement edit when backend is ready
-    setEditId(sid(enquiry));
+    setEditId(sid(yarnInward));
     setHeader({
-      ...enquiry,
-      customer: sid(enquiry.customer),
-      customerName: enquiry.customerName || "",
+      ...yarnInward,
+      customer: sid(yarnInward.customer),
+      customerName: yarnInward.customerName || "",
     });
-    setDetails(enquiry.details || [emptyDetail()]);
+    setDetails(yarnInward.details || [emptyDetail()]);
     setView("form");
   }
 
   function updateDetail(idx, field, val) {
     setDetails(prev => {
       const rows = [...prev];
-      rows[idx] = { ...rows[idx], [field]: val };
+
+      rows[idx] = {
+        ...rows[idx],
+        [field]: val
+      };
+
+      if (field === "grnQty" || field === "phyQty") {
+        const grn = Number(rows[idx].grnQty || 0);
+        const phy = Number(rows[idx].phyQty || 0);
+
+        rows[idx].diffQty = (grn - phy).toFixed(3);
+      }
+
       return rows;
     });
   }
-
   function addRow() {
     setDetails(prev => [...prev, { ...emptyDetail(), _rowId: Math.random() }]);
   }
@@ -213,12 +253,17 @@ export default function Enquiry() {
   const handleSave = useCallback(async () => {
     if (!header.docId.trim()) return setFormError("Doc ID is required");
     if (!header.customer) return setFormError("Customer is required");
+    if (!header.pdcNo.trim())return setFormError("PDC No is required");
+    if (!header.pdcDate)return setFormError("PDC Date is required");
 
     for (const row of details) {
       if (!row.colour.trim()) return setFormError("Colour is required");
       if (!row.counts.trim()) return setFormError("Counts is required");
       if (!row.yarnType.trim()) return setFormError("Yarn Type is required");
-      if (Number(row.enqQty) <= 0) return setFormError("Enquiry Quantity is required");
+      if (!row.Mill.trim())return setFormError("Mill is required");
+      if (Number(row.grnQty) <= 0)return setFormError("GRN Qty is required");
+      if (Number(row.phyQty) <= 0)return setFormError("PHY Qty is required");
+      if (!row.noBags)return setFormError("No. Bags is required");
     }
 
     const confirmSave = window.confirm("Do you want to save this record?");
@@ -249,8 +294,8 @@ export default function Enquiry() {
       // } else {
       //   await enquiryApi.create(payload);
       // }
-      console.log("Saving enquiry:", payload);
-      await loadEnquiries();
+      console.log("Saving Yarn Inward:", payload);
+      await loadYarnInwards();
       setSaveSuccessModal(true);
       setTimeout(() => {
         setSaveSuccessModal(false);
@@ -280,17 +325,24 @@ export default function Enquiry() {
   }, [handleSave, view]);
 
   async function handleDelete(id) {
-    if (!window.confirm("Delete this enquiry?")) return;
+    if (!window.confirm("Delete this Yarn Inward?")) return;
     try {
       // TODO: Replace with actual API call when backend is ready
       // await enquiryApi.remove(id);
-      await loadEnquiries();
+      await loadYarnInwards();
     } catch (err) {
       alert(err.message);
     }
   }
 
-  const totalQty = details.reduce((s, r) => s + Number(r.enqQty || 0), 0);
+  const totalQty = details.reduce(
+    (sum, row) => sum + Number(row.diffQty || 0),
+    0
+  );
+  const totalBags = details.reduce(
+    (sum, row) => sum + Number(row.noBags || 0),
+    0
+  );
   const totalItems = details.filter(d => d.colour.trim()).length;
 
   const displayDetails = details;
@@ -347,7 +399,7 @@ export default function Enquiry() {
   // LIST VIEW
   // ─────────────────────────────────────────────────────────────────────────────
   if (view === "list") {
-    const filteredEnquiries = enquiries.filter(enq =>
+    const filteredYarnInwards = yarnInwards.filter(enq =>
       enq.docId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       enq.customerName?.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -356,12 +408,12 @@ export default function Enquiry() {
       <div className="inv-page">
         <div className="inv-page-header">
           <div>
-            <h1 className="inv-page-title">Enquiries</h1>
+            <h1 className="inv-page-title">Yarn-Inwards</h1>
             <p className="inv-page-sub">Manage customer enquiries</p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="inv-btn-secondary" onClick={() => alert("Export to Excel")}>Export to Excel</button>
-            <button className="inv-btn-primary" onClick={openNew}>+ New Enquiry</button>
+            <button className="inv-btn-primary" onClick={openNew}>+ New Yarn INward</button>
           </div>
         </div>
 
@@ -370,7 +422,7 @@ export default function Enquiry() {
         <div className="inv-card" style={{ marginBottom: 16 }}>
           <div className="inv-card-body">
             <div className="inv-field" style={{ minWidth: 400, maxWidth: 400 }}>
-              <label className="inv-label">Search Enquiry</label>
+              <label className="inv-label">Search Yarn Receipt </label>
               <input
                 className="inv-input"
                 value={searchTerm}
@@ -393,26 +445,26 @@ export default function Enquiry() {
                     <th>Doc ID</th>
                     <th>Date</th>
                     <th>Customer</th>
-                    <th>Enq Ref No</th>
-                    <th>Style Ref No</th>
+                    <th>PDC No</th>
+                    <th>PDC Date</th>
                     <th>Total Qty</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredEnquiries.length === 0 ? (
+                  {filteredYarnInwards.length === 0 ? (
                     <tr>
                       <td colSpan={8} style={{ textAlign: "center", padding: 40 }}>No records found</td>
                     </tr>
                   ) : (
-                    filteredEnquiries.map((enq, i) => (
+                    filteredYarnInwards.map((enq, i) => (
                       <tr key={sid(enq)}>
                         <td className="inv-idx">{String(i + 1).padStart(2, "0")}</td>
                         <td style={{ fontWeight: 600, color: "var(--accent)" }}>{enq.docId}</td>
                         <td>{enq.date}</td>
                         <td>{enq.customerName}</td>
-                        <td>{enq.enqRefNo || "—"}</td>
-                        <td>{enq.styleRefNo || "—"}</td>
+                        <td>{enq.pdcNo || "—"}</td>
+                        <td>{enq.pdcDate || "—"}</td>
                         <td>{fmtQty(enq.details?.reduce((s, d) => s + Number(d.enqQty || 0), 0) || 0)}</td>
                         <td className="inv-actions-cell">
                           <div className="inv-actions">
@@ -460,7 +512,7 @@ export default function Enquiry() {
     <div className="inv-page">
       <div className="inv-page-header">
         <div>
-          <h1 className="inv-page-title">{editId ? "Edit Enquiry" : "New Enquiry"}</h1>
+          <h1 className="inv-page-title">{editId ? "Edit Yarn Inwards " : "Yarn Inwards"}</h1>
           <p className="inv-page-sub">Customer enquiry management</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -482,7 +534,7 @@ export default function Enquiry() {
             disabled={saving}
             tabIndex={saveTabIndex}
           >
-            {saving ? "Saving..." : "Save Enquiry"}
+            {saving ? "Saving..." : "Save Yarn Inward"}
           </button>
         </div>
       </div>
@@ -535,23 +587,23 @@ export default function Enquiry() {
                 />
               </Field>
 
-              <Field label="Enq Ref No">
+              <Field label="PDC No*">
                 <input
                   className="inv-input"
                   tabIndex={3}
-                  value={header.enqRefNo}
-                  onChange={e => setHeader(h => ({ ...h, enqRefNo: e.target.value }))}
-                  placeholder="Reference number"
+                  value={header.pdcNo}
+                  onChange={e => setHeader(h => ({ ...h, pdcNo: e.target.value }))}
+                  placeholder="PDC number"
                 />
               </Field>
 
-              <Field label="Ref Date">
+              <Field label="PDC Date*">
                 <input
                   className="inv-input"
                   tabIndex={4}
                   type="date"
-                  value={header.refDate}
-                  onChange={e => setHeader(h => ({ ...h, refDate: e.target.value }))}
+                  value={header.pdcDate}
+                  onChange={e => setHeader(h => ({ ...h, pdcDate: e.target.value }))}
                 />
               </Field>
 
@@ -585,15 +637,21 @@ export default function Enquiry() {
             <div style={{ overflowX: "auto" }}>
               <table className="inv-table-premium">
                 <thead>
+
                   <tr>
                     <th style={{ width: 40, textAlign: "center" }}>#</th>
                     <th style={{ minWidth: 150 }}>Colour *</th>
                     <th style={{ minWidth: 150 }}>Counts *</th>
                     <th style={{ minWidth: 150 }}>Yarn Type *</th>
-                    <th style={{ width: 120, textAlign: "right" }}>Enq Qty *</th>
-                    <th style={{ minWidth: 150 }}>Ex.shade No</th>
+                    <th style={{ minWidth: 150 }}>Mill *</th>
+                    <th style={{ width: 120, textAlign: "right" }}>GRN Qty *</th>
+                    <th style={{ width: 120, textAlign: "right" }}>PHY Qty *</th>
+                    <th style={{ width: 120, textAlign: "right" }}>Diff Qty *</th>
+                    <th style={{ width: 100, textAlign: "center" }}>No Bags *</th>
+                    <th style={{ minWidth: 200 }}>Notes</th>
                     <th style={{ width: 40 }}></th>
                   </tr>
+
                 </thead>
                 <tbody>
                   {displayDetails.map((row, idx) => (
@@ -641,30 +699,66 @@ export default function Enquiry() {
                           menuPortalTarget={document.body}
                         />
                       </td>
-
+                      <td>
+                        <SearchSelect
+                          tabIndex={getTabIndex(idx, 3, totalRows)}
+                          value={row.mill}
+                          onChange={(val) => updateDetail(idx, "mill", val)}
+                          options={mills.map(y => ({
+                            value: y.name,
+                            label: y.name
+                          }))}
+                          placeholder="Select Mill"
+                          menuPortalTarget={document.body}
+                        />
+                      </td>    
                       <td>
                         <input
                           className="inv-input-cell"
                           type="number"
-                          step="1.00"
-                          tabIndex={getTabIndex(idx, 3, totalRows)}
-                          value={row.enqQty}
-                          onChange={e => updateDetail(idx, "enqQty", e.target.value)}
-                          onBlur={e => updateDetail(idx, "enqQty", Number(e.target.value || 0).toFixed(3))}
-                          style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }}
+                          step="0.001"
+                          value={row.grnQty}
+                          onChange={e => updateDetail(idx, "grnQty", e.target.value)}
                         />
                       </td>
-
                       <td>
                         <input
                           className="inv-input-cell"
-                          tabIndex={getTabIndex(idx, 4, totalRows)}
-                          value={row.exShadeNo}
-                          onChange={e => updateDetail(idx, "exShadeNo", e.target.value)}
-                          placeholder="Shade No"
+                          type="number"
+                          step="0.001"
+                          value={row.phyQty}
+                          onChange={e => updateDetail(idx, "phyQty", e.target.value)}
                         />
                       </td>
-
+                      <td>
+                        <input
+                          className="inv-input-cell"
+                          value={row.diffQty}
+                          readOnly
+                          style={{
+                            background: "#f8f7ff",
+                            color: "#2563eb",
+                            fontWeight: 600,
+                            textAlign: "right"
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="inv-input-cell"
+                          type="number"
+                          value={row.noBags}
+                          onChange={e => updateDetail(idx, "noBags", e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="inv-input-cell"
+                          value={row.notes}
+                          onChange={e => updateDetail(idx, "notes", e.target.value)}
+                          placeholder="Notes"
+                        />
+                      </td>
                       <td style={{ textAlign: "center" }}>
                         <button
                           className="inv-btn-icon inv-btn-danger"
@@ -686,40 +780,112 @@ export default function Enquiry() {
         {/* Summary Card */}
         <div className="inv-card">
           <div className="inv-card-body">
-            <div style={{ display: "flex", gap: 40, padding: "10px 20px", justifyContent: "space-between" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: 20,
+                padding: "10px 20px"
+              }}
+            >
+
               <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>Total Line Items</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#1e293b" }}>{details.filter(d => d.colour.trim()).length}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>
+                  Total Line Items
+                </div>
+
+                <div style={{ fontSize: 24, fontWeight: 700 }}>
+                  {details.filter(d => d.colour.trim()).length}
+                </div>
               </div>
+
               <div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>Total Enquiry Qty</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(totalQty)}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>
+                  Total Diff Qty
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 24,
+                    fontWeight: 700,
+                    color: "#2563eb"
+                  }}
+                >
+                  {fmtQty(totalQty)}
+                </div>
               </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>
+                  Total Bags
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 24,
+                    fontWeight: 700,
+                    color: "#059669"
+                  }}
+                >
+                  {totalBags}
+                </div>
+              </div>
+
             </div>
 
-            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
-                <div className="inv-field-v">
-                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
-                  <input
-                    className="inv-input"
-                    value={header.preparedBy || ""}
-                    onChange={e => setHeader(h => ({ ...h, preparedBy: e.target.value }))}
-                    placeholder="Name of preparer"
-                    tabIndex={-1}
-                  />
-                </div>
-                <div className="inv-field-v">
-                  <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Remarks</label>
-                  <textarea
-                    className="inv-input"
-                    style={{ height: 40, resize: "none", fontSize: "13px", padding: "12px" }}
-                    value={header.remarks || ""}
-                    onChange={e => setHeader(h => ({ ...h, remarks: e.target.value }))}
-                    placeholder="Enter any remarks..."
-                    tabIndex={-1}
-                  />
-                </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 24,
+                marginTop: 24,
+                paddingTop: 20,
+                borderTop: "1px solid #f1f5f9",
+              }}
+            >
+              {/* Vehicle No */}
+              <div className="inv-field-v">
+                <label className="inv-label">Vehicle No</label>
+                <input
+                  className="inv-input"
+                  value={header.vehicleNo || ""}
+                  onChange={(e) =>
+                    setHeader((h) => ({ ...h, vehicleNo: e.target.value }))
+                  }
+                  placeholder="Enter Vehicle Number"
+                />
+              </div>
+
+              {/* Prepared By */}
+              <div className="inv-field-v">
+                <label className="inv-label">Prepared By</label>
+                <input
+                  className="inv-input"
+                  value={header.preparedBy || ""}
+                  onChange={(e) =>
+                    setHeader((h) => ({ ...h, preparedBy: e.target.value }))
+                  }
+                />
+              </div>
+
+              {/* Remarks */}
+              <div
+                className="inv-field-v"
+                style={{ gridColumn: "1 / span 2" }}
+              >
+                <label className="inv-label">Remarks</label>
+                <textarea
+                  className="inv-input"
+                  style={{
+                    height: 60,
+                    resize: "vertical",
+                  }}
+                  value={header.remarks || ""}
+                  onChange={(e) =>
+                    setHeader((h) => ({ ...h, remarks: e.target.value }))
+                  }
+                  placeholder="Enter any remarks..."
+                />
               </div>
             </div>
           </div>

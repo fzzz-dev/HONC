@@ -61,6 +61,7 @@ import Process from "./pages/ProductionMasters/Process";
 import Enquiry from "./pages/ProductionTransactions/Enquiry";
 import Quotation from "./pages/ProductionTransactions/Quotation";
 import SalesOrder from "./pages/ProductionTransactions/SalesOrder";
+import YarnInward from "./pages/ProductionTransactions/YarnInward";
 
 import "./index.css";
 
@@ -127,6 +128,7 @@ export default function App() {
                 <Route path="/production/enquiry" element={<Enquiry />} />
                 <Route path="/production/quotation" element={<Quotation/>} />
                 <Route path="/production/sales-order" element={<SalesOrder/>} />
+                <Route path="/production/yarn-inward" element={<YarnInward/>}/>
 
                 {/* ── Transactions ── */}
                 <Route path="/purchase-indent" element={<PurchaseIndentPage />} />
