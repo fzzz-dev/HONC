@@ -60,7 +60,7 @@ export function Select({ value, onChange, options = [], placeholder }) {
 }
 
 // ── Searchable Select ─────────────────────────────────────────────────────────
-export function SearchSelect({ value, onChange, options = [], placeholder, className, style, disabled, tabIndex}) {
+export function SearchSelect({ value, onChange, options = [], placeholder, className, style, disabled, tabIndex, onKeyDown }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef(null);
@@ -73,7 +73,7 @@ export function SearchSelect({ value, onChange, options = [], placeholder, class
     typeof o !== "object" || o === null ? { value: String(o), label: String(o) } : o,
   );
 
-  const filtered = normalised.filter(o => 
+  const filtered = normalised.filter(o =>
     String(o.label).toLowerCase().includes(search.toLowerCase())
   );
 
@@ -95,77 +95,80 @@ export function SearchSelect({ value, onChange, options = [], placeholder, class
   };
 
   const handleKeyDown = (e) => {
-    // Only open dropdown on ArrowDown/ArrowUp if closed
-    if (!isOpen && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-      e.preventDefault();
-      setIsOpen(true);
-      setHighlightedIndex(0);
-      scrollIntoView(0);
-      return;
+
+    if (isOpen) {
+
+        switch (e.key) {
+
+            case "ArrowDown":
+                e.preventDefault();
+
+                if (filtered.length > 0) {
+                    const newIndex =
+                        highlightedIndex < filtered.length - 1
+                            ? highlightedIndex + 1
+                            : 0;
+
+                    setHighlightedIndex(newIndex);
+                    scrollIntoView(newIndex);
+                }
+                break;
+
+            case "ArrowUp":
+                e.preventDefault();
+
+                if (filtered.length > 0) {
+                    const newIndex =
+                        highlightedIndex > 0
+                            ? highlightedIndex - 1
+                            : filtered.length - 1;
+
+                    setHighlightedIndex(newIndex);
+                    scrollIntoView(newIndex);
+                }
+                break;
+
+            case "Enter":
+                e.preventDefault();
+
+                if (filtered[highlightedIndex]) {
+
+                    onChange(filtered[highlightedIndex].value);
+
+                    setIsOpen(false);
+                    setSearch("");
+                    setHighlightedIndex(-1);
+
+                    setTimeout(() => {
+                        if (onKeyDown) {
+                            onKeyDown(e);
+                        }
+                    }, 0);
+                }
+
+                break;
+
+            case "Escape":
+                setIsOpen(false);
+                setHighlightedIndex(-1);
+                break;
+        }
+
+    } else {
+
+        if (onKeyDown) {
+            onKeyDown(e);
+        }
+
     }
 
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        if (filtered.length > 0) {
-          let newIndex;
-          if (highlightedIndex === -1) {
-            newIndex = 0;
-          } else {
-            newIndex = highlightedIndex < filtered.length - 1 ? highlightedIndex + 1 : 0;
-          }
-          setHighlightedIndex(newIndex);
-          scrollIntoView(newIndex);
-        }
-        break;
-
-      case "ArrowUp":
-        e.preventDefault();
-        if (filtered.length > 0) {
-          let newIndex;
-          if (highlightedIndex === -1) {
-            newIndex = filtered.length - 1;
-          } else {
-            newIndex = highlightedIndex > 0 ? highlightedIndex - 1 : filtered.length - 1;
-          }
-          setHighlightedIndex(newIndex);
-          scrollIntoView(newIndex);
-        }
-        break;
-
-      case "Enter":
-    e.preventDefault();
-    if (isOpen && highlightedIndex >= 0 && filtered[highlightedIndex]) {
-      onChange(filtered[highlightedIndex].value);
-      setIsOpen(false);
-      setSearch("");
-      setHighlightedIndex(-1);
-      // Keep focus on the SearchSelect component after selection
-      setTimeout(() => {
-        if (containerRef.current) {
-          containerRef.current.focus();
-        }
-      }, 10);
-    } else if (!isOpen) {
-      setIsOpen(true);
-      setHighlightedIndex(0);
-      scrollIntoView(0);
-    }
-    break;
-
-        case "Escape":
-          setIsOpen(false);
-          setHighlightedIndex(-1);
-          break;
-      }
-    };
-
+};
   const updateCoords = () => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const dropdownWidth = Math.max(rect.width, 220);
       let left = rect.left + window.scrollX;
-      
+
       if (rect.left + dropdownWidth > window.innerWidth - 20) {
         left = window.innerWidth - dropdownWidth - 20;
       }
@@ -182,7 +185,7 @@ export function SearchSelect({ value, onChange, options = [], placeholder, class
     function handleClickOutside(event) {
       const isOutsideTrigger = containerRef.current && !containerRef.current.contains(event.target);
       const isOutsideDropdown = dropdownRef.current && !dropdownRef.current.contains(event.target);
-      
+
       if (isOutsideTrigger && isOutsideDropdown) {
         setIsOpen(false);
         setHighlightedIndex(-1);
@@ -348,8 +351,8 @@ export function SearchSelect({ value, onChange, options = [], placeholder, class
                       index === highlightedIndex
                         ? "#e2e8f0"
                         : String(o.value) === String(value)
-                        ? "var(--accent-light)"
-                        : "transparent",
+                          ? "var(--accent-light)"
+                          : "transparent",
                     color:
                       String(o.value) === String(value)
                         ? "var(--accent)"

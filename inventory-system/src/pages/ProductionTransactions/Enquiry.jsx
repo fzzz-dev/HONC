@@ -4,11 +4,14 @@ import { supplierApi } from "../../services/inventoryApi";
 import { productionApi } from "../../services/productionApi";
 import Modal from "../../components/Modal";
 import { SearchSelect } from "../../components/FormFields";
+import { enquiryApi } from "../../services/transactionApi";
+import { useUnsavedChanges } from "../../context/UnsavedChangesContext";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 const getTodayDate = () => new Date().toISOString().split("T")[0];
+
 
 const sid = (v) => {
   if (!v) return "";
@@ -71,6 +74,8 @@ export default function Enquiry() {
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [formError, setFormError] = useState(null);
   const [lookupsLoaded, setLookupsLoaded] = useState(false);
+  const { setHasChanges } = useUnsavedChanges();
+
   // Refs for tab flow
   const addButtonRef = useRef(null);
   const viewListButtonRef = useRef(null);
@@ -86,9 +91,10 @@ export default function Enquiry() {
   // Initial focus on tabIndex=1 when page loads
   useEffect(() => {
     setTimeout(() => {
-      const firstField = document.querySelector('[tabIndex="1"]');
-      if (firstField) {
-        firstField.focus();
+      const firstElement = document.querySelector('[tabindex="1"]');
+
+      if (firstElement) {
+        firstElement.focus();
       }
     }, 100);
   }, []);
@@ -161,9 +167,8 @@ export default function Enquiry() {
     setLoadingList(true);
     try {
       // TODO: Replace with actual API call when backend is ready
-      // const data = await enquiryApi.getAll();
-      // setEnquiries(data);
-      setEnquiries([]);
+      const data = await enquiryApi.getAll();
+      setEnquiries(data);
     } catch (e) {
       setListError(e.message);
     } finally {
@@ -172,26 +177,37 @@ export default function Enquiry() {
   }
 
   async function openNew() {
+    const nextNo = await enquiryApi.getNextNumber();
+
     setHeader({
       ...emptyHeader(),
       preparedBy: user?.name || "Admin",
-      docId: "ENQ-" + String(Date.now()).slice(-6) // Temporary auto-generation
+      docId: nextNo.docId      // <-- only the string
     });
+
     setDetails([emptyDetail()]);
     setEditId(null);
     setView("form");
+    setHasChanges(false);
   }
 
   function openEdit(enquiry) {
+    console.log(enquiry);
     // TODO: Implement edit when backend is ready
     setEditId(sid(enquiry));
     setHeader({
       ...enquiry,
-      customer: sid(enquiry.customer),
+      customer: enquiry.customerId,
       customerName: enquiry.customerName || "",
     });
-    setDetails(enquiry.details || [emptyDetail()]);
+    setDetails(
+      (enquiry.details || []).map(d => ({
+        ...d,
+        _rowId: Math.random()
+      }))
+    );
     setView("form");
+    setHasChanges(false);
   }
 
   function updateDetail(idx, field, val) {
@@ -203,11 +219,16 @@ export default function Enquiry() {
   }
 
   function addRow() {
+    setHasChanges(true);
     setDetails(prev => [...prev, { ...emptyDetail(), _rowId: Math.random() }]);
   }
 
   function removeRow(idx) {
+    setHasChanges(true);
     setDetails(prev => prev.filter((_, i) => i !== idx));
+    if (details.length === 1) {
+      setDetails([emptyDetail()]);
+    }
   }
 
   const handleSave = useCallback(async () => {
@@ -215,7 +236,7 @@ export default function Enquiry() {
     if (!header.customer) return setFormError("Customer is required");
 
     for (const row of details) {
-      if (!row.colour.trim()) return setFormError("Colour is required");
+      if (!row.colour?.trim()) return setFormError("Colour is required");
       if (!row.counts.trim()) return setFormError("Counts is required");
       if (!row.yarnType.trim()) return setFormError("Yarn Type is required");
       if (Number(row.enqQty) <= 0) return setFormError("Enquiry Quantity is required");
@@ -244,13 +265,14 @@ export default function Enquiry() {
 
     try {
       // TODO: Replace with actual API call when backend is ready
-      // if (editId) {
-      //   await enquiryApi.update(editId, payload);
-      // } else {
-      //   await enquiryApi.create(payload);
-      // }
+      if (editId) {
+        await enquiryApi.update(editId, payload);
+      } else {
+        await enquiryApi.create(payload);
+      }
       console.log("Saving enquiry:", payload);
       await loadEnquiries();
+      setHasChanges(false);
       setSaveSuccessModal(true);
       setTimeout(() => {
         setSaveSuccessModal(false);
@@ -283,7 +305,7 @@ export default function Enquiry() {
     if (!window.confirm("Delete this enquiry?")) return;
     try {
       // TODO: Replace with actual API call when backend is ready
-      // await enquiryApi.remove(id);
+      await enquiryApi.remove(id);
       await loadEnquiries();
     } catch (err) {
       alert(err.message);
@@ -297,7 +319,7 @@ export default function Enquiry() {
 
   // ─── Tab Index Calculation ───────────────────────────────────────────────────
   const getTabIndex = (rowIndex, fieldOffset, totalRows) => {
-    const headerFieldsCount = 6; // tabs 1-6 for header
+    const headerFieldsCount = 5; // tabs 1-6 for header
     const fieldsPerRow = 5; // Colour, Counts, Yarn Type, Enq Qty, Ex.shade No
     const rowStartTab = headerFieldsCount + (rowIndex * fieldsPerRow) + 1;
     return rowStartTab + fieldOffset;
@@ -320,6 +342,57 @@ export default function Enquiry() {
   const viewListTabIndex = getViewListTabIndex(totalRows);
   const saveTabIndex = getSaveTabIndex(totalRows);
 
+  const moveFocus = (currentTab, direction) => {
+    const fields = [...document.querySelectorAll("[tabindex]")]
+      .filter(el => el.tabIndex > 0 && !el.disabled)
+      .sort((a, b) => a.tabIndex - b.tabIndex);
+
+    const current = fields.findIndex(el => el.tabIndex === currentTab);
+
+    if (current === -1) return;
+
+    let next = current;
+
+    if (direction === "next") next++;
+    if (direction === "prev") next--;
+
+    if (direction === "down") next += 5;
+    if (direction === "up") next -= 5;
+
+    if (next >= 0 && next < fields.length) {
+      fields[next].focus();
+    }
+  };
+  const handleFieldNavigation = (e) => {
+    const tab = e.target.tabIndex;
+
+    switch (e.key) {
+
+      case "Enter":
+      case "ArrowRight":
+        e.preventDefault();
+        moveFocus(tab, "next");
+        break;
+
+      case "ArrowLeft":
+        e.preventDefault();
+        moveFocus(tab, "prev");
+        break;
+
+      case "ArrowDown":
+        e.preventDefault();
+        moveFocus(tab, "down");
+        break;
+
+      case "ArrowUp":
+        e.preventDefault();
+        moveFocus(tab, "up");
+        break;
+
+      default:
+        break;
+    }
+  };
   // Focus on new row's Colour field when a row is added
   useEffect(() => {
     if (prevDetailsLengthRef.current === undefined) {
@@ -461,7 +534,7 @@ export default function Enquiry() {
       <div className="inv-page-header">
         <div>
           <h1 className="inv-page-title">{editId ? "Edit Enquiry" : "New Enquiry"}</h1>
-          <p className="inv-page-sub">Customer enquiry management</p>
+
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button
@@ -509,7 +582,10 @@ export default function Enquiry() {
                   tabIndex={1}
                   type="date"
                   value={header.date}
-                  onChange={e => setHeader(h => ({ ...h, date: e.target.value }))}
+                  onChange={e => {
+                    setHeader(h => ({ ...h, date: e.target.value }));
+                    setHasChanges(true);
+                  }}
                 />
               </Field>
 
@@ -525,6 +601,7 @@ export default function Enquiry() {
                       customer: val,
                       customerName: supplier?.name || supplier?.supplierName || ""
                     }));
+                    setHasChanges(true);
                   }}
                   options={suppliers.map(s => ({
                     value: sid(s),
@@ -540,8 +617,12 @@ export default function Enquiry() {
                   className="inv-input"
                   tabIndex={3}
                   value={header.enqRefNo}
-                  onChange={e => setHeader(h => ({ ...h, enqRefNo: e.target.value }))}
+                  onChange={e => {
+                    setHeader(h => ({ ...h, enqRefNo: e.target.value }));
+                    setHasChanges(true);
+                  }}
                   placeholder="Reference number"
+
                 />
               </Field>
 
@@ -551,7 +632,11 @@ export default function Enquiry() {
                   tabIndex={4}
                   type="date"
                   value={header.refDate}
-                  onChange={e => setHeader(h => ({ ...h, refDate: e.target.value }))}
+                  onChange={e => {
+                    setHeader(h => ({ ...h, refDate: e.target.value }));
+                    setHasChanges(true);
+                  }}
+
                 />
               </Field>
 
@@ -560,8 +645,12 @@ export default function Enquiry() {
                   className="inv-input"
                   tabIndex={5}
                   value={header.styleRefNo}
-                  onChange={e => setHeader(h => ({ ...h, styleRefNo: e.target.value }))}
+                  onChange={e => {
+                    setHeader(h => ({ ...h, styleRefNo: e.target.value }));
+                    setHasChanges(true);
+                  }}
                   placeholder="Style reference"
+
                 />
               </Field>
             </FormGrid>
@@ -604,13 +693,17 @@ export default function Enquiry() {
                         <SearchSelect
                           tabIndex={getTabIndex(idx, 0, totalRows)}
                           value={row.colour}
-                          onChange={(val) => updateDetail(idx, "colour", val)}
+                          onChange={(val) => {
+                            updateDetail(idx, "colour", val);
+                            setHasChanges(true);
+                          }}
                           options={colors.map(c => ({
                             value: c.name,
                             label: c.name
                           }))}
                           placeholder="Select Colour"
                           menuPortalTarget={document.body}
+                          onKeyDown={handleFieldNavigation}
                         />
                       </td>
 
@@ -618,13 +711,17 @@ export default function Enquiry() {
                         <SearchSelect
                           tabIndex={getTabIndex(idx, 1, totalRows)}
                           value={row.counts}
-                          onChange={(val) => updateDetail(idx, "counts", val)}
+                          onChange={(val) => {
+                            updateDetail(idx, "counts", val);
+                            setHasChanges(true);
+                          }}
                           options={counts.map(c => ({
                             value: c.name,
                             label: c.name
                           }))}
                           placeholder="Select Counts"
                           menuPortalTarget={document.body}
+                          onKeyDown={handleFieldNavigation}
                         />
                       </td>
 
@@ -632,13 +729,17 @@ export default function Enquiry() {
                         <SearchSelect
                           tabIndex={getTabIndex(idx, 2, totalRows)}
                           value={row.yarnType}
-                          onChange={(val) => updateDetail(idx, "yarnType", val)}
+                          onChange={(val) => {
+                            updateDetail(idx, "yarnType", val);
+                            setHasChanges(true);
+                          }}
                           options={yarnTypes.map(y => ({
                             value: y.name,
                             label: y.name
                           }))}
                           placeholder="Select Yarn Type"
                           menuPortalTarget={document.body}
+                          onKeyDown={handleFieldNavigation}
                         />
                       </td>
 
@@ -649,9 +750,13 @@ export default function Enquiry() {
                           step="1.00"
                           tabIndex={getTabIndex(idx, 3, totalRows)}
                           value={row.enqQty}
-                          onChange={e => updateDetail(idx, "enqQty", e.target.value)}
+                          onChange={e => {
+                            updateDetail(idx, "enqQty", e.target.value);
+                            setHasChanges(true);
+                          }}
                           onBlur={e => updateDetail(idx, "enqQty", Number(e.target.value || 0).toFixed(3))}
                           style={{ textAlign: "right", fontWeight: 600, color: "#3b6ef8" }}
+                          onKeyDown={handleFieldNavigation}
                         />
                       </td>
 
@@ -660,8 +765,12 @@ export default function Enquiry() {
                           className="inv-input-cell"
                           tabIndex={getTabIndex(idx, 4, totalRows)}
                           value={row.exShadeNo}
-                          onChange={e => updateDetail(idx, "exShadeNo", e.target.value)}
+                          onChange={e => {
+                            updateDetail(idx, "exShadeNo", e.target.value);
+                            setHasChanges(true);
+                          }}
                           placeholder="Shade No"
+                          onKeyDown={handleFieldNavigation}
                         />
                       </td>
 
@@ -671,6 +780,7 @@ export default function Enquiry() {
                           onClick={() => removeRow(idx)}
                           style={{ border: "none", background: "transparent", cursor: "pointer", color: "#ef4444", padding: "4px" }}
                           tabIndex={getTabIndex(idx, 5, totalRows)}
+                          onKeyDown={handleFieldNavigation}
                         >
                           ✕
                         </button>
@@ -686,18 +796,18 @@ export default function Enquiry() {
         {/* Summary Card */}
         <div className="inv-card">
           <div className="inv-card-body">
-            <div style={{ display: "flex", gap: 40, padding: "10px 20px", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", gap: 10, padding: "5px 14px", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontSize: 11, color: "#64748b" }}>Total Line Items</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#1e293b" }}>{details.filter(d => d.colour.trim()).length}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b" }}>{details.filter(d => d.colour.trim()).length}</div>
               </div>
               <div>
                 <div style={{ fontSize: 11, color: "#64748b" }}>Total Enquiry Qty</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(totalQty)}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#3b6ef8" }}>{fmtQty(totalQty)}</div>
               </div>
             </div>
 
-            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
+            <div style={{ marginTop: 6, padding: 10, borderTop: "1px solid #f1f5f9" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
                 <div className="inv-field-v">
                   <label className="inv-label" style={{ marginBottom: 8, display: "block" }}>Prepared By</label>
