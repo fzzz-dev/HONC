@@ -47,7 +47,8 @@ const ProductionProcess = require("./productionMasters/Process");
 // ========== ProductionTransactions ===========
 const Enquiry = require("./ProductionTransactions/enquiry");
 const EnquiryDetail = require("./ProductionTransactions/enquiryDetail");
-
+const Quotation = require("./ProductionTransactions/quotation");
+const QuotationDetail = require("./ProductionTransactions/quotationDetail");
 // ========== Associations ==========
 
 // Location Associations
@@ -98,6 +99,8 @@ HrDepartment.hasMany(HrDesignation, { foreignKey: "department_id", as: "designat
 // =============ProductionTransactions Associations ================
 Enquiry.hasMany(EnquiryDetail, { foreignKey: "enquiryId", as: "details", onDelete: "CASCADE" });
 EnquiryDetail.belongsTo(Enquiry, { foreignKey: "enquiryId" });
+Quotation.hasMany(QuotationDetail, { foreignKey: "quotationId", as: "details", onDelete: "CASCADE" });
+QuotationDetail.belongsTo(Quotation, { foreignKey: "quotationId" });
 
 // ========== Exports ==========
 module.exports = {
@@ -146,4 +149,6 @@ module.exports = {
   //ProductionTransactions
   Enquiry,
   EnquiryDetail,
+  Quotation,
+  QuotationDetail
 };
