@@ -4,6 +4,7 @@ import { supplierApi } from "../../services/inventoryApi";
 import { productionApi } from "../../services/productionApi";
 import Modal from "../../components/Modal";
 import { SearchSelect } from "../../components/FormFields";
+import { quotationApi } from "../../services/transactionApi";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -155,9 +156,9 @@ export default function Quotation() {
     setLoadingList(true);
     try {
       // TODO: Replace with actual API call when backend is ready
-      // const data = await quotationApi.getAll();
-      // setQuotations(data);
-      setQuotations([]);
+      const data = await quotationApi.getAll();
+      setQuotations(data);
+
     } catch (e) {
       setListError(e.message);
     } finally {
@@ -166,10 +167,12 @@ export default function Quotation() {
   }
 
   async function openNew() {
+    const next = await quotationApi.getNextNumber();
+    
     setHeader({
       ...emptyHeader(),
       preparedBy: user?.name || "Admin",
-      docId: "QUOT-" + String(Date.now()).slice(-6)
+      docId: next.docId
     });
     setDetails([emptyDetail()]);
     setEditId(null);
@@ -240,12 +243,11 @@ export default function Quotation() {
 
     try {
       // TODO: Replace with actual API call when backend is ready
-      // if (editId) {
-      //   await quotationApi.update(editId, payload);
-      // } else {
-      //   await quotationApi.create(payload);
-      // }
-      console.log("Saving quotation:", payload);
+      if (editId) {
+        await quotationApi.update(editId, payload);
+      } else {
+        await quotationApi.create(payload);
+      }
       await loadQuotations();
       setSaveSuccessModal(true);
       setTimeout(() => {
@@ -277,7 +279,7 @@ export default function Quotation() {
     if (!window.confirm("Delete this quotation?")) return;
     try {
       // TODO: Replace with actual API call when backend is ready
-      // await quotationApi.remove(id);
+      await quotationApi.remove(id);
       await loadQuotations();
     } catch (err) {
       alert(err.message);

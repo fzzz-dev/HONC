@@ -80,6 +80,37 @@ export const enquiryApi = {
 };
 
 //
+// QUOTATION API
+//
+export const quotationApi = {
+  getAll: (params = {}) =>
+    request(`/quotation${qs(params)}`),
+
+  getOne: (id) =>
+    request(`/quotation/${id}`),
+
+  getNextNumber: () =>
+    request(`/quotation/next-number`),
+
+  create: (body) =>
+    request(`/quotation`, {
+      method: "POST",
+      body: j(body),
+    }),
+
+  update: (id, body) =>
+    request(`/quotation/${id}`, {
+      method: "PUT",
+      body: j(body),
+    }),
+
+  remove: (id) =>
+    request(`/quotation/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+//
 // SALES ORDER API
 //
 export const salesOrderApi = {
@@ -146,6 +177,7 @@ export const yarnInwardApi = {
 //
 export const transactionApi = {
   enquiry: enquiryApi,
+  quotation: quotationApi,
   salesOrder: salesOrderApi,
   yarnInward: yarnInwardApi,
 };

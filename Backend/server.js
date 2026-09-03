@@ -174,6 +174,9 @@ async function startServer() {
     await sequelize.authenticate();
 
     await ensureSchemaEnhancements();
+
+    require("./model");
+    
     await sequelize.sync();
 
 
@@ -226,8 +229,8 @@ async function startServer() {
 
     // ========= Production Tranactions Routes ===========
     app.use("/api/enquiries", require("./routes/ProductionTransactions/enquiryRoutes"));
-
-    console.log("Enquiry route registered");
+    app.use("/api/quotation", require("./routes/ProductionTransactions/quotationRoutes"));
+    
 
 
     // Test routes
@@ -239,11 +242,7 @@ async function startServer() {
       res.json({ status: "OK", message: "Server is running (SQL Mode)" });
     });
 
-    app.get('/api/enquiries', (req, res) => {
-      res.json({ message: 'Success' });
-    });
-
-    // Global error handler
+   // Global error handler
     app.use((err, req, res, next) => {
 
       res.status(500).json({
@@ -260,7 +259,6 @@ async function startServer() {
       console.log(`Server running on http://localhost:${PORT}`);
     });
 
-    console.log("After app.listen");
   } catch (err) {
     console.error("SERVER START ERROR:");
     console.error(err);
